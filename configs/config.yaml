@@ -1,0 +1,25 @@
+server:
+  http:
+    addr: 0.0.0.0:8000
+    timeout: 30m
+  grpc:
+    addr: 0.0.0.0:9000
+    timeout: 1s
+data:
+  database:
+    driver: postgres
+    source: host=127.0.0.1 user=bilibili password=bilibili dbname=bilibili_lite port=5432 sslmode=disable TimeZone=Asia/Shanghai
+  redis:
+    addr: 127.0.0.1:6379
+    read_timeout: 0.2s
+    write_timeout: 0.2s
+  media:
+    storage_dir: storage
+    upload_idle_timeout: 30s
+    transcode_timeout: 20m
+    max_upload_bytes: 2147483648
+auth:
+  issuer: bilibili-lite
+  secret: bilibili-lite-local-development-secret-change-me
+  access_ttl: 2h
+  refresh_ttl: 720h

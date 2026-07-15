@@ -1,0 +1,119 @@
+package data
+
+import "time"
+
+type userPO struct {
+	ID           uint64 `gorm:"primaryKey;autoIncrement"`
+	Username     string `gorm:"size:64;not null;uniqueIndex"`
+	PasswordHash string `gorm:"size:100;not null"`
+	DisplayName  string `gorm:"size:100;not null"`
+	AvatarURL    string `gorm:"size:500"`
+	Bio          string `gorm:"size:500"`
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+func (userPO) TableName() string { return "users" }
+
+type videoPO struct {
+	BVID            string `gorm:"column:bvid;primaryKey;size:32;default:('BV' || nextval('video_bvid_seq')::text)"`
+	OwnerID         uint64 `gorm:"not null;index"`
+	Owner           userPO `gorm:"foreignKey:OwnerID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
+	Title           string `gorm:"size:200;not null"`
+	Description     string `gorm:"type:text"`
+	CoverURL        string `gorm:"size:500"`
+	DurationSeconds int64  `gorm:"not null;default:0"`
+	ViewCount       int64  `gorm:"not null;default:0"`
+	DanmakuCount    int64  `gorm:"not null;default:0"`
+	LikeCount       int64  `gorm:"not null;default:0"`
+	CoinCount       int64  `gorm:"not null;default:0"`
+	FavoriteCount   int64  `gorm:"not null;default:0"`
+	ShareCount      int64  `gorm:"not null;default:0"`
+	PublishTime     time.Time
+	Tags            []string `gorm:"serializer:json;type:jsonb"`
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+func (videoPO) TableName() string { return "videos" }
+
+type videoStreamPO struct {
+	ID            uint64  `gorm:"primaryKey;autoIncrement"`
+	VideoBVID     string  `gorm:"column:video_bvid;size:32;not null;index;uniqueIndex:idx_video_stream"`
+	Video         videoPO `gorm:"foreignKey:VideoBVID;references:BVID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	StreamKey     string  `gorm:"size:64;not null;uniqueIndex:idx_video_stream"`
+	Label         string  `gorm:"size:32;not null"`
+	Codec         string  `gorm:"size:64;not null"`
+	MimeType      string  `gorm:"size:100;not null"`
+	URL           string  `gorm:"size:1000;not null"`
+	Width         int32
+	Height        int32
+	Bandwidth     int32
+	DefaultStream bool `gorm:"not null;default:false"`
+	CreatedAt     time.Time
+}
+
+func (videoStreamPO) TableName() string { return "video_streams" }
+
+type danmakuPO struct {
+	ID          uint64  `gorm:"primaryKey;autoIncrement"`
+	VideoBVID   string  `gorm:"column:video_bvid;size:32;not null;index"`
+	Video       videoPO `gorm:"foreignKey:VideoBVID;references:BVID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	UserID      *uint64 `gorm:"index"`
+	User        *userPO `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
+	TimeSeconds float64 `gorm:"not null"`
+	Text        string  `gorm:"size:500;not null"`
+	Color       string  `gorm:"size:16;not null;default:#ffffff"`
+	CreatedAt   time.Time
+}
+
+func (danmakuPO) TableName() string { return "danmakus" }
+
+type videoLikePO struct {
+	ID        uint64  `gorm:"primaryKey;autoIncrement"`
+	UserID    uint64  `gorm:"not null;uniqueIndex:idx_user_video_like"`
+	User      userPO  `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	VideoBVID string  `gorm:"column:video_bvid;size:32;not null;uniqueIndex:idx_user_video_like;index"`
+	Video     videoPO `gorm:"foreignKey:VideoBVID;references:BVID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	Active    bool    `gorm:"not null;default:true"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (videoLikePO) TableName() string { return "user_video_likes" }
+
+type videoFavoritePO struct {
+	ID        uint64  `gorm:"primaryKey;autoIncrement"`
+	UserID    uint64  `gorm:"not null;uniqueIndex:idx_user_video_favorite"`
+	User      userPO  `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	VideoBVID string  `gorm:"column:video_bvid;size:32;not null;uniqueIndex:idx_user_video_favorite;index"`
+	Video     videoPO `gorm:"foreignKey:VideoBVID;references:BVID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	Active    bool    `gorm:"not null;default:true"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (videoFavoritePO) TableName() string { return "user_video_favorites" }
+
+type videoCoinPO struct {
+	ID        uint64  `gorm:"primaryKey;autoIncrement"`
+	UserID    uint64  `gorm:"not null;index"`
+	User      userPO  `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	VideoBVID string  `gorm:"column:video_bvid;size:32;not null;index"`
+	Video     videoPO `gorm:"foreignKey:VideoBVID;references:BVID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	Amount    int32   `gorm:"not null;check:amount > 0"`
+	CreatedAt time.Time
+}
+
+func (videoCoinPO) TableName() string { return "user_video_coins" }
+
+type videoSharePO struct {
+	ID        uint64  `gorm:"primaryKey;autoIncrement"`
+	UserID    uint64  `gorm:"not null;index"`
+	User      userPO  `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	VideoBVID string  `gorm:"column:video_bvid;size:32;not null;index"`
+	Video     videoPO `gorm:"foreignKey:VideoBVID;references:BVID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	CreatedAt time.Time
+}
+
+func (videoSharePO) TableName() string { return "user_video_shares" }

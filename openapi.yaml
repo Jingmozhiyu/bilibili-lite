@@ -1,0 +1,213 @@
+# Generated with protoc-gen-openapi
+# https://github.com/google/gnostic/tree/master/cmd/protoc-gen-openapi
+
+openapi: 3.0.3
+info:
+    title: ""
+    version: 0.0.1
+paths:
+    /api/v1/auth/login:
+        post:
+            tags:
+                - UserService
+            operationId: UserService_Login
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/user.v1.LoginRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/user.v1.LoginReply'
+    /api/v1/auth/logout:
+        post:
+            tags:
+                - UserService
+            operationId: UserService_Logout
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/user.v1.LogoutRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content: {}
+    /api/v1/videos/{bvid}:
+        get:
+            tags:
+                - VideoService
+            operationId: VideoService_GetVideo
+            parameters:
+                - name: bvid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/video.v1.Video'
+    /api/v1/videos/{bvid}/play:
+        get:
+            tags:
+                - VideoService
+            operationId: VideoService_GetVideoPlay
+            parameters:
+                - name: bvid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/video.v1.VideoPlay'
+components:
+    schemas:
+        user.v1.LoginReply:
+            type: object
+            properties:
+                accessToken:
+                    type: string
+                expiresAt:
+                    type: string
+                    format: date-time
+                user:
+                    $ref: '#/components/schemas/user.v1.User'
+        user.v1.LoginRequest:
+            required:
+                - username
+                - password
+            type: object
+            properties:
+                username:
+                    type: string
+                password:
+                    type: string
+        user.v1.LogoutRequest:
+            type: object
+            properties:
+                accessToken:
+                    type: string
+                    description: Used by gRPC clients and as an HTTP fallback when no Bearer header is set.
+        user.v1.User:
+            type: object
+            properties:
+                id:
+                    type: string
+                username:
+                    type: string
+                displayName:
+                    type: string
+                avatarUrl:
+                    type: string
+                bio:
+                    type: string
+        video.v1.DanmakuConfig:
+            type: object
+            properties:
+                enabled:
+                    type: boolean
+                format:
+                    type: string
+                items:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/video.v1.DanmakuItem'
+        video.v1.DanmakuItem:
+            type: object
+            properties:
+                timeSeconds:
+                    type: number
+                    format: double
+                text:
+                    type: string
+                color:
+                    type: string
+        video.v1.Video:
+            type: object
+            properties:
+                bvid:
+                    type: string
+                title:
+                    type: string
+                description:
+                    type: string
+                ownerName:
+                    type: string
+                ownerAvatarUrl:
+                    type: string
+                coverUrl:
+                    type: string
+                durationSeconds:
+                    type: string
+                viewCount:
+                    type: string
+                danmakuCount:
+                    type: string
+                likeCount:
+                    type: string
+                coinCount:
+                    type: string
+                favoriteCount:
+                    type: string
+                shareCount:
+                    type: string
+                publishTime:
+                    type: string
+                    format: date-time
+                tags:
+                    type: array
+                    items:
+                        type: string
+        video.v1.VideoPlay:
+            type: object
+            properties:
+                bvid:
+                    type: string
+                streams:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/video.v1.VideoStream'
+                danmaku:
+                    $ref: '#/components/schemas/video.v1.DanmakuConfig'
+        video.v1.VideoStream:
+            type: object
+            properties:
+                id:
+                    type: string
+                label:
+                    type: string
+                codec:
+                    type: string
+                mimeType:
+                    type: string
+                url:
+                    type: string
+                width:
+                    type: integer
+                    format: int32
+                height:
+                    type: integer
+                    format: int32
+                bandwidth:
+                    type: integer
+                    format: int32
+                defaultStream:
+                    type: boolean
+tags:
+    - name: UserService
+    - name: VideoService

@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package video.v1;
+
+option go_package = "bilibili-lite/api/video/v1;v1";
+option java_multiple_files = true;
+option java_package = "video.v1";
+option objc_class_prefix = "APIVideoV1";
+
+enum ErrorReason {
+  VIDEO_UNSPECIFIED = 0;
+  VIDEO_NOT_FOUND = 1;
+  VIDEO_INVALID_ARGUMENT = 2;
+}
