@@ -23,6 +23,24 @@ service VideoService {
       get: "/api/v1/videos/{bvid}/play"
     };
   }
+
+  rpc GetVideoLike(GetVideoLikeRequest) returns (VideoLike) {
+    option (google.api.http) = {
+      get: "/api/v1/videos/{bvid}/like"
+    };
+  }
+
+  rpc LikeVideo(LikeVideoRequest) returns (VideoLike) {
+    option (google.api.http) = {
+      post: "/api/v1/videos/{bvid}/like"
+    };
+  }
+
+  rpc UnlikeVideo(UnlikeVideoRequest) returns (VideoLike) {
+    option (google.api.http) = {
+      delete: "/api/v1/videos/{bvid}/like"
+    };
+  }
 }
 
 message Video {
@@ -79,4 +97,22 @@ message GetVideoRequest {
 
 message GetVideoPlayRequest {
   string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message GetVideoLikeRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message LikeVideoRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message UnlikeVideoRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message VideoLike {
+  string bvid = 1;
+  bool liked = 2;
+  int64 like_count = 3;
 }

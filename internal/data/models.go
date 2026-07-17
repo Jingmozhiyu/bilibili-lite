@@ -16,7 +16,7 @@ type userPO struct {
 func (userPO) TableName() string { return "users" }
 
 type videoPO struct {
-	BVID            string `gorm:"column:bvid;primaryKey;size:32;default:('BV' || nextval('video_bvid_seq')::text)"`
+	ID              uint64 `gorm:"primaryKey;autoIncrement"`
 	OwnerID         uint64 `gorm:"not null;index"`
 	Owner           userPO `gorm:"foreignKey:OwnerID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
 	Title           string `gorm:"size:200;not null"`
@@ -39,8 +39,8 @@ func (videoPO) TableName() string { return "videos" }
 
 type videoStreamPO struct {
 	ID            uint64  `gorm:"primaryKey;autoIncrement"`
-	VideoBVID     string  `gorm:"column:video_bvid;size:32;not null;index;uniqueIndex:idx_video_stream"`
-	Video         videoPO `gorm:"foreignKey:VideoBVID;references:BVID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	VideoID       uint64  `gorm:"not null;index;uniqueIndex:idx_video_stream"`
+	Video         videoPO `gorm:"foreignKey:VideoID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	StreamKey     string  `gorm:"size:64;not null;uniqueIndex:idx_video_stream"`
 	Label         string  `gorm:"size:32;not null"`
 	Codec         string  `gorm:"size:64;not null"`
@@ -57,8 +57,8 @@ func (videoStreamPO) TableName() string { return "video_streams" }
 
 type danmakuPO struct {
 	ID          uint64  `gorm:"primaryKey;autoIncrement"`
-	VideoBVID   string  `gorm:"column:video_bvid;size:32;not null;index"`
-	Video       videoPO `gorm:"foreignKey:VideoBVID;references:BVID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	VideoID     uint64  `gorm:"not null;index"`
+	Video       videoPO `gorm:"foreignKey:VideoID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	UserID      *uint64 `gorm:"index"`
 	User        *userPO `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
 	TimeSeconds float64 `gorm:"not null"`
@@ -73,8 +73,8 @@ type videoLikePO struct {
 	ID        uint64  `gorm:"primaryKey;autoIncrement"`
 	UserID    uint64  `gorm:"not null;uniqueIndex:idx_user_video_like"`
 	User      userPO  `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-	VideoBVID string  `gorm:"column:video_bvid;size:32;not null;uniqueIndex:idx_user_video_like;index"`
-	Video     videoPO `gorm:"foreignKey:VideoBVID;references:BVID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	VideoID   uint64  `gorm:"not null;uniqueIndex:idx_user_video_like;index"`
+	Video     videoPO `gorm:"foreignKey:VideoID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	Active    bool    `gorm:"not null;default:true"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -86,8 +86,8 @@ type videoFavoritePO struct {
 	ID        uint64  `gorm:"primaryKey;autoIncrement"`
 	UserID    uint64  `gorm:"not null;uniqueIndex:idx_user_video_favorite"`
 	User      userPO  `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-	VideoBVID string  `gorm:"column:video_bvid;size:32;not null;uniqueIndex:idx_user_video_favorite;index"`
-	Video     videoPO `gorm:"foreignKey:VideoBVID;references:BVID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	VideoID   uint64  `gorm:"not null;uniqueIndex:idx_user_video_favorite;index"`
+	Video     videoPO `gorm:"foreignKey:VideoID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	Active    bool    `gorm:"not null;default:true"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -99,8 +99,8 @@ type videoCoinPO struct {
 	ID        uint64  `gorm:"primaryKey;autoIncrement"`
 	UserID    uint64  `gorm:"not null;index"`
 	User      userPO  `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-	VideoBVID string  `gorm:"column:video_bvid;size:32;not null;index"`
-	Video     videoPO `gorm:"foreignKey:VideoBVID;references:BVID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	VideoID   uint64  `gorm:"not null;index"`
+	Video     videoPO `gorm:"foreignKey:VideoID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	Amount    int32   `gorm:"not null;check:amount > 0"`
 	CreatedAt time.Time
 }
@@ -111,8 +111,8 @@ type videoSharePO struct {
 	ID        uint64  `gorm:"primaryKey;autoIncrement"`
 	UserID    uint64  `gorm:"not null;index"`
 	User      userPO  `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-	VideoBVID string  `gorm:"column:video_bvid;size:32;not null;index"`
-	Video     videoPO `gorm:"foreignKey:VideoBVID;references:BVID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	VideoID   uint64  `gorm:"not null;index"`
+	Video     videoPO `gorm:"foreignKey:VideoID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	CreatedAt time.Time
 }
 

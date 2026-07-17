@@ -8,6 +8,7 @@ package main
 import (
 	"log/slog"
 
+	"bilibili-lite/internal/auth"
 	"bilibili-lite/internal/biz"
 	"bilibili-lite/internal/conf"
 	"bilibili-lite/internal/data"
@@ -18,7 +19,7 @@ import (
 	"github.com/google/wire"
 )
 
-// wireApp init kratos application.
-func wireApp(*conf.Server, *conf.Data, *slog.Logger) (*kratos.App, func(), error) {
-	panic(wire.Build(server.ProviderSet, data.ProviderSet, biz.ProviderSet, service.ProviderSet, newApp))
+// wireApp assembles the application and its cleanup function.
+func wireApp(*conf.Server, *conf.Data, *conf.Auth, *slog.Logger) (*kratos.App, func(), error) {
+	panic(wire.Build(server.ProviderSet, data.ProviderSet, biz.ProviderSet, auth.ProviderSet, service.ProviderSet, newApp))
 }

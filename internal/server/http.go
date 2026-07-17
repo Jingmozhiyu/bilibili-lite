@@ -2,8 +2,8 @@ package server
 
 import (
 	"net/http"
-	"os"
 	"path/filepath"
+	"strings"
 
 	userV1 "bilibili-lite/api/user/v1"
 	videoV1 "bilibili-lite/api/video/v1"
@@ -12,15 +12,15 @@ import (
 
 	"github.com/go-kratos/kratos/v3/middleware/recovery"
 	"github.com/go-kratos/kratos/v3/middleware/validate"
-	kratosHttp "github.com/go-kratos/kratos/v3/transport/http"
+	kratosHTTP "github.com/go-kratos/kratos/v3/transport/http"
 	"go.einride.tech/aip/fieldbehavior"
 	"google.golang.org/protobuf/proto"
 )
 
-// NewHTTPServer new an HTTP server.
-func NewHTTPServer(c *conf.Server, video *service.VideoService, user *service.UserService) *kratosHttp.Server {
-	var opts = []kratosHttp.ServerOption{
-		kratosHttp.Middleware(
+// NewHTTPServer creates and registers the HTTP transport.
+func NewHTTPServer(serverConfig *conf.Server, dataConfig *conf.Data, videoService *service.VideoService, videoUploadHandler *service.VideoUploadHTTPHandler, userService *service.UserService) *kratosHTTP.Server {
+	opts := []kratosHTTP.ServerOption{
+		kratosHTTP.Middleware(
 			recovery.Recovery(),
 			validate.Validator(func(req any) error {
 				if msg, ok := req.(proto.Message); ok {
@@ -32,31 +32,39 @@ func NewHTTPServer(c *conf.Server, video *service.VideoService, user *service.Us
 			}),
 		),
 	}
-	if c.Http.Network != "" {
-		opts = append(opts, kratosHttp.Network(c.Http.Network))
+	if serverConfig.Http.Network != "" {
+		opts = append(opts, kratosHTTP.Network(serverConfig.Http.Network))
 	}
-	if c.Http.Addr != "" {
-		opts = append(opts, kratosHttp.Address(c.Http.Addr))
+	if serverConfig.Http.Addr != "" {
+		opts = append(opts, kratosHTTP.Address(serverConfig.Http.Addr))
 	}
-	if c.Http.Timeout != nil {
-		opts = append(opts, kratosHttp.Timeout(c.Http.Timeout.AsDuration()))
+	if serverConfig.Http.Timeout != nil {
+		opts = append(opts, kratosHTTP.Timeout(serverConfig.Http.Timeout.AsDuration()))
 	}
-	srv := kratosHttp.NewServer(opts...)
-	videoV1.RegisterVideoServiceHTTPServer(srv, video)
-	userV1.RegisterUserServiceHTTPServer(srv, user)
-	srv.HandlePrefix("/media/videos/", http.StripPrefix("/media/videos/", http.FileServer(http.Dir(videoMediaDir()))))
+	srv := kratosHTTP.NewServer(opts...)
+	videoV1.RegisterVideoServiceHTTPServer(srv, videoService)
+	userV1.RegisterUserServiceHTTPServer(srv, userService)
+	srv.Handle("/api/v1/videos/upload", videoUploadHandler)
+	mediaRoot := dataConfig.GetMedia().GetStorageDir()
+	if absolute, err := filepath.Abs(mediaRoot); err == nil {
+		mediaRoot = absolute
+	}
+	srv.HandlePrefix("/media/dash/", http.StripPrefix("/media/dash/", dashFileServer(filepath.Join(mediaRoot, "dash"))))
 	return srv
 }
 
-func videoMediaDir() string {
-	for _, dir := range []string{
-		"storage/videos",
-		filepath.Join("..", "storage", "videos"),
-		filepath.Join("..", "..", "storage", "videos"),
-	} {
-		if info, err := os.Stat(dir); err == nil && info.IsDir() {
-			return dir
+// dashFileServer serves MPD and media segments with content types understood by DASH clients.
+func dashFileServer(root string) http.Handler {
+	files := http.FileServer(http.Dir(root))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, ".mpd"):
+			w.Header().Set("Content-Type", "application/dash+xml")
+		case strings.Contains(filepath.Base(r.URL.Path), "stream1"):
+			w.Header().Set("Content-Type", "audio/iso.segment")
+		case strings.HasSuffix(r.URL.Path, ".m4s"):
+			w.Header().Set("Content-Type", "video/iso.segment")
 		}
-	}
-	return "storage/videos"
+		files.ServeHTTP(w, r)
+	})
 }

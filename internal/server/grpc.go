@@ -10,24 +10,24 @@ import (
 	"github.com/go-kratos/kratos/v3/transport/grpc"
 )
 
-// NewGRPCServer new a gRPC server.
-func NewGRPCServer(c *conf.Server, video *service.VideoService, user *service.UserService) *grpc.Server {
-	var opts = []grpc.ServerOption{
+// NewGRPCServer creates and registers the gRPC transport.
+func NewGRPCServer(serverConfig *conf.Server, videoService *service.VideoService, userService *service.UserService) *grpc.Server {
+	opts := []grpc.ServerOption{
 		grpc.Middleware(
 			recovery.Recovery(),
 		),
 	}
-	if c.Grpc.Network != "" {
-		opts = append(opts, grpc.Network(c.Grpc.Network))
+	if serverConfig.Grpc.Network != "" {
+		opts = append(opts, grpc.Network(serverConfig.Grpc.Network))
 	}
-	if c.Grpc.Addr != "" {
-		opts = append(opts, grpc.Address(c.Grpc.Addr))
+	if serverConfig.Grpc.Addr != "" {
+		opts = append(opts, grpc.Address(serverConfig.Grpc.Addr))
 	}
-	if c.Grpc.Timeout != nil {
-		opts = append(opts, grpc.Timeout(c.Grpc.Timeout.AsDuration()))
+	if serverConfig.Grpc.Timeout != nil {
+		opts = append(opts, grpc.Timeout(serverConfig.Grpc.Timeout.AsDuration()))
 	}
 	srv := grpc.NewServer(opts...)
-	videoV1.RegisterVideoServiceServer(srv, video)
-	userV1.RegisterUserServiceServer(srv, user)
+	videoV1.RegisterVideoServiceServer(srv, videoService)
+	userV1.RegisterUserServiceServer(srv, userService)
 	return srv
 }

@@ -25,6 +25,13 @@ service UserService {
       body: "*"
     };
   }
+
+  rpc Refresh(RefreshRequest) returns (LoginReply) {
+    option (google.api.http) = {
+      post: "/api/v1/auth/refresh"
+      body: "*"
+    };
+  }
 }
 
 message User {
@@ -44,9 +51,15 @@ message LoginReply {
   string access_token = 1;
   google.protobuf.Timestamp expires_at = 2;
   User user = 3;
+  string refresh_token = 4;
+  google.protobuf.Timestamp refresh_expires_at = 5;
 }
 
 message LogoutRequest {
   // Used by gRPC clients and as an HTTP fallback when no Bearer header is set.
   string access_token = 1;
+}
+
+message RefreshRequest {
+  string refresh_token = 1 [(google.api.field_behavior) = REQUIRED];
 }

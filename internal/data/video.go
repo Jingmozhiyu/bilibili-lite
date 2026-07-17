@@ -7,6 +7,7 @@ import (
 	"bilibili-lite/internal/biz"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type videoRepo struct {
@@ -18,44 +19,112 @@ func NewVideoRepo(data *Data) biz.VideoRepo {
 	return &videoRepo{data: data}
 }
 
-func (r *videoRepo) FindVideoByBVID(ctx context.Context, bvid string) (*biz.Video, error) {
+// FindVideoByID loads video details with their owner and maps the persistence model to the domain model.
+func (r *videoRepo) FindVideoByID(ctx context.Context, videoID biz.VideoID) (*biz.Video, error) {
 	var record videoPO
 	err := r.data.db.WithContext(ctx).
 		Preload("Owner").
-		Where("bvid = ?", bvid).
-		First(&record).Error
+		First(&record, uint64(videoID)).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, biz.ErrVideoNotFound
 	}
 	if err != nil {
 		return nil, biz.ErrVideoStorage
 	}
-	return record.toBizVideo(), nil
+	return toBizVideo(record), nil
 }
 
-func (r *videoRepo) FindVideoPlayByBVID(ctx context.Context, bvid string) (*biz.VideoPlay, error) {
+// FindVideoPlayByID loads every DASH stream and timed danmaku item needed to initialize the player.
+func (r *videoRepo) FindVideoPlayByID(ctx context.Context, videoID biz.VideoID) (*biz.VideoPlay, error) {
+	numericVideoID := uint64(videoID)
 	var record videoPO
-	if err := r.data.db.WithContext(ctx).Where("bvid = ?", bvid).First(&record).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+	if err := r.data.db.WithContext(ctx).First(&record, numericVideoID).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, biz.ErrVideoNotFound
 	} else if err != nil {
 		return nil, biz.ErrVideoStorage
 	}
 
 	var streams []videoStreamPO
-	if err := r.data.db.WithContext(ctx).Where("video_bvid = ?", record.BVID).Order("id ASC").Find(&streams).Error; err != nil {
+	if err := r.data.db.WithContext(ctx).
+		Where("video_id = ? AND mime_type = ?", numericVideoID, "application/dash+xml").
+		Order("id ASC").
+		Find(&streams).Error; err != nil {
 		return nil, biz.ErrVideoStorage
 	}
 	var danmakus []danmakuPO
-	if err := r.data.db.WithContext(ctx).Where("video_bvid = ?", record.BVID).Order("time_seconds ASC").Find(&danmakus).Error; err != nil {
+	if err := r.data.db.WithContext(ctx).Where("video_id = ?", numericVideoID).Order("time_seconds ASC").Find(&danmakus).Error; err != nil {
 		return nil, biz.ErrVideoStorage
 	}
 
 	return toBizVideoPlay(record, streams, danmakus), nil
 }
 
-func (v videoPO) toBizVideo() *biz.Video {
+// FindVideoLike loads both the user's active like record and the video's authoritative like count.
+func (r *videoRepo) FindVideoLike(ctx context.Context, userID uint64, videoID biz.VideoID) (*biz.VideoLike, error) {
+	numericVideoID := uint64(videoID)
+	var video videoPO
+	if err := r.data.db.WithContext(ctx).First(&video, numericVideoID).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, biz.ErrVideoNotFound
+	} else if err != nil {
+		return nil, biz.ErrVideoStorage
+	}
+	var like videoLikePO
+	err := r.data.db.WithContext(ctx).Where("user_id = ? AND video_id = ?", userID, numericVideoID).First(&like).Error
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, biz.ErrVideoStorage
+	}
+	return &biz.VideoLike{VideoID: videoID, Liked: err == nil && like.Active, LikeCount: video.LikeCount}, nil
+}
+
+// SetVideoLike atomically applies an idempotent like state and recounts active likes under a video row lock.
+func (r *videoRepo) SetVideoLike(ctx context.Context, userID uint64, videoID biz.VideoID, liked bool) (*biz.VideoLike, error) {
+	numericVideoID := uint64(videoID)
+	result := &biz.VideoLike{VideoID: videoID, Liked: liked}
+	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var video videoPO
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&video, numericVideoID).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return biz.ErrVideoNotFound
+		}
+		if err != nil {
+			return err
+		}
+
+		var like videoLikePO
+		err = tx.Where("user_id = ? AND video_id = ?", userID, numericVideoID).First(&like).Error
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound) && liked:
+			if err := tx.Create(&videoLikePO{UserID: userID, VideoID: numericVideoID, Active: true}).Error; err != nil {
+				return err
+			}
+		case err != nil && !errors.Is(err, gorm.ErrRecordNotFound):
+			return err
+		case err == nil && like.Active != liked:
+			if err := tx.Model(&like).Update("active", liked).Error; err != nil {
+				return err
+			}
+		}
+
+		if err := tx.Model(&videoLikePO{}).
+			Where("video_id = ? AND active = ?", numericVideoID, true).
+			Count(&result.LikeCount).Error; err != nil {
+			return err
+		}
+		return tx.Model(&video).Update("like_count", result.LikeCount).Error
+	})
+	if err != nil {
+		if errors.Is(err, biz.ErrVideoNotFound) {
+			return nil, biz.ErrVideoNotFound
+		}
+		return nil, biz.ErrVideoStorage
+	}
+	return result, nil
+}
+
+// toBizVideo converts the GORM persistence model into a storage-independent video domain object.
+func toBizVideo(v videoPO) *biz.Video {
 	return &biz.Video{
-		BVID:            v.BVID,
+		ID:              biz.VideoID(v.ID),
 		Title:           v.Title,
 		Description:     v.Description,
 		OwnerName:       v.Owner.DisplayName,
@@ -73,9 +142,10 @@ func (v videoPO) toBizVideo() *biz.Video {
 	}
 }
 
+// toBizVideoPlay combines persisted stream and danmaku records into one playback domain object.
 func toBizVideoPlay(video videoPO, streams []videoStreamPO, danmakus []danmakuPO) *biz.VideoPlay {
 	out := &biz.VideoPlay{
-		BVID:    video.BVID,
+		VideoID: biz.VideoID(video.ID),
 		Streams: make([]biz.VideoStream, 0, len(streams)),
 		Danmaku: biz.DanmakuConfig{
 			Enabled: true,

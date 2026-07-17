@@ -7,6 +7,7 @@
 package main
 
 import (
+	"bilibili-lite/internal/auth"
 	"bilibili-lite/internal/biz"
 	"bilibili-lite/internal/conf"
 	"bilibili-lite/internal/data"
@@ -23,19 +24,25 @@ import (
 // Injectors from wire.go:
 
 // wireApp init kratos application.
-func wireApp(confServer *conf.Server, confData *conf.Data, logger *slog.Logger) (*kratos.App, func(), error) {
+func wireApp(confServer *conf.Server, confData *conf.Data, confAuth *conf.Auth, logger *slog.Logger) (*kratos.App, func(), error) {
 	dataData, cleanup, err := data.NewData(confData)
 	if err != nil {
 		return nil, nil, err
 	}
 	videoRepo := data.NewVideoRepo(dataData)
 	videoUsecase := biz.NewVideoUsecase(videoRepo)
-	videoService := service.NewVideoService(videoUsecase)
 	userRepo := data.NewUserRepo(dataData)
-	userUsecase := biz.NewUserUsecase(userRepo)
+	tokenManager, err := auth.NewJWTManager(confAuth)
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	userUsecase := biz.NewUserUsecase(userRepo, tokenManager)
+	videoService := service.NewVideoService(videoUsecase, userUsecase)
 	userService := service.NewUserService(userUsecase)
 	grpcServer := server.NewGRPCServer(confServer, videoService, userService)
-	httpServer := server.NewHTTPServer(confServer, videoService, userService)
+	videoUploadHTTPHandler := service.NewVideoUploadHTTPHandler(videoUsecase, userUsecase, confData)
+	httpServer := server.NewHTTPServer(confServer, confData, videoService, videoUploadHTTPHandler, userService)
 	app := newApp(logger, grpcServer, httpServer)
 	return app, func() {
 		cleanup()

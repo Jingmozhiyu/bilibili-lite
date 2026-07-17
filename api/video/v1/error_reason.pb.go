@@ -24,9 +24,12 @@ const (
 type ErrorReason int32
 
 const (
-	ErrorReason_VIDEO_UNSPECIFIED      ErrorReason = 0
-	ErrorReason_VIDEO_NOT_FOUND        ErrorReason = 1
-	ErrorReason_VIDEO_INVALID_ARGUMENT ErrorReason = 2
+	ErrorReason_VIDEO_UNSPECIFIED        ErrorReason = 0
+	ErrorReason_VIDEO_NOT_FOUND          ErrorReason = 1
+	ErrorReason_VIDEO_INVALID_ARGUMENT   ErrorReason = 2
+	ErrorReason_VIDEO_PROCESSING_FAILED  ErrorReason = 3
+	ErrorReason_VIDEO_UPLOAD_INTERRUPTED ErrorReason = 4
+	ErrorReason_VIDEO_UPLOAD_TOO_LARGE   ErrorReason = 5
 )
 
 // Enum value maps for ErrorReason.
@@ -35,11 +38,17 @@ var (
 		0: "VIDEO_UNSPECIFIED",
 		1: "VIDEO_NOT_FOUND",
 		2: "VIDEO_INVALID_ARGUMENT",
+		3: "VIDEO_PROCESSING_FAILED",
+		4: "VIDEO_UPLOAD_INTERRUPTED",
+		5: "VIDEO_UPLOAD_TOO_LARGE",
 	}
 	ErrorReason_value = map[string]int32{
-		"VIDEO_UNSPECIFIED":      0,
-		"VIDEO_NOT_FOUND":        1,
-		"VIDEO_INVALID_ARGUMENT": 2,
+		"VIDEO_UNSPECIFIED":        0,
+		"VIDEO_NOT_FOUND":          1,
+		"VIDEO_INVALID_ARGUMENT":   2,
+		"VIDEO_PROCESSING_FAILED":  3,
+		"VIDEO_UPLOAD_INTERRUPTED": 4,
+		"VIDEO_UPLOAD_TOO_LARGE":   5,
 	}
 )
 
@@ -74,11 +83,14 @@ var File_video_v1_error_reason_proto protoreflect.FileDescriptor
 
 const file_video_v1_error_reason_proto_rawDesc = "" +
 	"\n" +
-	"\x1bvideo/v1/error_reason.proto\x12\bvideo.v1*U\n" +
+	"\x1bvideo/v1/error_reason.proto\x12\bvideo.v1*\xac\x01\n" +
 	"\vErrorReason\x12\x15\n" +
 	"\x11VIDEO_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fVIDEO_NOT_FOUND\x10\x01\x12\x1a\n" +
-	"\x16VIDEO_INVALID_ARGUMENT\x10\x02B8\n" +
+	"\x16VIDEO_INVALID_ARGUMENT\x10\x02\x12\x1b\n" +
+	"\x17VIDEO_PROCESSING_FAILED\x10\x03\x12\x1c\n" +
+	"\x18VIDEO_UPLOAD_INTERRUPTED\x10\x04\x12\x1a\n" +
+	"\x16VIDEO_UPLOAD_TOO_LARGE\x10\x05B8\n" +
 	"\bvideo.v1P\x01Z\x1dbilibili-lite/api/video/v1;v1\xa2\x02\n" +
 	"APIVideoV1b\x06proto3"
 

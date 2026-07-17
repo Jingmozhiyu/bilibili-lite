@@ -13,10 +13,12 @@ type userRepo struct {
 	data *Data
 }
 
+// NewUserRepo creates a PostgreSQL-backed UserRepo.
 func NewUserRepo(data *Data) biz.UserRepo {
 	return &userRepo{data: data}
 }
 
+// FindCredentialByUsername loads the password hash and public profile needed by the login usecase.
 func (r *userRepo) FindCredentialByUsername(ctx context.Context, username string) (*biz.UserCredential, error) {
 	var user userPO
 	err := r.data.db.WithContext(ctx).Where("username = ?", username).First(&user).Error
@@ -38,6 +40,7 @@ func (r *userRepo) FindCredentialByUsername(ctx context.Context, username string
 	}, nil
 }
 
+// FindUserByID reloads the current public profile while refreshing an authenticated session.
 func (r *userRepo) FindUserByID(ctx context.Context, id uint64) (*biz.User, error) {
 	var user userPO
 	err := r.data.db.WithContext(ctx).Where("id = ?", id).First(&user).Error

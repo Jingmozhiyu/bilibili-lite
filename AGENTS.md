@@ -97,6 +97,28 @@ design rather than add the import.
 - Construct HTTP/gRPC servers, apply middleware, register services. No
   translation, no business logic.
 
+### Source file organization
+
+Keep handwritten Go files predictable. Unless a file has a stronger local
+reason, arrange declarations in this order:
+
+1. Package constants and variables, including typed errors and Wire provider
+   sets.
+2. Domain, transport-helper, or persistence structs and their closely related
+   value types.
+3. Interfaces owned by the package.
+4. Concrete implementation, usecase, service, or handler structs.
+5. Constructors (`New...`).
+6. Exported business methods, grouped by concern; put reads/queries before
+   state-changing commands when that distinction applies.
+7. Unexported orchestration helpers, converters, parsers, and small utilities.
+
+Methods intrinsic to a value type, such as `VideoID.BVID` or a GORM
+`TableName`, may stay immediately after that type. Keep pipeline steps in
+execution order when that is easier to follow than an artificial alphabetical
+order. Do not interleave constructors with business methods, mix conversion
+styles for the same model family, or reorder generated files.
+
 ### Add-a-resource checklist
 
 1. **DTO**: define `Create<Resource>` / `Get<Resource>` /

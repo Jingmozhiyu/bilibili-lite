@@ -20,16 +20,19 @@ const _ = http.SupportPackageIsVersion3
 
 const OperationUserServiceLogin = "/user.v1.UserService/Login"
 const OperationUserServiceLogout = "/user.v1.UserService/Logout"
+const OperationUserServiceRefresh = "/user.v1.UserService/Refresh"
 
 type UserServiceHTTPServer interface {
 	Login(context.Context, *LoginRequest) (*LoginReply, error)
 	Logout(context.Context, *LogoutRequest) (*emptypb.Empty, error)
+	Refresh(context.Context, *RefreshRequest) (*LoginReply, error)
 }
 
 func RegisterUserServiceHTTPServer(s *http.Server, srv UserServiceHTTPServer) {
 	r := s.Route("/")
 	r.Handle("POST", "/api/v1/auth/login", _UserService_Login0_HTTP_Handler(srv))
 	r.Handle("POST", "/api/v1/auth/logout", _UserService_Logout0_HTTP_Handler(srv))
+	r.Handle("POST", "/api/v1/auth/refresh", _UserService_Refresh0_HTTP_Handler(srv))
 }
 
 func _UserService_Login0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx http.Context) error {
@@ -70,9 +73,29 @@ func _UserService_Logout0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx http.
 	}
 }
 
+func _UserService_Refresh0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in RefreshRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationUserServiceRefresh)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.Refresh(ctx, req.(*RefreshRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*LoginReply)
+		return ctx.Result(200, reply)
+	}
+}
+
 type UserServiceHTTPClient interface {
 	Login(ctx context.Context, req *LoginRequest, opts ...http.CallOption) (rsp *LoginReply, err error)
 	Logout(ctx context.Context, req *LogoutRequest, opts ...http.CallOption) (rsp *emptypb.Empty, err error)
+	Refresh(ctx context.Context, req *RefreshRequest, opts ...http.CallOption) (rsp *LoginReply, err error)
 }
 
 type UserServiceHTTPClientImpl struct {
@@ -108,6 +131,23 @@ func (c *UserServiceHTTPClientImpl) Logout(ctx context.Context, in *LogoutReques
 		http.Accept("application/protojson"),
 		http.ContentType("application/protojson"),
 		http.Operation(OperationUserServiceLogout),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *UserServiceHTTPClientImpl) Refresh(ctx context.Context, in *RefreshRequest, opts ...http.CallOption) (*LoginReply, error) {
+	var out LoginReply
+	pattern := "/api/v1/auth/refresh"
+	path := http.BuildPath(pattern, in)
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.ContentType("application/protojson"),
+		http.Operation(OperationUserServiceRefresh),
 		http.PathTemplate(pattern),
 	}, opts...)
 	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)

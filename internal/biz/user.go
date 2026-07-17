@@ -35,11 +35,11 @@ type UserCredential struct {
 
 // UserSession is returned after a successful login.
 type UserSession struct {
-	AccessToken     string
-	RefreshToken    string
-	ExpiresAt       time.Time
+	AccessToken      string
+	RefreshToken     string
+	ExpiresAt        time.Time
 	RefreshExpiresAt time.Time
-	User            User
+	User             User
 }
 
 // TokenClaims identifies an authenticated user and token kind.
@@ -63,7 +63,7 @@ type TokenManager interface {
 	ParseRefresh(string) (*TokenClaims, error)
 }
 
-// UserRepo persists users and login sessions.
+// UserRepo reads user identity and credentials.
 type UserRepo interface {
 	FindCredentialByUsername(context.Context, string) (*UserCredential, error)
 	FindUserByID(context.Context, uint64) (*User, error)
@@ -75,10 +75,12 @@ type UserUsecase struct {
 	tokens TokenManager
 }
 
+// NewUserUsecase injects user persistence and JWT capabilities into the authentication usecase.
 func NewUserUsecase(repo UserRepo, tokens TokenManager) *UserUsecase {
 	return &UserUsecase{repo: repo, tokens: tokens}
 }
 
+// Login verifies a username and password before issuing a new access and refresh token pair.
 func (uc *UserUsecase) Login(ctx context.Context, username, password string) (*UserSession, error) {
 	username = strings.TrimSpace(username)
 	if username == "" || password == "" {

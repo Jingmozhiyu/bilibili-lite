@@ -18,17 +18,26 @@ var _ = new(context.Context)
 const _ = http.SupportPackageIsVersion3
 
 const OperationVideoServiceGetVideo = "/video.v1.VideoService/GetVideo"
+const OperationVideoServiceGetVideoLike = "/video.v1.VideoService/GetVideoLike"
 const OperationVideoServiceGetVideoPlay = "/video.v1.VideoService/GetVideoPlay"
+const OperationVideoServiceLikeVideo = "/video.v1.VideoService/LikeVideo"
+const OperationVideoServiceUnlikeVideo = "/video.v1.VideoService/UnlikeVideo"
 
 type VideoServiceHTTPServer interface {
 	GetVideo(context.Context, *GetVideoRequest) (*Video, error)
+	GetVideoLike(context.Context, *GetVideoLikeRequest) (*VideoLike, error)
 	GetVideoPlay(context.Context, *GetVideoPlayRequest) (*VideoPlay, error)
+	LikeVideo(context.Context, *LikeVideoRequest) (*VideoLike, error)
+	UnlikeVideo(context.Context, *UnlikeVideoRequest) (*VideoLike, error)
 }
 
 func RegisterVideoServiceHTTPServer(s *http.Server, srv VideoServiceHTTPServer) {
 	r := s.Route("/")
 	r.Handle("GET", "/api/v1/videos/{bvid}", _VideoService_GetVideo0_HTTP_Handler(srv))
 	r.Handle("GET", "/api/v1/videos/{bvid}/play", _VideoService_GetVideoPlay0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/v1/videos/{bvid}/like", _VideoService_GetVideoLike0_HTTP_Handler(srv))
+	r.Handle("POST", "/api/v1/videos/{bvid}/like", _VideoService_LikeVideo0_HTTP_Handler(srv))
+	r.Handle("DELETE", "/api/v1/videos/{bvid}/like", _VideoService_UnlikeVideo0_HTTP_Handler(srv))
 }
 
 func _VideoService_GetVideo0_HTTP_Handler(srv VideoServiceHTTPServer) func(ctx http.Context) error {
@@ -75,9 +84,78 @@ func _VideoService_GetVideoPlay0_HTTP_Handler(srv VideoServiceHTTPServer) func(c
 	}
 }
 
+func _VideoService_GetVideoLike0_HTTP_Handler(srv VideoServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in GetVideoLikeRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationVideoServiceGetVideoLike)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetVideoLike(ctx, req.(*GetVideoLikeRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*VideoLike)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _VideoService_LikeVideo0_HTTP_Handler(srv VideoServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in LikeVideoRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationVideoServiceLikeVideo)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.LikeVideo(ctx, req.(*LikeVideoRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*VideoLike)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _VideoService_UnlikeVideo0_HTTP_Handler(srv VideoServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in UnlikeVideoRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationVideoServiceUnlikeVideo)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.UnlikeVideo(ctx, req.(*UnlikeVideoRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*VideoLike)
+		return ctx.Result(200, reply)
+	}
+}
+
 type VideoServiceHTTPClient interface {
 	GetVideo(ctx context.Context, req *GetVideoRequest, opts ...http.CallOption) (rsp *Video, err error)
+	GetVideoLike(ctx context.Context, req *GetVideoLikeRequest, opts ...http.CallOption) (rsp *VideoLike, err error)
 	GetVideoPlay(ctx context.Context, req *GetVideoPlayRequest, opts ...http.CallOption) (rsp *VideoPlay, err error)
+	LikeVideo(ctx context.Context, req *LikeVideoRequest, opts ...http.CallOption) (rsp *VideoLike, err error)
+	UnlikeVideo(ctx context.Context, req *UnlikeVideoRequest, opts ...http.CallOption) (rsp *VideoLike, err error)
 }
 
 type VideoServiceHTTPClientImpl struct {
@@ -104,6 +182,22 @@ func (c *VideoServiceHTTPClientImpl) GetVideo(ctx context.Context, in *GetVideoR
 	return &out, nil
 }
 
+func (c *VideoServiceHTTPClientImpl) GetVideoLike(ctx context.Context, in *GetVideoLikeRequest, opts ...http.CallOption) (*VideoLike, error) {
+	var out VideoLike
+	pattern := "/api/v1/videos/{bvid}/like"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationVideoServiceGetVideoLike),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 func (c *VideoServiceHTTPClientImpl) GetVideoPlay(ctx context.Context, in *GetVideoPlayRequest, opts ...http.CallOption) (*VideoPlay, error) {
 	var out VideoPlay
 	pattern := "/api/v1/videos/{bvid}/play"
@@ -114,6 +208,38 @@ func (c *VideoServiceHTTPClientImpl) GetVideoPlay(ctx context.Context, in *GetVi
 		http.PathTemplate(pattern),
 	}, opts...)
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *VideoServiceHTTPClientImpl) LikeVideo(ctx context.Context, in *LikeVideoRequest, opts ...http.CallOption) (*VideoLike, error) {
+	var out VideoLike
+	pattern := "/api/v1/videos/{bvid}/like"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationVideoServiceLikeVideo),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *VideoServiceHTTPClientImpl) UnlikeVideo(ctx context.Context, in *UnlikeVideoRequest, opts ...http.CallOption) (*VideoLike, error) {
+	var out VideoLike
+	pattern := "/api/v1/videos/{bvid}/like"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationVideoServiceUnlikeVideo),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "DELETE", path, nil, &out, opts...)
 	if err != nil {
 		return nil, err
 	}

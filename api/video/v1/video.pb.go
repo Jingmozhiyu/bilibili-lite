@@ -555,6 +555,198 @@ func (x *GetVideoPlayRequest) GetBvid() string {
 	return ""
 }
 
+type GetVideoLikeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Bvid          string                 `protobuf:"bytes,1,opt,name=bvid,proto3" json:"bvid,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetVideoLikeRequest) Reset() {
+	*x = GetVideoLikeRequest{}
+	mi := &file_video_v1_video_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetVideoLikeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetVideoLikeRequest) ProtoMessage() {}
+
+func (x *GetVideoLikeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_video_v1_video_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetVideoLikeRequest.ProtoReflect.Descriptor instead.
+func (*GetVideoLikeRequest) Descriptor() ([]byte, []int) {
+	return file_video_v1_video_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *GetVideoLikeRequest) GetBvid() string {
+	if x != nil {
+		return x.Bvid
+	}
+	return ""
+}
+
+type LikeVideoRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Bvid          string                 `protobuf:"bytes,1,opt,name=bvid,proto3" json:"bvid,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LikeVideoRequest) Reset() {
+	*x = LikeVideoRequest{}
+	mi := &file_video_v1_video_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LikeVideoRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LikeVideoRequest) ProtoMessage() {}
+
+func (x *LikeVideoRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_video_v1_video_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LikeVideoRequest.ProtoReflect.Descriptor instead.
+func (*LikeVideoRequest) Descriptor() ([]byte, []int) {
+	return file_video_v1_video_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *LikeVideoRequest) GetBvid() string {
+	if x != nil {
+		return x.Bvid
+	}
+	return ""
+}
+
+type UnlikeVideoRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Bvid          string                 `protobuf:"bytes,1,opt,name=bvid,proto3" json:"bvid,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UnlikeVideoRequest) Reset() {
+	*x = UnlikeVideoRequest{}
+	mi := &file_video_v1_video_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnlikeVideoRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnlikeVideoRequest) ProtoMessage() {}
+
+func (x *UnlikeVideoRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_video_v1_video_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnlikeVideoRequest.ProtoReflect.Descriptor instead.
+func (*UnlikeVideoRequest) Descriptor() ([]byte, []int) {
+	return file_video_v1_video_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *UnlikeVideoRequest) GetBvid() string {
+	if x != nil {
+		return x.Bvid
+	}
+	return ""
+}
+
+type VideoLike struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Bvid          string                 `protobuf:"bytes,1,opt,name=bvid,proto3" json:"bvid,omitempty"`
+	Liked         bool                   `protobuf:"varint,2,opt,name=liked,proto3" json:"liked,omitempty"`
+	LikeCount     int64                  `protobuf:"varint,3,opt,name=like_count,json=likeCount,proto3" json:"like_count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VideoLike) Reset() {
+	*x = VideoLike{}
+	mi := &file_video_v1_video_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VideoLike) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VideoLike) ProtoMessage() {}
+
+func (x *VideoLike) ProtoReflect() protoreflect.Message {
+	mi := &file_video_v1_video_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VideoLike.ProtoReflect.Descriptor instead.
+func (*VideoLike) Descriptor() ([]byte, []int) {
+	return file_video_v1_video_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *VideoLike) GetBvid() string {
+	if x != nil {
+		return x.Bvid
+	}
+	return ""
+}
+
+func (x *VideoLike) GetLiked() bool {
+	if x != nil {
+		return x.Liked
+	}
+	return false
+}
+
+func (x *VideoLike) GetLikeCount() int64 {
+	if x != nil {
+		return x.LikeCount
+	}
+	return 0
+}
+
 var File_video_v1_video_proto protoreflect.FileDescriptor
 
 const file_video_v1_video_proto_rawDesc = "" +
@@ -607,10 +799,24 @@ const file_video_v1_video_proto_rawDesc = "" +
 	"\x0fGetVideoRequest\x12\x17\n" +
 	"\x04bvid\x18\x01 \x01(\tB\x03\xe0A\x02R\x04bvid\".\n" +
 	"\x13GetVideoPlayRequest\x12\x17\n" +
-	"\x04bvid\x18\x01 \x01(\tB\x03\xe0A\x02R\x04bvid2\xcd\x01\n" +
+	"\x04bvid\x18\x01 \x01(\tB\x03\xe0A\x02R\x04bvid\".\n" +
+	"\x13GetVideoLikeRequest\x12\x17\n" +
+	"\x04bvid\x18\x01 \x01(\tB\x03\xe0A\x02R\x04bvid\"+\n" +
+	"\x10LikeVideoRequest\x12\x17\n" +
+	"\x04bvid\x18\x01 \x01(\tB\x03\xe0A\x02R\x04bvid\"-\n" +
+	"\x12UnlikeVideoRequest\x12\x17\n" +
+	"\x04bvid\x18\x01 \x01(\tB\x03\xe0A\x02R\x04bvid\"T\n" +
+	"\tVideoLike\x12\x12\n" +
+	"\x04bvid\x18\x01 \x01(\tR\x04bvid\x12\x14\n" +
+	"\x05liked\x18\x02 \x01(\bR\x05liked\x12\x1d\n" +
+	"\n" +
+	"like_count\x18\x03 \x01(\x03R\tlikeCount2\xfd\x03\n" +
 	"\fVideoService\x12U\n" +
 	"\bGetVideo\x12\x19.video.v1.GetVideoRequest\x1a\x0f.video.v1.Video\"\x1d\x82\xd3\xe4\x93\x02\x17\x12\x15/api/v1/videos/{bvid}\x12f\n" +
-	"\fGetVideoPlay\x12\x1d.video.v1.GetVideoPlayRequest\x1a\x13.video.v1.VideoPlay\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/api/v1/videos/{bvid}/playB7\n" +
+	"\fGetVideoPlay\x12\x1d.video.v1.GetVideoPlayRequest\x1a\x13.video.v1.VideoPlay\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/api/v1/videos/{bvid}/play\x12f\n" +
+	"\fGetVideoLike\x12\x1d.video.v1.GetVideoLikeRequest\x1a\x13.video.v1.VideoLike\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/api/v1/videos/{bvid}/like\x12`\n" +
+	"\tLikeVideo\x12\x1a.video.v1.LikeVideoRequest\x1a\x13.video.v1.VideoLike\"\"\x82\xd3\xe4\x93\x02\x1c\"\x1a/api/v1/videos/{bvid}/like\x12d\n" +
+	"\vUnlikeVideo\x12\x1c.video.v1.UnlikeVideoRequest\x1a\x13.video.v1.VideoLike\"\"\x82\xd3\xe4\x93\x02\x1c*\x1a/api/v1/videos/{bvid}/likeB7\n" +
 	"\bvideo.v1B\n" +
 	"VideoProtoP\x01Z\x1dbilibili-lite/api/video/v1;v1b\x06proto3"
 
@@ -626,7 +832,7 @@ func file_video_v1_video_proto_rawDescGZIP() []byte {
 	return file_video_v1_video_proto_rawDescData
 }
 
-var file_video_v1_video_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_video_v1_video_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_video_v1_video_proto_goTypes = []any{
 	(*Video)(nil),                 // 0: video.v1.Video
 	(*VideoPlay)(nil),             // 1: video.v1.VideoPlay
@@ -635,22 +841,32 @@ var file_video_v1_video_proto_goTypes = []any{
 	(*DanmakuItem)(nil),           // 4: video.v1.DanmakuItem
 	(*GetVideoRequest)(nil),       // 5: video.v1.GetVideoRequest
 	(*GetVideoPlayRequest)(nil),   // 6: video.v1.GetVideoPlayRequest
-	(*timestamppb.Timestamp)(nil), // 7: google.protobuf.Timestamp
+	(*GetVideoLikeRequest)(nil),   // 7: video.v1.GetVideoLikeRequest
+	(*LikeVideoRequest)(nil),      // 8: video.v1.LikeVideoRequest
+	(*UnlikeVideoRequest)(nil),    // 9: video.v1.UnlikeVideoRequest
+	(*VideoLike)(nil),             // 10: video.v1.VideoLike
+	(*timestamppb.Timestamp)(nil), // 11: google.protobuf.Timestamp
 }
 var file_video_v1_video_proto_depIdxs = []int32{
-	7, // 0: video.v1.Video.publish_time:type_name -> google.protobuf.Timestamp
-	2, // 1: video.v1.VideoPlay.streams:type_name -> video.v1.VideoStream
-	3, // 2: video.v1.VideoPlay.danmaku:type_name -> video.v1.DanmakuConfig
-	4, // 3: video.v1.DanmakuConfig.items:type_name -> video.v1.DanmakuItem
-	5, // 4: video.v1.VideoService.GetVideo:input_type -> video.v1.GetVideoRequest
-	6, // 5: video.v1.VideoService.GetVideoPlay:input_type -> video.v1.GetVideoPlayRequest
-	0, // 6: video.v1.VideoService.GetVideo:output_type -> video.v1.Video
-	1, // 7: video.v1.VideoService.GetVideoPlay:output_type -> video.v1.VideoPlay
-	6, // [6:8] is the sub-list for method output_type
-	4, // [4:6] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	11, // 0: video.v1.Video.publish_time:type_name -> google.protobuf.Timestamp
+	2,  // 1: video.v1.VideoPlay.streams:type_name -> video.v1.VideoStream
+	3,  // 2: video.v1.VideoPlay.danmaku:type_name -> video.v1.DanmakuConfig
+	4,  // 3: video.v1.DanmakuConfig.items:type_name -> video.v1.DanmakuItem
+	5,  // 4: video.v1.VideoService.GetVideo:input_type -> video.v1.GetVideoRequest
+	6,  // 5: video.v1.VideoService.GetVideoPlay:input_type -> video.v1.GetVideoPlayRequest
+	7,  // 6: video.v1.VideoService.GetVideoLike:input_type -> video.v1.GetVideoLikeRequest
+	8,  // 7: video.v1.VideoService.LikeVideo:input_type -> video.v1.LikeVideoRequest
+	9,  // 8: video.v1.VideoService.UnlikeVideo:input_type -> video.v1.UnlikeVideoRequest
+	0,  // 9: video.v1.VideoService.GetVideo:output_type -> video.v1.Video
+	1,  // 10: video.v1.VideoService.GetVideoPlay:output_type -> video.v1.VideoPlay
+	10, // 11: video.v1.VideoService.GetVideoLike:output_type -> video.v1.VideoLike
+	10, // 12: video.v1.VideoService.LikeVideo:output_type -> video.v1.VideoLike
+	10, // 13: video.v1.VideoService.UnlikeVideo:output_type -> video.v1.VideoLike
+	9,  // [9:14] is the sub-list for method output_type
+	4,  // [4:9] is the sub-list for method input_type
+	4,  // [4:4] is the sub-list for extension type_name
+	4,  // [4:4] is the sub-list for extension extendee
+	0,  // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_video_v1_video_proto_init() }
@@ -664,7 +880,7 @@ func file_video_v1_video_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_video_v1_video_proto_rawDesc), len(file_video_v1_video_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

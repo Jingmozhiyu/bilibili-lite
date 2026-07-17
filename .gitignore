@@ -38,6 +38,7 @@ bin/
 .agents/
 .codex/
 .impeccable/
+static/
 storage/
 skills-lock.json
 *.swp

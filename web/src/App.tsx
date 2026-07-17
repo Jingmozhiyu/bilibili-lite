@@ -1,3 +1,4 @@
+import type { MediaPlayerClass } from 'dashjs'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 
@@ -64,20 +65,42 @@ type AuthUser = {
 
 type AuthSession = {
   accessToken: string
+  refreshToken: string
   expiresAt: string
+  refreshExpiresAt: string
   user: AuthUser
 }
 
-const FALLBACK_BVID = 'BV1'
+type VideoLike = {
+  bvid: string
+  liked: boolean
+  likeCount: MetricValue
+}
+
+type UploadResult = {
+  bvid: string
+  manifestUrl: string
+  videoUrl: string
+}
+
 const AUTH_STORAGE_KEY = 'bilibili-lite.auth-session'
 
 function App() {
   const bvid = getBvidFromPath()
+  return bvid ? <VideoPage bvid={bvid} /> : <HomePage />
+}
+
+function VideoPage({ bvid }: { bvid: string }) {
   const [state, setState] = useState<LoadState>({ status: 'loading' })
   const [selectedStreamId, setSelectedStreamId] = useState<string>('')
   const [danmakuOn, setDanmakuOn] = useState(true)
   const [currentTime, setCurrentTime] = useState(0)
+  const [session, setSession] = useState<AuthSession | null>(readAuthSession)
+  const [authOpen, setAuthOpen] = useState(false)
+  const [uploadOpen, setUploadOpen] = useState(false)
+  const [like, setLike] = useState({ liked: false, count: 0, pending: false })
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  const dashPlayerRef = useRef<MediaPlayerClass | null>(null)
 
   useEffect(() => {
     let ignore = false
@@ -91,6 +114,7 @@ function App() {
         const detail = normalizeVideoDetail(detailResponse)
         const play = normalizeVideoPlay(playResponse)
         setState({ status: 'ready', detail, play })
+        setLike({ liked: false, count: toNumber(detail.likeCount), pending: false })
         const defaultStream =
           play.streams.find((stream) => stream.defaultStream) ?? play.streams[0]
         setSelectedStreamId(defaultStream?.id ?? '')
@@ -122,19 +146,101 @@ function App() {
     })
   }, [currentTime, danmakuOn, state])
 
-  function switchStream(streamId: string) {
+  useEffect(() => {
+    if (state.status !== 'ready') return
+    if (!session) return
+
+    let ignore = false
+    authorizedFetch(`/api/v1/videos/${encodeURIComponent(bvid)}/like`, {}, session)
+      .then(({ response, session: nextSession }) => {
+        if (ignore) return
+        persistAuthSession(nextSession)
+        setSession(nextSession)
+        return parseJsonResponse<unknown>(response)
+      })
+      .then((value) => {
+        if (ignore || value === undefined) return
+        const nextLike = normalizeVideoLike(value)
+        setLike({ liked: nextLike.liked, count: toNumber(nextLike.likeCount), pending: false })
+      })
+      .catch(() => {
+        if (!ignore) setLike((value) => ({ ...value, liked: false, pending: false }))
+      })
+    return () => {
+      ignore = true
+    }
+  }, [bvid, session, state])
+
+  useEffect(() => {
     const video = videoRef.current
-    const time = video?.currentTime ?? 0
-    const wasPlaying = video ? !video.paused : false
+    if (!video || !selectedStream) return
+    const resumeAt = video.currentTime
+    const shouldPlay = !video.paused || resumeAt === 0
+    let cancelled = false
+
+    dashPlayerRef.current?.destroy()
+    dashPlayerRef.current = null
+
+    void import('dashjs').then(({ Debug, MediaPlayer }) => {
+      if (cancelled) return
+      const player = MediaPlayer().create()
+      dashPlayerRef.current = player
+      player.updateSettings({
+        debug: {
+          logLevel: Debug.LOG_LEVEL_FATAL,
+        },
+        streaming: {
+          cmcd: {
+            enabled: false,
+            applyParametersFromMpd: false,
+            eventTargets: [],
+          },
+        },
+      })
+      player.initialize(video, selectedStream.url, shouldPlay)
+      if (resumeAt > 0) player.seek(resumeAt)
+    })
+
+    return () => {
+      cancelled = true
+      dashPlayerRef.current?.destroy()
+      dashPlayerRef.current = null
+      video.removeAttribute('src')
+      video.load()
+    }
+  }, [selectedStream])
+
+  async function toggleLike() {
+    if (!session) {
+      setAuthOpen(true)
+      return
+    }
+    const desired = !like.liked
+    setLike((value) => ({ ...value, pending: true }))
+    try {
+      const { response, session: nextSession } = await authorizedFetch(
+        `/api/v1/videos/${encodeURIComponent(bvid)}/like`,
+        { method: desired ? 'POST' : 'DELETE' },
+        session,
+      )
+      const nextLike = normalizeVideoLike(await parseJsonResponse(response))
+      persistAuthSession(nextSession)
+      setSession(nextSession)
+      setLike({ liked: nextLike.liked, count: toNumber(nextLike.likeCount), pending: false })
+    } catch {
+      setLike((value) => ({ ...value, pending: false }))
+    }
+  }
+
+  function changeSession(nextSession: AuthSession | null) {
+    setSession(nextSession)
+    if (!nextSession && state.status === 'ready') {
+      setLike({ liked: false, count: toNumber(state.detail.likeCount), pending: false })
+    }
+  }
+
+  function switchStream(streamId: string) {
     setSelectedStreamId(streamId)
-    window.setTimeout(() => {
-      const nextVideo = videoRef.current
-      if (!nextVideo) return
-      nextVideo.currentTime = time
-      if (wasPlaying) {
-        void nextVideo.play()
-      }
-    }, 0)
   }
 
   if (state.status === 'loading') {
@@ -150,7 +256,7 @@ function App() {
   return (
     <main className="page-shell">
       <header className="topbar" aria-label="主导航">
-        <a className="brand" href={`/video/${FALLBACK_BVID}`}>
+        <a className="brand" href="/">
           <span className="brand-mark">b</span>
           <span>bilibili-lite</span>
         </a>
@@ -160,11 +266,18 @@ function App() {
         </div>
         <div className="topbar-actions">
           <nav className="quick-links" aria-label="快捷入口">
-            <a href={`/video/${detail.bvid}`}>首页</a>
+            <a href="/">首页</a>
             <a href={`/video/${detail.bvid}`}>动态</a>
             <a href={`/video/${detail.bvid}`}>收藏</a>
           </nav>
-          <AuthMenu />
+          <AuthMenu
+            session={session}
+            onSessionChange={changeSession}
+            open={authOpen}
+            onOpenChange={setAuthOpen}
+            uploadOpen={uploadOpen}
+            onUploadOpenChange={setUploadOpen}
+          />
         </div>
       </header>
 
@@ -176,7 +289,6 @@ function App() {
                 <video
                   ref={videoRef}
                   className="player-video"
-                  src={selectedStream.url}
                   poster={detail.coverUrl || undefined}
                   controls
                   autoPlay
@@ -274,7 +386,16 @@ function App() {
           </section>
 
           <section className="action-grid" aria-label="互动数据">
-            <Metric label="点赞" value={detail.likeCount} />
+            <button
+              type="button"
+              className={like.liked ? 'metric-action active' : 'metric-action'}
+              aria-pressed={like.liked}
+              disabled={like.pending}
+              onClick={() => void toggleLike()}
+            >
+              <strong>{formatCount(like.count)}</strong>
+              <span>{like.pending ? '处理中' : like.liked ? '已点赞' : '点赞'}</span>
+            </button>
             <Metric label="投币" value={detail.coinCount} />
             <Metric label="收藏" value={detail.favoriteCount} />
             <Metric label="分享" value={detail.shareCount} />
@@ -311,6 +432,56 @@ function App() {
   )
 }
 
+function HomePage() {
+  const [session, setSession] = useState<AuthSession | null>(readAuthSession)
+  const [authOpen, setAuthOpen] = useState(false)
+  const [uploadOpen, setUploadOpen] = useState(false)
+  const userLabel = session?.user.displayName || session?.user.username
+
+  function startUpload() {
+    setUploadOpen(true)
+    setAuthOpen(true)
+  }
+
+  return (
+    <main className="page-shell home-page">
+      <header className="topbar home-topbar" aria-label="主导航">
+        <a className="brand" href="/">
+          <span className="brand-mark">b</span>
+          <span>bilibili-lite</span>
+        </a>
+        <div className="topbar-actions">
+          <AuthMenu
+            session={session}
+            onSessionChange={setSession}
+            open={authOpen}
+            onOpenChange={setAuthOpen}
+            uploadOpen={uploadOpen}
+            onUploadOpenChange={setUploadOpen}
+          />
+        </div>
+      </header>
+
+      <section className="home-empty" aria-labelledby="home-empty-title">
+        <div className="home-empty-content">
+          <div className="home-upload-mark" aria-hidden="true">
+            ↑
+          </div>
+          <h1 id="home-empty-title">还没有视频</h1>
+          <p>
+            {session
+              ? `${userLabel}，上传第一支视频开始放映。`
+              : '登录后上传第一支视频，发布后从 BV1 开始。'}
+          </p>
+          <button type="button" className="home-upload-button" onClick={startUpload}>
+            {session ? '上传第一支视频' : '登录并上传'}
+          </button>
+        </div>
+      </section>
+    </main>
+  )
+}
+
 function LoadingPage({ bvid }: { bvid: string }) {
   return (
     <main className="page-shell">
@@ -331,7 +502,7 @@ function ErrorPage({ bvid, message }: { bvid: string; message: string }) {
         <span>{bvid}</span>
         <h1>视频加载失败</h1>
         <p>{message}</p>
-        <a href={`/video/${FALLBACK_BVID}`}>回到本地测试视频</a>
+        <a href="/">返回首页</a>
       </section>
     </main>
   )
@@ -346,27 +517,50 @@ function Metric({ label, value }: { label: string; value: MetricValue }) {
   )
 }
 
-function AuthMenu() {
-  const [open, setOpen] = useState(false)
-  const [session, setSession] = useState<AuthSession | null>(readAuthSession)
+function AuthMenu({
+  session,
+  onSessionChange,
+  open,
+  onOpenChange,
+  uploadOpen,
+  onUploadOpenChange,
+}: {
+  session: AuthSession | null
+  onSessionChange: (session: AuthSession | null) => void
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  uploadOpen: boolean
+  onUploadOpenChange: (open: boolean) => void
+}) {
   const [username, setUsername] = useState('demo')
   const [password, setPassword] = useState('')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
+  const [uploadTitle, setUploadTitle] = useState('')
+  const [uploadDescription, setUploadDescription] = useState('')
+  const [uploadTags, setUploadTags] = useState('')
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploadPhase, setUploadPhase] = useState<'idle' | 'uploading' | 'processing' | 'success' | 'error'>('idle')
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadMessage, setUploadMessage] = useState('')
+  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
   const authRef = useRef<HTMLDivElement | null>(null)
+  const uploadRequestRef = useRef<XMLHttpRequest | null>(null)
+
+  useEffect(() => () => uploadRequestRef.current?.abort(), [])
 
   useEffect(() => {
     if (!open) return
 
     function closeOnOutsideClick(event: PointerEvent) {
       if (!authRef.current?.contains(event.target as Node)) {
-        setOpen(false)
+        onOpenChange(false)
       }
     }
 
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === 'Escape') {
-        setOpen(false)
+        onOpenChange(false)
       }
     }
 
@@ -376,7 +570,7 @@ function AuthMenu() {
       document.removeEventListener('pointerdown', closeOnOutsideClick)
       document.removeEventListener('keydown', closeOnEscape)
     }
-  }, [open])
+  }, [onOpenChange, open])
 
   async function login(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -389,11 +583,8 @@ function AuthMenu() {
         password,
       })
       const nextSession = normalizeAuthSession(response)
-      window.localStorage.setItem(
-        AUTH_STORAGE_KEY,
-        JSON.stringify(nextSession),
-      )
-      setSession(nextSession)
+      persistAuthSession(nextSession)
+      onSessionChange(nextSession)
       setPassword('')
     } catch (loginError) {
       const message = toErrorMessage(loginError, '')
@@ -421,8 +612,67 @@ function AuthMenu() {
       }
     } finally {
       window.localStorage.removeItem(AUTH_STORAGE_KEY)
-      setSession(null)
+      onSessionChange(null)
+      onUploadOpenChange(false)
       setPending(false)
+    }
+  }
+
+  async function uploadVideo(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!session || !uploadFile) return
+
+    setUploadPhase('uploading')
+    setUploadProgress(0)
+    setUploadMessage('')
+    setUploadResult(null)
+
+    try {
+      const activeSession = await ensureFreshAuthSession(session)
+      persistAuthSession(activeSession)
+      onSessionChange(activeSession)
+
+      const form = new FormData()
+      form.append('title', uploadTitle)
+      form.append('description', uploadDescription)
+      form.append('tags', uploadTags)
+      form.append('file', uploadFile)
+
+      const result = await new Promise<UploadResult>((resolve, reject) => {
+        const request = new XMLHttpRequest()
+        uploadRequestRef.current = request
+        request.open('POST', '/api/v1/videos/upload')
+        request.setRequestHeader('Authorization', `Bearer ${activeSession.accessToken}`)
+        request.upload.addEventListener('progress', (progressEvent) => {
+          if (!progressEvent.lengthComputable) return
+          const percent = Math.round((progressEvent.loaded / progressEvent.total) * 100)
+          setUploadProgress(percent)
+          if (percent >= 100) setUploadPhase('processing')
+        })
+        request.addEventListener('load', () => {
+          uploadRequestRef.current = null
+          const payload = asRecord(parseJSON(request.responseText))
+          if (request.status < 200 || request.status >= 300) {
+            reject(new Error(readString(payload, 'message') || `上传失败（${request.status}）`))
+            return
+          }
+          resolve({
+            bvid: readString(payload, 'bvid'),
+            manifestUrl: readString(payload, 'manifestUrl', 'manifest_url'),
+            videoUrl: readString(payload, 'videoUrl', 'video_url'),
+          })
+        })
+        request.addEventListener('error', () => reject(new Error('网络连接中断')))
+        request.addEventListener('abort', () => reject(new Error('上传已取消')))
+        request.send(form)
+      })
+
+      setUploadResult(result)
+      setUploadPhase('success')
+      setUploadMessage('视频已完成 DASH 处理并发布')
+    } catch (uploadError) {
+      setUploadPhase('error')
+      setUploadMessage(toErrorMessage(uploadError, '上传失败'))
     }
   }
 
@@ -437,7 +687,7 @@ function AuthMenu() {
         aria-expanded={open}
         aria-controls="auth-popover"
         onClick={() => {
-          setOpen((value) => !value)
+          onOpenChange(!open)
           setError('')
         }}
       >
@@ -472,14 +722,26 @@ function AuthMenu() {
                   {error}
                 </div>
               )}
-              <button
-                type="button"
-                className="auth-secondary-button"
-                disabled={pending}
-                onClick={() => void logout()}
-              >
-                {pending ? '正在退出…' : '退出登录'}
-              </button>
+              <div className="auth-account-actions">
+                <button
+                  type="button"
+                  className="auth-primary-button"
+                  disabled={pending}
+                  onClick={() => onUploadOpenChange(!uploadOpen)}
+                  aria-expanded={uploadOpen}
+                  aria-controls="upload-popover"
+                >
+                  投稿视频
+                </button>
+                <button
+                  type="button"
+                  className="auth-secondary-button"
+                  disabled={pending || uploadPhase === 'uploading' || uploadPhase === 'processing'}
+                  onClick={() => void logout()}
+                >
+                  {pending ? '正在退出…' : '退出登录'}
+                </button>
+              </div>
             </div>
           ) : (
             <form className="auth-form" onSubmit={login}>
@@ -531,6 +793,72 @@ function AuthMenu() {
           )}
         </section>
       )}
+
+      {open && session && uploadOpen && (
+        <section id="upload-popover" className="upload-popover" role="dialog" aria-labelledby="upload-title">
+          <form className="upload-form" onSubmit={uploadVideo}>
+            <div className="upload-heading">
+              <div>
+                <strong id="upload-title">投稿视频</strong>
+                <span>MP4 将转为 DASH 音视频分片</span>
+              </div>
+              <button
+                type="button"
+                className="upload-close"
+                aria-label="关闭投稿面板"
+                onClick={() => onUploadOpenChange(false)}
+              >
+                ×
+              </button>
+            </div>
+
+            <label className="upload-file-field">
+              <span>{uploadFile ? uploadFile.name : '选择 MP4 文件'}</span>
+              <small>{uploadFile ? formatFileSize(uploadFile.size) : '单文件，最大 2 GB'}</small>
+              <input
+                type="file"
+                accept="video/mp4,.mp4"
+                required
+                onChange={(event) => {
+                  setUploadFile(event.target.files?.[0] ?? null)
+                  setUploadPhase('idle')
+                  setUploadMessage('')
+                }}
+              />
+            </label>
+            <label>
+              <span>标题</span>
+              <input maxLength={200} value={uploadTitle} onChange={(event) => setUploadTitle(event.target.value)} required />
+            </label>
+            <label>
+              <span>简介</span>
+              <textarea maxLength={10000} rows={4} value={uploadDescription} onChange={(event) => setUploadDescription(event.target.value)} />
+            </label>
+            <label>
+              <span>标签</span>
+              <input value={uploadTags} onChange={(event) => setUploadTags(event.target.value)} placeholder="多个标签用逗号分隔" />
+            </label>
+
+            {uploadPhase !== 'idle' && (
+              <div className="upload-status" aria-live="polite">
+                <div className="upload-status-row">
+                  <span>{uploadPhase === 'uploading' ? '正在上传' : uploadPhase === 'processing' ? '正在生成 DASH 分片' : uploadPhase === 'success' ? '处理完成' : '处理失败'}</span>
+                  {uploadPhase === 'uploading' && <strong>{uploadProgress}%</strong>}
+                </div>
+                <div className={uploadPhase === 'processing' ? 'upload-progress processing' : 'upload-progress'}>
+                  <span style={{ width: uploadPhase === 'processing' ? '38%' : `${uploadProgress}%` }} />
+                </div>
+                {uploadMessage && <p className={uploadPhase === 'error' ? 'upload-message error' : 'upload-message'}>{uploadMessage}</p>}
+                {uploadResult && <a className="upload-result-link" href={uploadResult.videoUrl}>查看 {uploadResult.bvid}</a>}
+              </div>
+            )}
+
+            <button className="auth-primary-button" type="submit" disabled={!uploadFile || !uploadTitle.trim() || uploadPhase === 'uploading' || uploadPhase === 'processing'}>
+              {uploadPhase === 'uploading' ? '上传中…' : uploadPhase === 'processing' ? '处理中…' : '开始上传'}
+            </button>
+          </form>
+        </section>
+      )}
     </div>
   )
 }
@@ -566,9 +894,68 @@ async function postJson<T = unknown>(
   return (await response.json()) as T
 }
 
+async function authorizedFetch(
+  url: string,
+  init: RequestInit,
+  session: AuthSession,
+): Promise<{ response: Response; session: AuthSession }> {
+  let activeSession = await ensureFreshAuthSession(session)
+  let response = await fetch(url, {
+    ...init,
+    headers: {
+      ...init.headers,
+      Authorization: `Bearer ${activeSession.accessToken}`,
+    },
+  })
+  if (response.status === 401) {
+    activeSession = await refreshAuthSession(activeSession)
+    response = await fetch(url, {
+      ...init,
+      headers: {
+        ...init.headers,
+        Authorization: `Bearer ${activeSession.accessToken}`,
+      },
+    })
+  }
+  if (!response.ok) {
+    const payload = asRecord(await response.json().catch(() => null))
+    throw new Error(readString(payload, 'message') || `${response.status} ${response.statusText}`)
+  }
+  return { response, session: activeSession }
+}
+
+async function ensureFreshAuthSession(session: AuthSession) {
+  const refreshBefore = new Date(session.expiresAt).getTime() - 60_000
+  if (Date.now() < refreshBefore) return session
+  return refreshAuthSession(session)
+}
+
+async function refreshAuthSession(session: AuthSession) {
+  const response = await postJson<unknown>('/api/v1/auth/refresh', {
+    refreshToken: session.refreshToken,
+  })
+  return normalizeAuthSession(response)
+}
+
+async function parseJsonResponse<T>(response: Response): Promise<T> {
+  return (await response.json()) as T
+}
+
+function persistAuthSession(session: AuthSession) {
+  window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session))
+}
+
+function parseJSON(value: string): unknown {
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
 function getBvidFromPath() {
   const match = window.location.pathname.match(/^\/video\/([^/]+)$/)
-  return match?.[1] ?? FALLBACK_BVID
+  return match?.[1] ?? null
 }
 
 function toNumber(value: MetricValue | undefined) {
@@ -601,10 +988,8 @@ function normalizeVideoDetail(value: unknown): VideoDetail {
 function normalizeVideoPlay(value: unknown): VideoPlay {
   const record = asRecord(value)
   const danmaku = asRecord(record.danmaku)
-
-  return {
-    bvid: readString(record, 'bvid'),
-    streams: readArray(record, 'streams').map((stream) => {
+  const streams = readArray(record, 'streams')
+    .map((stream) => {
       const item = asRecord(stream)
       return {
         id: readString(item, 'id'),
@@ -617,7 +1002,15 @@ function normalizeVideoPlay(value: unknown): VideoPlay {
         bandwidth: Number(readMetric(item, 'bandwidth')),
         defaultStream: readBoolean(item, 'defaultStream', 'default_stream'),
       }
-    }),
+    })
+    .filter(
+      (stream) =>
+        stream.mimeType === 'application/dash+xml' && stream.url.endsWith('.mpd'),
+    )
+
+  return {
+    bvid: readString(record, 'bvid'),
+    streams,
     danmaku: {
       enabled: readBoolean(danmaku, 'enabled'),
       format: readString(danmaku, 'format'),
@@ -637,15 +1030,19 @@ function normalizeAuthSession(value: unknown): AuthSession {
   const record = asRecord(value)
   const user = asRecord(record.user)
   const expiresAt = readTimestamp(record, 'expiresAt', 'expires_at')
+  const refreshExpiresAt = readTimestamp(record, 'refreshExpiresAt', 'refresh_expires_at')
   const accessToken = readString(record, 'accessToken', 'access_token')
+  const refreshToken = readString(record, 'refreshToken', 'refresh_token')
 
-  if (!accessToken || !expiresAt || !readString(user, 'username')) {
+  if (!accessToken || !refreshToken || !expiresAt || !refreshExpiresAt || !readString(user, 'username')) {
     throw new Error('登录响应不完整')
   }
 
   return {
     accessToken,
+    refreshToken,
     expiresAt,
+    refreshExpiresAt,
     user: {
       id: Number(readMetric(user, 'id')),
       username: readString(user, 'username'),
@@ -656,12 +1053,21 @@ function normalizeAuthSession(value: unknown): AuthSession {
   }
 }
 
+function normalizeVideoLike(value: unknown): VideoLike {
+  const record = asRecord(value)
+  return {
+    bvid: readString(record, 'bvid'),
+    liked: readBoolean(record, 'liked'),
+    likeCount: readMetric(record, 'likeCount', 'like_count'),
+  }
+}
+
 function readAuthSession(): AuthSession | null {
   try {
     const stored = window.localStorage.getItem(AUTH_STORAGE_KEY)
     if (!stored) return null
     const session = normalizeAuthSession(JSON.parse(stored))
-    if (new Date(session.expiresAt).getTime() <= Date.now()) {
+    if (new Date(session.refreshExpiresAt).getTime() <= Date.now()) {
       window.localStorage.removeItem(AUTH_STORAGE_KEY)
       return null
     }
@@ -746,6 +1152,11 @@ function formatDate(value?: string) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value))
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GB`
+  return `${(bytes / 1024 ** 2).toFixed(1)} MB`
 }
 
 export default App
