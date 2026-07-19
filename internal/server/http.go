@@ -8,6 +8,7 @@ import (
 	userV1 "bilibili-lite/api/user/v1"
 	videoV1 "bilibili-lite/api/video/v1"
 	"bilibili-lite/internal/conf"
+	"bilibili-lite/internal/media"
 	"bilibili-lite/internal/service"
 
 	"github.com/go-kratos/kratos/v3/middleware/recovery"
@@ -18,7 +19,7 @@ import (
 )
 
 // NewHTTPServer creates and registers the HTTP transport.
-func NewHTTPServer(serverConfig *conf.Server, dataConfig *conf.Data, videoService *service.VideoService, videoUploadHandler *service.VideoUploadHTTPHandler, userService *service.UserService) *kratosHTTP.Server {
+func NewHTTPServer(serverConfig *conf.Server, mediaManager *media.Manager, videoService *service.VideoService, videoUploadHandler *service.VideoUploadHTTPHandler, userService *service.UserService) *kratosHTTP.Server {
 	opts := []kratosHTTP.ServerOption{
 		kratosHTTP.Middleware(
 			recovery.Recovery(),
@@ -45,11 +46,7 @@ func NewHTTPServer(serverConfig *conf.Server, dataConfig *conf.Data, videoServic
 	videoV1.RegisterVideoServiceHTTPServer(srv, videoService)
 	userV1.RegisterUserServiceHTTPServer(srv, userService)
 	srv.Handle("/api/v1/videos/upload", videoUploadHandler)
-	mediaRoot := dataConfig.GetMedia().GetStorageDir()
-	if absolute, err := filepath.Abs(mediaRoot); err == nil {
-		mediaRoot = absolute
-	}
-	srv.HandlePrefix("/media/dash/", http.StripPrefix("/media/dash/", dashFileServer(filepath.Join(mediaRoot, "dash"))))
+	srv.HandlePrefix("/media/dash/", http.StripPrefix("/media/dash/", dashFileServer(mediaManager.DASHRoot())))
 	return srv
 }
 

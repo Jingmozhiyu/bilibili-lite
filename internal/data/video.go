@@ -5,18 +5,20 @@ import (
 	"errors"
 
 	"bilibili-lite/internal/biz"
+	"bilibili-lite/internal/media"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
 type videoRepo struct {
-	data *Data
+	data         *Data
+	mediaManager *media.Manager
 }
 
 // NewVideoRepo creates a PostgreSQL-backed VideoRepo.
-func NewVideoRepo(data *Data) biz.VideoRepo {
-	return &videoRepo{data: data}
+func NewVideoRepo(data *Data, mediaManager *media.Manager) biz.VideoRepo {
+	return &videoRepo{data: data, mediaManager: mediaManager}
 }
 
 // FindVideoByID loads video details with their owner and maps the persistence model to the domain model.

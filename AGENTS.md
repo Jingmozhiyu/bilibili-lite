@@ -14,6 +14,8 @@ internal/server/          HTTP/gRPC server wiring.
 internal/service/         Transport adapters; one file per resource.
 internal/biz/             Domain models, usecases, repo interfaces, errors.
 internal/data/            Repo implementations and storage clients.
+internal/media/           Upload jobs, ffprobe/FFmpeg, local DASH files.
+internal/worker/          Kratos-managed background jobs.
 ```
 
 ## Layering & dependency rules
@@ -91,6 +93,21 @@ design rather than add the import.
   into the storage driver's query language inside the repo.
 - _Errors_: map driver errors to `biz` typed errors so callers above
   never branch on the driver.
+- _Model layout_: keep the current GORM POs together in
+  `internal/data/models.go`; split that file only when distinct storage
+  ownership or substantially different lifecycles make the separation useful.
+
+**media**
+
+- Own streaming uploads after the transport has supplied an `io.Reader`,
+  ffprobe/FFmpeg execution, temporary upload jobs, and published local DASH
+  files. It does not import `biz` or persist database rows.
+
+**worker**
+
+- Own periodic/background orchestration and implement the Kratos server
+  lifecycle when a task must start and stop with the application. Workers call
+  focused infrastructure services; they do not own HTTP handlers or GORM POs.
 
 **server**
 

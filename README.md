@@ -48,7 +48,9 @@ configs/              Local configuration
 internal/server/      HTTP and gRPC server construction
 internal/service/     Transport-facing service methods
 internal/biz/         Usecases, entities, errors, repository interfaces
-internal/data/        Repository implementations
+internal/data/        PostgreSQL repositories and persistence models
+internal/media/       Upload jobs, FFmpeg processing, local DASH storage
+internal/worker/      Kratos-managed background cleanup jobs
 third_party/          Protobuf dependencies
 storage/              Video & photo resources
 web/                  Web frontend
@@ -69,7 +71,9 @@ The sample CRUD API demonstrates common conventions for Kratos projects:
 
 The data layer stores users, videos, playback metadata, and user video
 interactions in PostgreSQL. Repository implementations keep GORM models inside
-`internal/data` and expose domain objects to `internal/biz`.
+`internal/data/models.go` and expose domain objects to `internal/biz`. Media
+processing is isolated in `internal/media`; `internal/worker` owns the
+application lifecycle of periodic stale-upload cleanup.
 
 ## Development Commands
 
