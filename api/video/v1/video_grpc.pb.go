@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -19,22 +20,36 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	VideoService_GetVideo_FullMethodName     = "/video.v1.VideoService/GetVideo"
-	VideoService_GetVideoPlay_FullMethodName = "/video.v1.VideoService/GetVideoPlay"
-	VideoService_GetVideoLike_FullMethodName = "/video.v1.VideoService/GetVideoLike"
-	VideoService_LikeVideo_FullMethodName    = "/video.v1.VideoService/LikeVideo"
-	VideoService_UnlikeVideo_FullMethodName  = "/video.v1.VideoService/UnlikeVideo"
+	VideoService_ListVideos_FullMethodName           = "/video.v1.VideoService/ListVideos"
+	VideoService_ListUserVideos_FullMethodName       = "/video.v1.VideoService/ListUserVideos"
+	VideoService_GetVideo_FullMethodName             = "/video.v1.VideoService/GetVideo"
+	VideoService_GetVideoPlay_FullMethodName         = "/video.v1.VideoService/GetVideoPlay"
+	VideoService_GetVideoLike_FullMethodName         = "/video.v1.VideoService/GetVideoLike"
+	VideoService_LikeVideo_FullMethodName            = "/video.v1.VideoService/LikeVideo"
+	VideoService_UnlikeVideo_FullMethodName          = "/video.v1.VideoService/UnlikeVideo"
+	VideoService_GetVideoUploadStatus_FullMethodName = "/video.v1.VideoService/GetVideoUploadStatus"
+	VideoService_PublishVideo_FullMethodName         = "/video.v1.VideoService/PublishVideo"
+	VideoService_DeleteVideo_FullMethodName          = "/video.v1.VideoService/DeleteVideo"
+	VideoService_StartVideoView_FullMethodName       = "/video.v1.VideoService/StartVideoView"
+	VideoService_CompleteVideoView_FullMethodName    = "/video.v1.VideoService/CompleteVideoView"
 )
 
 // VideoServiceClient is the client API for VideoService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type VideoServiceClient interface {
+	ListVideos(ctx context.Context, in *ListVideosRequest, opts ...grpc.CallOption) (*ListVideosReply, error)
+	ListUserVideos(ctx context.Context, in *ListUserVideosRequest, opts ...grpc.CallOption) (*ListVideosReply, error)
 	GetVideo(ctx context.Context, in *GetVideoRequest, opts ...grpc.CallOption) (*Video, error)
 	GetVideoPlay(ctx context.Context, in *GetVideoPlayRequest, opts ...grpc.CallOption) (*VideoPlay, error)
 	GetVideoLike(ctx context.Context, in *GetVideoLikeRequest, opts ...grpc.CallOption) (*VideoLike, error)
 	LikeVideo(ctx context.Context, in *LikeVideoRequest, opts ...grpc.CallOption) (*VideoLike, error)
 	UnlikeVideo(ctx context.Context, in *UnlikeVideoRequest, opts ...grpc.CallOption) (*VideoLike, error)
+	GetVideoUploadStatus(ctx context.Context, in *GetVideoUploadStatusRequest, opts ...grpc.CallOption) (*VideoUploadStatus, error)
+	PublishVideo(ctx context.Context, in *PublishVideoRequest, opts ...grpc.CallOption) (*Video, error)
+	DeleteVideo(ctx context.Context, in *DeleteVideoRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	StartVideoView(ctx context.Context, in *StartVideoViewRequest, opts ...grpc.CallOption) (*VideoViewSession, error)
+	CompleteVideoView(ctx context.Context, in *CompleteVideoViewRequest, opts ...grpc.CallOption) (*VideoViewResult, error)
 }
 
 type videoServiceClient struct {
@@ -43,6 +58,26 @@ type videoServiceClient struct {
 
 func NewVideoServiceClient(cc grpc.ClientConnInterface) VideoServiceClient {
 	return &videoServiceClient{cc}
+}
+
+func (c *videoServiceClient) ListVideos(ctx context.Context, in *ListVideosRequest, opts ...grpc.CallOption) (*ListVideosReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListVideosReply)
+	err := c.cc.Invoke(ctx, VideoService_ListVideos_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *videoServiceClient) ListUserVideos(ctx context.Context, in *ListUserVideosRequest, opts ...grpc.CallOption) (*ListVideosReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListVideosReply)
+	err := c.cc.Invoke(ctx, VideoService_ListUserVideos_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *videoServiceClient) GetVideo(ctx context.Context, in *GetVideoRequest, opts ...grpc.CallOption) (*Video, error) {
@@ -95,15 +130,72 @@ func (c *videoServiceClient) UnlikeVideo(ctx context.Context, in *UnlikeVideoReq
 	return out, nil
 }
 
+func (c *videoServiceClient) GetVideoUploadStatus(ctx context.Context, in *GetVideoUploadStatusRequest, opts ...grpc.CallOption) (*VideoUploadStatus, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VideoUploadStatus)
+	err := c.cc.Invoke(ctx, VideoService_GetVideoUploadStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *videoServiceClient) PublishVideo(ctx context.Context, in *PublishVideoRequest, opts ...grpc.CallOption) (*Video, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Video)
+	err := c.cc.Invoke(ctx, VideoService_PublishVideo_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *videoServiceClient) DeleteVideo(ctx context.Context, in *DeleteVideoRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, VideoService_DeleteVideo_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *videoServiceClient) StartVideoView(ctx context.Context, in *StartVideoViewRequest, opts ...grpc.CallOption) (*VideoViewSession, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VideoViewSession)
+	err := c.cc.Invoke(ctx, VideoService_StartVideoView_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *videoServiceClient) CompleteVideoView(ctx context.Context, in *CompleteVideoViewRequest, opts ...grpc.CallOption) (*VideoViewResult, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VideoViewResult)
+	err := c.cc.Invoke(ctx, VideoService_CompleteVideoView_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // VideoServiceServer is the server API for VideoService service.
 // All implementations must embed UnimplementedVideoServiceServer
 // for forward compatibility.
 type VideoServiceServer interface {
+	ListVideos(context.Context, *ListVideosRequest) (*ListVideosReply, error)
+	ListUserVideos(context.Context, *ListUserVideosRequest) (*ListVideosReply, error)
 	GetVideo(context.Context, *GetVideoRequest) (*Video, error)
 	GetVideoPlay(context.Context, *GetVideoPlayRequest) (*VideoPlay, error)
 	GetVideoLike(context.Context, *GetVideoLikeRequest) (*VideoLike, error)
 	LikeVideo(context.Context, *LikeVideoRequest) (*VideoLike, error)
 	UnlikeVideo(context.Context, *UnlikeVideoRequest) (*VideoLike, error)
+	GetVideoUploadStatus(context.Context, *GetVideoUploadStatusRequest) (*VideoUploadStatus, error)
+	PublishVideo(context.Context, *PublishVideoRequest) (*Video, error)
+	DeleteVideo(context.Context, *DeleteVideoRequest) (*emptypb.Empty, error)
+	StartVideoView(context.Context, *StartVideoViewRequest) (*VideoViewSession, error)
+	CompleteVideoView(context.Context, *CompleteVideoViewRequest) (*VideoViewResult, error)
 	mustEmbedUnimplementedVideoServiceServer()
 }
 
@@ -114,6 +206,12 @@ type VideoServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedVideoServiceServer struct{}
 
+func (UnimplementedVideoServiceServer) ListVideos(context.Context, *ListVideosRequest) (*ListVideosReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListVideos not implemented")
+}
+func (UnimplementedVideoServiceServer) ListUserVideos(context.Context, *ListUserVideosRequest) (*ListVideosReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListUserVideos not implemented")
+}
 func (UnimplementedVideoServiceServer) GetVideo(context.Context, *GetVideoRequest) (*Video, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetVideo not implemented")
 }
@@ -128,6 +226,21 @@ func (UnimplementedVideoServiceServer) LikeVideo(context.Context, *LikeVideoRequ
 }
 func (UnimplementedVideoServiceServer) UnlikeVideo(context.Context, *UnlikeVideoRequest) (*VideoLike, error) {
 	return nil, status.Error(codes.Unimplemented, "method UnlikeVideo not implemented")
+}
+func (UnimplementedVideoServiceServer) GetVideoUploadStatus(context.Context, *GetVideoUploadStatusRequest) (*VideoUploadStatus, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetVideoUploadStatus not implemented")
+}
+func (UnimplementedVideoServiceServer) PublishVideo(context.Context, *PublishVideoRequest) (*Video, error) {
+	return nil, status.Error(codes.Unimplemented, "method PublishVideo not implemented")
+}
+func (UnimplementedVideoServiceServer) DeleteVideo(context.Context, *DeleteVideoRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteVideo not implemented")
+}
+func (UnimplementedVideoServiceServer) StartVideoView(context.Context, *StartVideoViewRequest) (*VideoViewSession, error) {
+	return nil, status.Error(codes.Unimplemented, "method StartVideoView not implemented")
+}
+func (UnimplementedVideoServiceServer) CompleteVideoView(context.Context, *CompleteVideoViewRequest) (*VideoViewResult, error) {
+	return nil, status.Error(codes.Unimplemented, "method CompleteVideoView not implemented")
 }
 func (UnimplementedVideoServiceServer) mustEmbedUnimplementedVideoServiceServer() {}
 func (UnimplementedVideoServiceServer) testEmbeddedByValue()                      {}
@@ -148,6 +261,42 @@ func RegisterVideoServiceServer(s grpc.ServiceRegistrar, srv VideoServiceServer)
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&VideoService_ServiceDesc, srv)
+}
+
+func _VideoService_ListVideos_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListVideosRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VideoServiceServer).ListVideos(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VideoService_ListVideos_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VideoServiceServer).ListVideos(ctx, req.(*ListVideosRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _VideoService_ListUserVideos_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListUserVideosRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VideoServiceServer).ListUserVideos(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VideoService_ListUserVideos_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VideoServiceServer).ListUserVideos(ctx, req.(*ListUserVideosRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _VideoService_GetVideo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -240,6 +389,96 @@ func _VideoService_UnlikeVideo_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _VideoService_GetVideoUploadStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetVideoUploadStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VideoServiceServer).GetVideoUploadStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VideoService_GetVideoUploadStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VideoServiceServer).GetVideoUploadStatus(ctx, req.(*GetVideoUploadStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _VideoService_PublishVideo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PublishVideoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VideoServiceServer).PublishVideo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VideoService_PublishVideo_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VideoServiceServer).PublishVideo(ctx, req.(*PublishVideoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _VideoService_DeleteVideo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteVideoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VideoServiceServer).DeleteVideo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VideoService_DeleteVideo_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VideoServiceServer).DeleteVideo(ctx, req.(*DeleteVideoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _VideoService_StartVideoView_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartVideoViewRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VideoServiceServer).StartVideoView(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VideoService_StartVideoView_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VideoServiceServer).StartVideoView(ctx, req.(*StartVideoViewRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _VideoService_CompleteVideoView_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CompleteVideoViewRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VideoServiceServer).CompleteVideoView(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VideoService_CompleteVideoView_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VideoServiceServer).CompleteVideoView(ctx, req.(*CompleteVideoViewRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // VideoService_ServiceDesc is the grpc.ServiceDesc for VideoService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -247,6 +486,14 @@ var VideoService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "video.v1.VideoService",
 	HandlerType: (*VideoServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListVideos",
+			Handler:    _VideoService_ListVideos_Handler,
+		},
+		{
+			MethodName: "ListUserVideos",
+			Handler:    _VideoService_ListUserVideos_Handler,
+		},
 		{
 			MethodName: "GetVideo",
 			Handler:    _VideoService_GetVideo_Handler,
@@ -266,6 +513,26 @@ var VideoService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UnlikeVideo",
 			Handler:    _VideoService_UnlikeVideo_Handler,
+		},
+		{
+			MethodName: "GetVideoUploadStatus",
+			Handler:    _VideoService_GetVideoUploadStatus_Handler,
+		},
+		{
+			MethodName: "PublishVideo",
+			Handler:    _VideoService_PublishVideo_Handler,
+		},
+		{
+			MethodName: "DeleteVideo",
+			Handler:    _VideoService_DeleteVideo_Handler,
+		},
+		{
+			MethodName: "StartVideoView",
+			Handler:    _VideoService_StartVideoView_Handler,
+		},
+		{
+			MethodName: "CompleteVideoView",
+			Handler:    _VideoService_CompleteVideoView_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -1,4 +1,4 @@
-package auth
+package middleware
 
 import (
 	"fmt"
@@ -9,16 +9,12 @@ import (
 	"bilibili-lite/internal/conf"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/wire"
 )
 
 const (
 	accessTokenType  = "access"
 	refreshTokenType = "refresh"
 )
-
-// ProviderSet provides authentication infrastructure.
-var ProviderSet = wire.NewSet(NewJWTManager)
 
 type claims struct {
 	TokenType string `json:"token_type"`
@@ -77,7 +73,6 @@ func (m *jwtManager) ParseRefresh(token string) (*biz.TokenClaims, error) {
 	return m.parse(token, refreshTokenType)
 }
 
-// sign encodes user identity, token kind, issuer, and lifetime into an HS256 JWT.
 func (m *jwtManager) sign(userID uint64, tokenType string, issuedAt, expiresAt time.Time) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims{
 		TokenType: tokenType,
@@ -89,7 +84,6 @@ func (m *jwtManager) sign(userID uint64, tokenType string, issuedAt, expiresAt t
 	return token.SignedString(m.secret)
 }
 
-// parse verifies signature and registered claims, then enforces the expected access or refresh token kind.
 func (m *jwtManager) parse(raw, expectedType string) (*biz.TokenClaims, error) {
 	parsed, err := jwt.ParseWithClaims(raw, &claims{}, func(token *jwt.Token) (any, error) {
 		if token.Method != jwt.SigningMethodHS256 {

@@ -9,6 +9,7 @@ package v1
 import (
 	context "context"
 	http "github.com/go-kratos/kratos/v3/transport/http"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -17,27 +18,89 @@ var _ = new(context.Context)
 
 const _ = http.SupportPackageIsVersion3
 
+const OperationVideoServiceCompleteVideoView = "/video.v1.VideoService/CompleteVideoView"
+const OperationVideoServiceDeleteVideo = "/video.v1.VideoService/DeleteVideo"
 const OperationVideoServiceGetVideo = "/video.v1.VideoService/GetVideo"
 const OperationVideoServiceGetVideoLike = "/video.v1.VideoService/GetVideoLike"
 const OperationVideoServiceGetVideoPlay = "/video.v1.VideoService/GetVideoPlay"
+const OperationVideoServiceGetVideoUploadStatus = "/video.v1.VideoService/GetVideoUploadStatus"
 const OperationVideoServiceLikeVideo = "/video.v1.VideoService/LikeVideo"
+const OperationVideoServiceListUserVideos = "/video.v1.VideoService/ListUserVideos"
+const OperationVideoServiceListVideos = "/video.v1.VideoService/ListVideos"
+const OperationVideoServicePublishVideo = "/video.v1.VideoService/PublishVideo"
+const OperationVideoServiceStartVideoView = "/video.v1.VideoService/StartVideoView"
 const OperationVideoServiceUnlikeVideo = "/video.v1.VideoService/UnlikeVideo"
 
 type VideoServiceHTTPServer interface {
+	CompleteVideoView(context.Context, *CompleteVideoViewRequest) (*VideoViewResult, error)
+	DeleteVideo(context.Context, *DeleteVideoRequest) (*emptypb.Empty, error)
 	GetVideo(context.Context, *GetVideoRequest) (*Video, error)
 	GetVideoLike(context.Context, *GetVideoLikeRequest) (*VideoLike, error)
 	GetVideoPlay(context.Context, *GetVideoPlayRequest) (*VideoPlay, error)
+	GetVideoUploadStatus(context.Context, *GetVideoUploadStatusRequest) (*VideoUploadStatus, error)
 	LikeVideo(context.Context, *LikeVideoRequest) (*VideoLike, error)
+	ListUserVideos(context.Context, *ListUserVideosRequest) (*ListVideosReply, error)
+	ListVideos(context.Context, *ListVideosRequest) (*ListVideosReply, error)
+	PublishVideo(context.Context, *PublishVideoRequest) (*Video, error)
+	StartVideoView(context.Context, *StartVideoViewRequest) (*VideoViewSession, error)
 	UnlikeVideo(context.Context, *UnlikeVideoRequest) (*VideoLike, error)
 }
 
 func RegisterVideoServiceHTTPServer(s *http.Server, srv VideoServiceHTTPServer) {
 	r := s.Route("/")
+	r.Handle("GET", "/api/v1/videos", _VideoService_ListVideos0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/v1/users/{user_id}/videos", _VideoService_ListUserVideos0_HTTP_Handler(srv))
 	r.Handle("GET", "/api/v1/videos/{bvid}", _VideoService_GetVideo0_HTTP_Handler(srv))
 	r.Handle("GET", "/api/v1/videos/{bvid}/play", _VideoService_GetVideoPlay0_HTTP_Handler(srv))
 	r.Handle("GET", "/api/v1/videos/{bvid}/like", _VideoService_GetVideoLike0_HTTP_Handler(srv))
 	r.Handle("POST", "/api/v1/videos/{bvid}/like", _VideoService_LikeVideo0_HTTP_Handler(srv))
 	r.Handle("DELETE", "/api/v1/videos/{bvid}/like", _VideoService_UnlikeVideo0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/v1/videos/{bvid}/upload-status", _VideoService_GetVideoUploadStatus0_HTTP_Handler(srv))
+	r.Handle("POST", "/api/v1/videos/{bvid}/publish", _VideoService_PublishVideo0_HTTP_Handler(srv))
+	r.Handle("DELETE", "/api/v1/videos/{bvid}", _VideoService_DeleteVideo0_HTTP_Handler(srv))
+	r.Handle("POST", "/api/v1/videos/{bvid}/view-sessions", _VideoService_StartVideoView0_HTTP_Handler(srv))
+	r.Handle("POST", "/api/v1/videos/{bvid}/view-sessions/{session_id}:complete", _VideoService_CompleteVideoView0_HTTP_Handler(srv))
+}
+
+func _VideoService_ListVideos0_HTTP_Handler(srv VideoServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in ListVideosRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationVideoServiceListVideos)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.ListVideos(ctx, req.(*ListVideosRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*ListVideosReply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _VideoService_ListUserVideos0_HTTP_Handler(srv VideoServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in ListUserVideosRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationVideoServiceListUserVideos)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.ListUserVideos(ctx, req.(*ListUserVideosRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*ListVideosReply)
+		return ctx.Result(200, reply)
+	}
 }
 
 func _VideoService_GetVideo0_HTTP_Handler(srv VideoServiceHTTPServer) func(ctx http.Context) error {
@@ -150,11 +213,128 @@ func _VideoService_UnlikeVideo0_HTTP_Handler(srv VideoServiceHTTPServer) func(ct
 	}
 }
 
+func _VideoService_GetVideoUploadStatus0_HTTP_Handler(srv VideoServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in GetVideoUploadStatusRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationVideoServiceGetVideoUploadStatus)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetVideoUploadStatus(ctx, req.(*GetVideoUploadStatusRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*VideoUploadStatus)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _VideoService_PublishVideo0_HTTP_Handler(srv VideoServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in PublishVideoRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationVideoServicePublishVideo)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.PublishVideo(ctx, req.(*PublishVideoRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*Video)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _VideoService_DeleteVideo0_HTTP_Handler(srv VideoServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in DeleteVideoRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationVideoServiceDeleteVideo)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.DeleteVideo(ctx, req.(*DeleteVideoRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*emptypb.Empty)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _VideoService_StartVideoView0_HTTP_Handler(srv VideoServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in StartVideoViewRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationVideoServiceStartVideoView)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.StartVideoView(ctx, req.(*StartVideoViewRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*VideoViewSession)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _VideoService_CompleteVideoView0_HTTP_Handler(srv VideoServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in CompleteVideoViewRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationVideoServiceCompleteVideoView)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.CompleteVideoView(ctx, req.(*CompleteVideoViewRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*VideoViewResult)
+		return ctx.Result(200, reply)
+	}
+}
+
 type VideoServiceHTTPClient interface {
+	CompleteVideoView(ctx context.Context, req *CompleteVideoViewRequest, opts ...http.CallOption) (rsp *VideoViewResult, err error)
+	DeleteVideo(ctx context.Context, req *DeleteVideoRequest, opts ...http.CallOption) (rsp *emptypb.Empty, err error)
 	GetVideo(ctx context.Context, req *GetVideoRequest, opts ...http.CallOption) (rsp *Video, err error)
 	GetVideoLike(ctx context.Context, req *GetVideoLikeRequest, opts ...http.CallOption) (rsp *VideoLike, err error)
 	GetVideoPlay(ctx context.Context, req *GetVideoPlayRequest, opts ...http.CallOption) (rsp *VideoPlay, err error)
+	GetVideoUploadStatus(ctx context.Context, req *GetVideoUploadStatusRequest, opts ...http.CallOption) (rsp *VideoUploadStatus, err error)
 	LikeVideo(ctx context.Context, req *LikeVideoRequest, opts ...http.CallOption) (rsp *VideoLike, err error)
+	ListUserVideos(ctx context.Context, req *ListUserVideosRequest, opts ...http.CallOption) (rsp *ListVideosReply, err error)
+	ListVideos(ctx context.Context, req *ListVideosRequest, opts ...http.CallOption) (rsp *ListVideosReply, err error)
+	PublishVideo(ctx context.Context, req *PublishVideoRequest, opts ...http.CallOption) (rsp *Video, err error)
+	StartVideoView(ctx context.Context, req *StartVideoViewRequest, opts ...http.CallOption) (rsp *VideoViewSession, err error)
 	UnlikeVideo(ctx context.Context, req *UnlikeVideoRequest, opts ...http.CallOption) (rsp *VideoLike, err error)
 }
 
@@ -164,6 +344,39 @@ type VideoServiceHTTPClientImpl struct {
 
 func NewVideoServiceHTTPClient(client *http.Client) VideoServiceHTTPClient {
 	return &VideoServiceHTTPClientImpl{client}
+}
+
+func (c *VideoServiceHTTPClientImpl) CompleteVideoView(ctx context.Context, in *CompleteVideoViewRequest, opts ...http.CallOption) (*VideoViewResult, error) {
+	var out VideoViewResult
+	pattern := "/api/v1/videos/{bvid}/view-sessions/{session_id}:complete"
+	path := http.BuildPath(pattern, in)
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.ContentType("application/protojson"),
+		http.Operation(OperationVideoServiceCompleteVideoView),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *VideoServiceHTTPClientImpl) DeleteVideo(ctx context.Context, in *DeleteVideoRequest, opts ...http.CallOption) (*emptypb.Empty, error) {
+	var out emptypb.Empty
+	pattern := "/api/v1/videos/{bvid}"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationVideoServiceDeleteVideo),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "DELETE", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 func (c *VideoServiceHTTPClientImpl) GetVideo(ctx context.Context, in *GetVideoRequest, opts ...http.CallOption) (*Video, error) {
@@ -214,6 +427,22 @@ func (c *VideoServiceHTTPClientImpl) GetVideoPlay(ctx context.Context, in *GetVi
 	return &out, nil
 }
 
+func (c *VideoServiceHTTPClientImpl) GetVideoUploadStatus(ctx context.Context, in *GetVideoUploadStatusRequest, opts ...http.CallOption) (*VideoUploadStatus, error) {
+	var out VideoUploadStatus
+	pattern := "/api/v1/videos/{bvid}/upload-status"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationVideoServiceGetVideoUploadStatus),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 func (c *VideoServiceHTTPClientImpl) LikeVideo(ctx context.Context, in *LikeVideoRequest, opts ...http.CallOption) (*VideoLike, error) {
 	var out VideoLike
 	pattern := "/api/v1/videos/{bvid}/like"
@@ -224,6 +453,72 @@ func (c *VideoServiceHTTPClientImpl) LikeVideo(ctx context.Context, in *LikeVide
 		http.PathTemplate(pattern),
 	}, opts...)
 	err := c.cc.Invoke(ctx, "POST", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *VideoServiceHTTPClientImpl) ListUserVideos(ctx context.Context, in *ListUserVideosRequest, opts ...http.CallOption) (*ListVideosReply, error) {
+	var out ListVideosReply
+	pattern := "/api/v1/users/{user_id}/videos"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationVideoServiceListUserVideos),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *VideoServiceHTTPClientImpl) ListVideos(ctx context.Context, in *ListVideosRequest, opts ...http.CallOption) (*ListVideosReply, error) {
+	var out ListVideosReply
+	pattern := "/api/v1/videos"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationVideoServiceListVideos),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *VideoServiceHTTPClientImpl) PublishVideo(ctx context.Context, in *PublishVideoRequest, opts ...http.CallOption) (*Video, error) {
+	var out Video
+	pattern := "/api/v1/videos/{bvid}/publish"
+	path := http.BuildPath(pattern, in)
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.ContentType("application/protojson"),
+		http.Operation(OperationVideoServicePublishVideo),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *VideoServiceHTTPClientImpl) StartVideoView(ctx context.Context, in *StartVideoViewRequest, opts ...http.CallOption) (*VideoViewSession, error) {
+	var out VideoViewSession
+	pattern := "/api/v1/videos/{bvid}/view-sessions"
+	path := http.BuildPath(pattern, in)
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.ContentType("application/protojson"),
+		http.Operation(OperationVideoServiceStartVideoView),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
 	if err != nil {
 		return nil, err
 	}

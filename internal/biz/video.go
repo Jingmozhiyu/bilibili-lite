@@ -12,21 +12,33 @@ import (
 	"github.com/go-kratos/kratos/v3/errors"
 )
 
-const bvidPrefix = "BV"
+const (
+	bvidPrefix           = "BV"
+	defaultVideoPageSize = 20
+	maxVideoPageSize     = 50
+)
 
 var (
-	// ErrVideoNotFound is returned when a video does not exist.
-	ErrVideoNotFound = errors.NotFound(v1.ErrorReason_VIDEO_NOT_FOUND.String(), "video not found")
-	// ErrVideoInvalidArgument is returned when a video request is invalid.
-	ErrVideoInvalidArgument = errors.BadRequest(v1.ErrorReason_VIDEO_INVALID_ARGUMENT.String(), "invalid video argument")
-	// ErrVideoStorage is returned when video persistence is unavailable.
-	ErrVideoStorage = errors.InternalServer(v1.ErrorReason_VIDEO_UNSPECIFIED.String(), "video storage unavailable")
-	// ErrVideoProcessing is returned when uploaded media cannot be inspected or converted.
-	ErrVideoProcessing = errors.InternalServer(v1.ErrorReason_VIDEO_PROCESSING_FAILED.String(), "video processing failed")
-	// ErrVideoUploadInterrupted is returned when the upload stream is disconnected.
+	ErrVideoNotFound          = errors.NotFound(v1.ErrorReason_VIDEO_NOT_FOUND.String(), "video not found")
+	ErrVideoInvalidArgument   = errors.BadRequest(v1.ErrorReason_VIDEO_INVALID_ARGUMENT.String(), "invalid video argument")
+	ErrVideoStorage           = errors.InternalServer(v1.ErrorReason_VIDEO_UNSPECIFIED.String(), "video storage unavailable")
+	ErrVideoProcessing        = errors.InternalServer(v1.ErrorReason_VIDEO_PROCESSING_FAILED.String(), "video processing failed")
 	ErrVideoUploadInterrupted = errors.New(408, v1.ErrorReason_VIDEO_UPLOAD_INTERRUPTED.String(), "video upload interrupted")
-	// ErrVideoUploadTooLarge is returned when an upload exceeds the configured limit.
-	ErrVideoUploadTooLarge = errors.BadRequest(v1.ErrorReason_VIDEO_UPLOAD_TOO_LARGE.String(), "video upload is too large")
+	ErrVideoUploadTooLarge    = errors.BadRequest(v1.ErrorReason_VIDEO_UPLOAD_TOO_LARGE.String(), "video upload is too large")
+	ErrVideoForbidden         = errors.Forbidden(v1.ErrorReason_VIDEO_FORBIDDEN.String(), "video operation is not allowed")
+	ErrVideoInvalidState      = errors.Conflict(v1.ErrorReason_VIDEO_INVALID_STATE.String(), "video is not in the required state")
+	ErrVideoViewTooEarly      = errors.BadRequest(v1.ErrorReason_VIDEO_VIEW_TOO_EARLY.String(), "video must be watched for at least five seconds")
+)
+
+// VideoStatus is the lifecycle state persisted for every allocated BV identifier.
+type VideoStatus string
+
+const (
+	VideoStatusProcessing VideoStatus = "processing"
+	VideoStatusReady      VideoStatus = "ready"
+	VideoStatusPublished  VideoStatus = "published"
+	VideoStatusFailed     VideoStatus = "failed"
+	VideoStatusDeleted    VideoStatus = "deleted"
 )
 
 // VideoID is the internal numeric identifier shared by the video domain and persistence layers.
@@ -54,14 +66,16 @@ func (id VideoID) BVID() string {
 	return bvidPrefix + strconv.FormatUint(uint64(id), 10)
 }
 
-// Video is the domain model for a video detail page.
+// Video is the domain model shared by video detail and list responses.
 type Video struct {
 	ID              VideoID
+	OwnerID         uint64
 	Title           string
 	Description     string
 	OwnerName       string
 	OwnerAvatarURL  string
 	CoverURL        string
+	Status          VideoStatus
 	DurationSeconds int64
 	ViewCount       int64
 	DanmakuCount    int64
@@ -70,7 +84,22 @@ type Video struct {
 	FavoriteCount   int64
 	ShareCount      int64
 	PublishTime     time.Time
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 	Tags            []string
+}
+
+// VideoListOptions describes one keyset-paginated published video query.
+type VideoListOptions struct {
+	OwnerID   uint64
+	PageSize  int
+	PageToken string
+}
+
+// VideoList is one page of videos and its continuation token.
+type VideoList struct {
+	Videos        []Video
+	NextPageToken string
 }
 
 // VideoPlay describes playable media and timed danmaku metadata.
@@ -114,28 +143,66 @@ type VideoLike struct {
 	LikeCount int64
 }
 
-// VideoUploadInput carries one MP4 upload and its user-editable metadata.
+// VideoUploadInput carries one MP4 upload and an optional custom cover stream.
 type VideoUploadInput struct {
+	OwnerID uint64
+	Content io.Reader
+	Cover   io.Reader
+}
+
+// VideoUploadResult identifies media that has finished processing and is ready to publish.
+type VideoUploadResult struct {
+	VideoID     VideoID
+	Status      VideoStatus
+	ManifestURL string
+	CoverURL    string
+}
+
+// VideoUploadStatus reports owner-only processing and publication state.
+type VideoUploadStatus struct {
+	VideoID       VideoID
+	Status        VideoStatus
+	FailureReason string
+	ManifestURL   string
+	CoverURL      string
+}
+
+// VideoPublishInput supplies metadata after media processing has completed.
+type VideoPublishInput struct {
 	OwnerID     uint64
+	VideoID     VideoID
 	Title       string
 	Description string
 	Tags        []string
-	Content     io.Reader
 }
 
-// VideoUploadResult points clients to the newly published video and DASH manifest.
-type VideoUploadResult struct {
-	VideoID     VideoID
-	ManifestURL string
+// VideoViewSession starts the server-side minimum-watch timer.
+type VideoViewSession struct {
+	ID        string
+	StartedAt time.Time
 }
 
-// VideoRepo is a video repo.
+// VideoViewResult reports whether a qualified view passed frequency limits.
+type VideoViewResult struct {
+	Counted        bool
+	ViewCount      int64
+	RemainingToday int32
+	NextEligibleAt time.Time
+}
+
+// VideoRepo owns persistence and media-side implementation details for video operations.
 type VideoRepo interface {
+	ListVideos(context.Context, VideoListOptions) (*VideoList, error)
 	FindVideoByID(context.Context, VideoID) (*Video, error)
 	FindVideoPlayByID(context.Context, VideoID) (*VideoPlay, error)
 	FindVideoLike(context.Context, uint64, VideoID) (*VideoLike, error)
+	FindVideoUploadStatus(context.Context, uint64, VideoID) (*VideoUploadStatus, error)
 	SetVideoLike(context.Context, uint64, VideoID, bool) (*VideoLike, error)
-	PublishVideoFromMP4(context.Context, *VideoUploadInput) (*VideoUploadResult, error)
+	ProcessVideoUpload(context.Context, *VideoUploadInput) (*VideoUploadResult, error)
+	PublishVideo(context.Context, *VideoPublishInput) (*Video, error)
+	DeleteVideo(context.Context, uint64, VideoID) error
+	CreateVideoViewSession(context.Context, uint64, VideoID) (*VideoViewSession, error)
+	CompleteVideoViewSession(context.Context, uint64, VideoID, string) (*VideoViewResult, error)
 }
 
 // VideoUsecase coordinates video domain operations through VideoRepo.
@@ -148,7 +215,20 @@ func NewVideoUsecase(repo VideoRepo) *VideoUsecase {
 	return &VideoUsecase{repo: repo}
 }
 
-// GetVideo returns a video by its numeric ID.
+// ListVideos returns one page of published videos, optionally limited to an owner.
+func (uc *VideoUsecase) ListVideos(ctx context.Context, ownerID uint64, pageSize int32, pageToken string) (*VideoList, error) {
+	if pageSize < 0 || pageSize > maxVideoPageSize {
+		return nil, ErrVideoInvalidArgument
+	}
+	if pageSize == 0 {
+		pageSize = defaultVideoPageSize
+	}
+	return uc.repo.ListVideos(ctx, VideoListOptions{
+		OwnerID: ownerID, PageSize: int(pageSize), PageToken: strings.TrimSpace(pageToken),
+	})
+}
+
+// GetVideo returns a published video by its numeric ID.
 func (uc *VideoUsecase) GetVideo(ctx context.Context, videoID VideoID) (*Video, error) {
 	if videoID == 0 {
 		return nil, ErrVideoInvalidArgument
@@ -156,7 +236,7 @@ func (uc *VideoUsecase) GetVideo(ctx context.Context, videoID VideoID) (*Video, 
 	return uc.repo.FindVideoByID(ctx, videoID)
 }
 
-// GetVideoPlay returns playback metadata for a numeric video ID.
+// GetVideoPlay returns playback metadata for a published numeric video ID.
 func (uc *VideoUsecase) GetVideoPlay(ctx context.Context, videoID VideoID) (*VideoPlay, error) {
 	if videoID == 0 {
 		return nil, ErrVideoInvalidArgument
@@ -172,6 +252,14 @@ func (uc *VideoUsecase) GetVideoLike(ctx context.Context, userID uint64, videoID
 	return uc.repo.FindVideoLike(ctx, userID, videoID)
 }
 
+// GetVideoUploadStatus returns processing state only to the video's owner.
+func (uc *VideoUsecase) GetVideoUploadStatus(ctx context.Context, userID uint64, videoID VideoID) (*VideoUploadStatus, error) {
+	if userID == 0 || videoID == 0 {
+		return nil, ErrVideoInvalidArgument
+	}
+	return uc.repo.FindVideoUploadStatus(ctx, userID, videoID)
+}
+
 // SetVideoLike idempotently applies the requested like state.
 func (uc *VideoUsecase) SetVideoLike(ctx context.Context, userID uint64, videoID VideoID, liked bool) (*VideoLike, error) {
 	if userID == 0 || videoID == 0 {
@@ -180,22 +268,57 @@ func (uc *VideoUsecase) SetVideoLike(ctx context.Context, userID uint64, videoID
 	return uc.repo.SetVideoLike(ctx, userID, videoID, liked)
 }
 
-// UploadVideo validates metadata before publishing the MP4 stream as DASH media.
+// UploadVideo allocates a BV identifier immediately and processes uploaded media into a ready draft.
 func (uc *VideoUsecase) UploadVideo(ctx context.Context, input *VideoUploadInput) (*VideoUploadResult, error) {
+	if input == nil || input.OwnerID == 0 || input.Content == nil {
+		return nil, ErrVideoInvalidArgument
+	}
+	return uc.repo.ProcessVideoUpload(ctx, input)
+}
+
+// PublishVideo validates final metadata and transitions a ready draft to published.
+func (uc *VideoUsecase) PublishVideo(ctx context.Context, input *VideoPublishInput) (*Video, error) {
 	if input == nil {
 		return nil, ErrVideoInvalidArgument
 	}
 	input.Title = strings.TrimSpace(input.Title)
 	input.Description = strings.TrimSpace(input.Description)
-	if input.OwnerID == 0 || input.Title == "" || len(input.Title) > 200 || input.Content == nil {
+	if input.OwnerID == 0 || input.VideoID == 0 || input.Title == "" || len(input.Title) > 200 || len(input.Description) > 10000 || len(input.Tags) > 12 {
 		return nil, ErrVideoInvalidArgument
 	}
-	if len(input.Description) > 10000 || len(input.Tags) > 12 {
+	input.Tags = cleanVideoTags(input.Tags)
+	return uc.repo.PublishVideo(ctx, input)
+}
+
+// DeleteVideo marks a BV identifier deleted and removes its published media.
+func (uc *VideoUsecase) DeleteVideo(ctx context.Context, userID uint64, videoID VideoID) error {
+	if userID == 0 || videoID == 0 {
+		return ErrVideoInvalidArgument
+	}
+	return uc.repo.DeleteVideo(ctx, userID, videoID)
+}
+
+// StartVideoView begins a server-timed playback session for a logged-in viewer.
+func (uc *VideoUsecase) StartVideoView(ctx context.Context, userID uint64, videoID VideoID) (*VideoViewSession, error) {
+	if userID == 0 || videoID == 0 {
 		return nil, ErrVideoInvalidArgument
 	}
-	cleanTags := make([]string, 0, len(input.Tags))
-	seen := make(map[string]struct{}, len(input.Tags))
-	for _, tag := range input.Tags {
+	return uc.repo.CreateVideoViewSession(ctx, userID, videoID)
+}
+
+// CompleteVideoView qualifies a session after five seconds and applies hourly/daily limits atomically.
+func (uc *VideoUsecase) CompleteVideoView(ctx context.Context, userID uint64, videoID VideoID, sessionID string) (*VideoViewResult, error) {
+	sessionID = strings.TrimSpace(sessionID)
+	if userID == 0 || videoID == 0 || sessionID == "" || len(sessionID) > 64 {
+		return nil, ErrVideoInvalidArgument
+	}
+	return uc.repo.CompleteVideoViewSession(ctx, userID, videoID, sessionID)
+}
+
+func cleanVideoTags(tags []string) []string {
+	cleanTags := make([]string, 0, len(tags))
+	seen := make(map[string]struct{}, len(tags))
+	for _, tag := range tags {
 		tag = strings.TrimSpace(tag)
 		if tag == "" || len(tag) > 30 {
 			continue
@@ -206,6 +329,5 @@ func (uc *VideoUsecase) UploadVideo(ctx context.Context, input *VideoUploadInput
 		seen[tag] = struct{}{}
 		cleanTags = append(cleanTags, tag)
 	}
-	input.Tags = cleanTags
-	return uc.repo.PublishVideoFromMP4(ctx, input)
+	return cleanTags
 }

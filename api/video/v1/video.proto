@@ -4,6 +4,7 @@ package video.v1;
 
 import "google/api/annotations.proto";
 import "google/api/field_behavior.proto";
+import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "bilibili-lite/api/video/v1;v1";
@@ -12,6 +13,18 @@ option java_package = "video.v1";
 option java_outer_classname = "VideoProto";
 
 service VideoService {
+  rpc ListVideos(ListVideosRequest) returns (ListVideosReply) {
+    option (google.api.http) = {
+      get: "/api/v1/videos"
+    };
+  }
+
+  rpc ListUserVideos(ListUserVideosRequest) returns (ListVideosReply) {
+    option (google.api.http) = {
+      get: "/api/v1/users/{user_id}/videos"
+    };
+  }
+
   rpc GetVideo(GetVideoRequest) returns (Video) {
     option (google.api.http) = {
       get: "/api/v1/videos/{bvid}"
@@ -41,6 +54,48 @@ service VideoService {
       delete: "/api/v1/videos/{bvid}/like"
     };
   }
+
+  rpc GetVideoUploadStatus(GetVideoUploadStatusRequest) returns (VideoUploadStatus) {
+    option (google.api.http) = {
+      get: "/api/v1/videos/{bvid}/upload-status"
+    };
+  }
+
+  rpc PublishVideo(PublishVideoRequest) returns (Video) {
+    option (google.api.http) = {
+      post: "/api/v1/videos/{bvid}/publish"
+      body: "*"
+    };
+  }
+
+  rpc DeleteVideo(DeleteVideoRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/api/v1/videos/{bvid}"
+    };
+  }
+
+  rpc StartVideoView(StartVideoViewRequest) returns (VideoViewSession) {
+    option (google.api.http) = {
+      post: "/api/v1/videos/{bvid}/view-sessions"
+      body: "*"
+    };
+  }
+
+  rpc CompleteVideoView(CompleteVideoViewRequest) returns (VideoViewResult) {
+    option (google.api.http) = {
+      post: "/api/v1/videos/{bvid}/view-sessions/{session_id}:complete"
+      body: "*"
+    };
+  }
+}
+
+enum VideoStatus {
+  VIDEO_STATUS_UNSPECIFIED = 0;
+  VIDEO_STATUS_PROCESSING = 1;
+  VIDEO_STATUS_READY = 2;
+  VIDEO_STATUS_PUBLISHED = 3;
+  VIDEO_STATUS_FAILED = 4;
+  VIDEO_STATUS_DELETED = 5;
 }
 
 message Video {
@@ -59,6 +114,26 @@ message Video {
   int64 share_count = 13;
   google.protobuf.Timestamp publish_time = 14;
   repeated string tags = 15;
+  uint64 owner_id = 16;
+  VideoStatus status = 17;
+  google.protobuf.Timestamp created_at = 18;
+  google.protobuf.Timestamp updated_at = 19;
+}
+
+message ListVideosRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListUserVideosRequest {
+  uint64 user_id = 1 [(google.api.field_behavior) = REQUIRED];
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListVideosReply {
+  repeated Video videos = 1;
+  string next_page_token = 2;
 }
 
 message VideoPlay {
@@ -115,4 +190,48 @@ message VideoLike {
   string bvid = 1;
   bool liked = 2;
   int64 like_count = 3;
+}
+
+message GetVideoUploadStatusRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message VideoUploadStatus {
+  string bvid = 1;
+  VideoStatus status = 2;
+  string failure_reason = 3;
+  string manifest_url = 4;
+  string cover_url = 5;
+}
+
+message PublishVideoRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+  string title = 2 [(google.api.field_behavior) = REQUIRED];
+  string description = 3;
+  repeated string tags = 4;
+}
+
+message DeleteVideoRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message StartVideoViewRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message VideoViewSession {
+  string session_id = 1;
+  google.protobuf.Timestamp started_at = 2;
+}
+
+message CompleteVideoViewRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+  string session_id = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+message VideoViewResult {
+  bool counted = 1;
+  int64 view_count = 2;
+  int32 remaining_today = 3;
+  google.protobuf.Timestamp next_eligible_at = 4;
 }

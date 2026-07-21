@@ -21,6 +21,7 @@ func TestUploadJanitorStartAndStop(t *testing.T) {
 		UploadIdleTimeout: durationpb.New(time.Minute),
 		TranscodeTimeout:  durationpb.New(time.Minute),
 		MaxUploadBytes:    32,
+		MaxCoverBytes:     32,
 	}})
 	if err != nil {
 		t.Fatalf("NewManager() error = %v", err)

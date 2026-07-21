@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"math"
+	"math/big"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -57,6 +59,35 @@ func (m *Manager) InspectMP4(ctx context.Context, job *UploadJob) (*Metadata, er
 		return nil, err
 	}
 	return metadataFromProbe(&probe)
+}
+
+// GenerateCover normalizes a custom image or captures a random video frame as cover.jpg.
+func (m *Manager) GenerateCover(ctx context.Context, job *UploadJob, metadata *Metadata, custom bool) error {
+	if job == nil || metadata == nil {
+		return fmt.Errorf("upload job and metadata are required")
+	}
+	ffmpegPath, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		return fmt.Errorf("ffmpeg is not installed: %w", err)
+	}
+	commandCtx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	args := []string{"-hide_banner", "-y"}
+	if custom {
+		args = append(args, "-i", job.coverPath)
+	} else {
+		args = append(args, "-ss", randomCoverTimestamp(metadata.DurationSeconds), "-i", job.sourcePath)
+	}
+	args = append(args,
+		"-frames:v", "1",
+		"-vf", "scale=1280:-2:force_original_aspect_ratio=decrease",
+		"-q:v", "2", filepath.Join(job.outputDir, "cover.jpg"),
+	)
+	output, err := exec.CommandContext(commandCtx, ffmpegPath, args...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("generate cover: %w: %s", err, tail(string(output), 1200))
+	}
+	return job.touchHeartbeat()
 }
 
 // TranscodeDASH runs FFmpeg to produce four-second video/audio segments and an MPD manifest.
@@ -139,4 +170,15 @@ func tail(value string, max int) string {
 		return value
 	}
 	return value[len(value)-max:]
+}
+
+func randomCoverTimestamp(durationSeconds int64) string {
+	if durationSeconds <= 1 {
+		return "0"
+	}
+	value, err := rand.Int(rand.Reader, big.NewInt(durationSeconds))
+	if err != nil {
+		return strconv.FormatInt(durationSeconds/2, 10)
+	}
+	return value.String()
 }

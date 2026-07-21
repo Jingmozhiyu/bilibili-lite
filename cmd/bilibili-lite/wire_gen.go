@@ -7,11 +7,11 @@
 package main
 
 import (
-	"bilibili-lite/internal/auth"
 	"bilibili-lite/internal/biz"
 	"bilibili-lite/internal/conf"
 	"bilibili-lite/internal/data"
 	"bilibili-lite/internal/media"
+	"bilibili-lite/internal/middleware"
 	"bilibili-lite/internal/server"
 	"bilibili-lite/internal/service"
 	"bilibili-lite/internal/worker"
@@ -26,7 +26,12 @@ import (
 // Injectors from wire.go:
 
 // wireApp assembles the application and its cleanup function.
-func wireApp(confServer *conf.Server, confData *conf.Data, confAuth *conf.Auth, logger *slog.Logger) (*kratos.App, func(), error) {
+func wireApp(confServer *conf.Server, confData *conf.Data, auth *conf.Auth, logger *slog.Logger) (*kratos.App, func(), error) {
+	tokenManager, err := middleware.NewJWTManager(auth)
+	if err != nil {
+		return nil, nil, err
+	}
+	authenticator := middleware.NewAuthenticator(tokenManager)
 	dataData, cleanup, err := data.NewData(confData)
 	if err != nil {
 		return nil, nil, err
@@ -38,18 +43,13 @@ func wireApp(confServer *conf.Server, confData *conf.Data, confAuth *conf.Auth, 
 	}
 	videoRepo := data.NewVideoRepo(dataData, manager)
 	videoUsecase := biz.NewVideoUsecase(videoRepo)
+	videoService := service.NewVideoService(videoUsecase)
 	userRepo := data.NewUserRepo(dataData)
-	tokenManager, err := auth.NewJWTManager(confAuth)
-	if err != nil {
-		cleanup()
-		return nil, nil, err
-	}
 	userUsecase := biz.NewUserUsecase(userRepo, tokenManager)
-	videoService := service.NewVideoService(videoUsecase, userUsecase)
 	userService := service.NewUserService(userUsecase)
-	grpcServer := server.NewGRPCServer(confServer, videoService, userService)
-	videoUploadHTTPHandler := service.NewVideoUploadHTTPHandler(videoUsecase, userUsecase, confData)
-	httpServer := server.NewHTTPServer(confServer, manager, videoService, videoUploadHTTPHandler, userService)
+	grpcServer := server.NewGRPCServer(confServer, authenticator, videoService, userService)
+	videoUploadHTTPHandler := service.NewVideoUploadHTTPHandler(videoUsecase, confData)
+	httpServer := server.NewHTTPServer(confServer, manager, authenticator, videoService, videoUploadHTTPHandler, userService)
 	uploadJanitor := worker.NewUploadJanitor(manager)
 	app := newApp(logger, grpcServer, httpServer, uploadJanitor)
 	return app, func() {

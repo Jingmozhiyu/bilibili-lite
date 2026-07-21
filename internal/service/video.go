@@ -2,11 +2,13 @@ package service
 
 import (
 	"context"
+	"time"
 
 	v1 "bilibili-lite/api/video/v1"
 	"bilibili-lite/internal/biz"
+	appMiddleware "bilibili-lite/internal/middleware"
 
-	"github.com/go-kratos/kratos/v3/transport"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -15,12 +17,32 @@ type VideoService struct {
 	v1.UnimplementedVideoServiceServer
 
 	videoUsecase *biz.VideoUsecase
-	userUsecase  *biz.UserUsecase
 }
 
-// NewVideoService injects the video and authentication usecases.
-func NewVideoService(videoUsecase *biz.VideoUsecase, userUsecase *biz.UserUsecase) *VideoService {
-	return &VideoService{videoUsecase: videoUsecase, userUsecase: userUsecase}
+// ListVideos returns one page of published videos for the homepage.
+func (s *VideoService) ListVideos(ctx context.Context, req *v1.ListVideosRequest) (*v1.ListVideosReply, error) {
+	list, err := s.videoUsecase.ListVideos(ctx, 0, req.GetPageSize(), req.GetPageToken())
+	if err != nil {
+		return nil, err
+	}
+	return convertVideoListReply(list), nil
+}
+
+// ListUserVideos returns one page of published submissions owned by a user.
+func (s *VideoService) ListUserVideos(ctx context.Context, req *v1.ListUserVideosRequest) (*v1.ListVideosReply, error) {
+	if req.GetUserId() == 0 {
+		return nil, biz.ErrVideoInvalidArgument
+	}
+	list, err := s.videoUsecase.ListVideos(ctx, req.GetUserId(), req.GetPageSize(), req.GetPageToken())
+	if err != nil {
+		return nil, err
+	}
+	return convertVideoListReply(list), nil
+}
+
+// NewVideoService injects the video usecase.
+func NewVideoService(videoUsecase *biz.VideoUsecase) *VideoService {
+	return &VideoService{videoUsecase: videoUsecase}
 }
 
 // GetVideo returns video detail by BVID.
@@ -55,7 +77,7 @@ func (s *VideoService) GetVideoLike(ctx context.Context, req *v1.GetVideoLikeReq
 	if err != nil {
 		return nil, err
 	}
-	userID, err := s.authenticatedUserID(ctx)
+	userID, err := appMiddleware.RequireUserID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -76,13 +98,106 @@ func (s *VideoService) UnlikeVideo(ctx context.Context, req *v1.UnlikeVideoReque
 	return s.setVideoLike(ctx, req.GetBvid(), false)
 }
 
+// GetVideoUploadStatus returns owner-only processing state for one allocated BV identifier.
+func (s *VideoService) GetVideoUploadStatus(ctx context.Context, req *v1.GetVideoUploadStatusRequest) (*v1.VideoUploadStatus, error) {
+	videoID, err := biz.ParseBVID(req.GetBvid())
+	if err != nil {
+		return nil, err
+	}
+	userID, err := appMiddleware.RequireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	status, err := s.videoUsecase.GetVideoUploadStatus(ctx, userID, videoID)
+	if err != nil {
+		return nil, err
+	}
+	return &v1.VideoUploadStatus{
+		Bvid: status.VideoID.BVID(), Status: convertVideoStatus(status.Status),
+		FailureReason: status.FailureReason, ManifestUrl: status.ManifestURL, CoverUrl: status.CoverURL,
+	}, nil
+}
+
+// PublishVideo attaches final metadata to media that has reached the ready state.
+func (s *VideoService) PublishVideo(ctx context.Context, req *v1.PublishVideoRequest) (*v1.Video, error) {
+	videoID, err := biz.ParseBVID(req.GetBvid())
+	if err != nil {
+		return nil, err
+	}
+	userID, err := appMiddleware.RequireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	video, err := s.videoUsecase.PublishVideo(ctx, &biz.VideoPublishInput{
+		OwnerID: userID, VideoID: videoID,
+		Title: req.GetTitle(), Description: req.GetDescription(), Tags: append([]string(nil), req.GetTags()...),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return convertVideoReply(video), nil
+}
+
+// DeleteVideo marks an owned video deleted while preserving its consumed BV identifier.
+func (s *VideoService) DeleteVideo(ctx context.Context, req *v1.DeleteVideoRequest) (*emptypb.Empty, error) {
+	videoID, err := biz.ParseBVID(req.GetBvid())
+	if err != nil {
+		return nil, err
+	}
+	userID, err := appMiddleware.RequireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.videoUsecase.DeleteVideo(ctx, userID, videoID); err != nil {
+		return nil, err
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// StartVideoView starts the server-side five-second qualification timer.
+func (s *VideoService) StartVideoView(ctx context.Context, req *v1.StartVideoViewRequest) (*v1.VideoViewSession, error) {
+	videoID, err := biz.ParseBVID(req.GetBvid())
+	if err != nil {
+		return nil, err
+	}
+	userID, err := appMiddleware.RequireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	session, err := s.videoUsecase.StartVideoView(ctx, userID, videoID)
+	if err != nil {
+		return nil, err
+	}
+	return &v1.VideoViewSession{SessionId: session.ID, StartedAt: timestamppb.New(session.StartedAt)}, nil
+}
+
+// CompleteVideoView records a qualified view subject to hourly and daily limits.
+func (s *VideoService) CompleteVideoView(ctx context.Context, req *v1.CompleteVideoViewRequest) (*v1.VideoViewResult, error) {
+	videoID, err := biz.ParseBVID(req.GetBvid())
+	if err != nil {
+		return nil, err
+	}
+	userID, err := appMiddleware.RequireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.videoUsecase.CompleteVideoView(ctx, userID, videoID, req.GetSessionId())
+	if err != nil {
+		return nil, err
+	}
+	return &v1.VideoViewResult{
+		Counted: result.Counted, ViewCount: result.ViewCount,
+		RemainingToday: result.RemainingToday, NextEligibleAt: timestamppb.New(result.NextEligibleAt),
+	}, nil
+}
+
 // setVideoLike translates authenticated transport state into the shared like usecase operation.
 func (s *VideoService) setVideoLike(ctx context.Context, bvid string, liked bool) (*v1.VideoLike, error) {
 	videoID, err := biz.ParseBVID(bvid)
 	if err != nil {
 		return nil, err
 	}
-	userID, err := s.authenticatedUserID(ctx)
+	userID, err := appMiddleware.RequireUserID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -91,14 +206,6 @@ func (s *VideoService) setVideoLike(ctx context.Context, bvid string, liked bool
 		return nil, err
 	}
 	return convertVideoLike(like), nil
-}
-
-// authenticatedUserID extracts and validates the access JWT from the current transport request.
-func (s *VideoService) authenticatedUserID(ctx context.Context) (uint64, error) {
-	if tr, ok := transport.FromServerContext(ctx); ok {
-		return s.userUsecase.AuthenticateAccess(parseBearerToken(tr.RequestHeader().Get("Authorization")))
-	}
-	return 0, biz.ErrSessionInvalid
 }
 
 // convertVideoReply maps the video detail domain object to its public API reply.
@@ -120,9 +227,45 @@ func convertVideoReply(in *biz.Video) *v1.Video {
 		CoinCount:       in.CoinCount,
 		FavoriteCount:   in.FavoriteCount,
 		ShareCount:      in.ShareCount,
-		PublishTime:     timestamppb.New(in.PublishTime),
+		PublishTime:     timestampOrNil(in.PublishTime),
 		Tags:            append([]string(nil), in.Tags...),
+		OwnerId:         in.OwnerID,
+		Status:          convertVideoStatus(in.Status),
+		CreatedAt:       timestampOrNil(in.CreatedAt),
+		UpdatedAt:       timestampOrNil(in.UpdatedAt),
 	}
+}
+
+func convertVideoListReply(in *biz.VideoList) *v1.ListVideosReply {
+	out := &v1.ListVideosReply{Videos: make([]*v1.Video, 0, len(in.Videos)), NextPageToken: in.NextPageToken}
+	for i := range in.Videos {
+		out.Videos = append(out.Videos, convertVideoReply(&in.Videos[i]))
+	}
+	return out
+}
+
+func convertVideoStatus(status biz.VideoStatus) v1.VideoStatus {
+	switch status {
+	case biz.VideoStatusProcessing:
+		return v1.VideoStatus_VIDEO_STATUS_PROCESSING
+	case biz.VideoStatusReady:
+		return v1.VideoStatus_VIDEO_STATUS_READY
+	case biz.VideoStatusPublished:
+		return v1.VideoStatus_VIDEO_STATUS_PUBLISHED
+	case biz.VideoStatusFailed:
+		return v1.VideoStatus_VIDEO_STATUS_FAILED
+	case biz.VideoStatusDeleted:
+		return v1.VideoStatus_VIDEO_STATUS_DELETED
+	default:
+		return v1.VideoStatus_VIDEO_STATUS_UNSPECIFIED
+	}
+}
+
+func timestampOrNil(value time.Time) *timestamppb.Timestamp {
+	if value.IsZero() {
+		return nil
+	}
+	return timestamppb.New(value)
 }
 
 // convertVideoPlayReply maps stream and danmaku domain objects to playback DTOs.

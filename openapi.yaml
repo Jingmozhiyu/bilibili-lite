@@ -57,6 +57,55 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/user.v1.LoginReply'
+    /api/v1/users/{userId}/videos:
+        get:
+            tags:
+                - VideoService
+            operationId: VideoService_ListUserVideos
+            parameters:
+                - name: userId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: pageSize
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/video.v1.ListVideosReply'
+    /api/v1/videos:
+        get:
+            tags:
+                - VideoService
+            operationId: VideoService_ListVideos
+            parameters:
+                - name: pageSize
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/video.v1.ListVideosReply'
     /api/v1/videos/{bvid}:
         get:
             tags:
@@ -75,6 +124,20 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/video.v1.Video'
+        delete:
+            tags:
+                - VideoService
+            operationId: VideoService_DeleteVideo
+            parameters:
+                - name: bvid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content: {}
     /api/v1/videos/{bvid}/like:
         get:
             tags:
@@ -145,6 +208,101 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/video.v1.VideoPlay'
+    /api/v1/videos/{bvid}/publish:
+        post:
+            tags:
+                - VideoService
+            operationId: VideoService_PublishVideo
+            parameters:
+                - name: bvid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/video.v1.PublishVideoRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/video.v1.Video'
+    /api/v1/videos/{bvid}/upload-status:
+        get:
+            tags:
+                - VideoService
+            operationId: VideoService_GetVideoUploadStatus
+            parameters:
+                - name: bvid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/video.v1.VideoUploadStatus'
+    /api/v1/videos/{bvid}/view-sessions:
+        post:
+            tags:
+                - VideoService
+            operationId: VideoService_StartVideoView
+            parameters:
+                - name: bvid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/video.v1.StartVideoViewRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/video.v1.VideoViewSession'
+    /api/v1/videos/{bvid}/view-sessions/{sessionId}:complete:
+        post:
+            tags:
+                - VideoService
+            operationId: VideoService_CompleteVideoView
+            parameters:
+                - name: bvid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: sessionId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/video.v1.CompleteVideoViewRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/video.v1.VideoViewResult'
 components:
     schemas:
         user.v1.LoginReply:
@@ -198,6 +356,16 @@ components:
                     type: string
                 bio:
                     type: string
+        video.v1.CompleteVideoViewRequest:
+            required:
+                - bvid
+                - sessionId
+            type: object
+            properties:
+                bvid:
+                    type: string
+                sessionId:
+                    type: string
         video.v1.DanmakuConfig:
             type: object
             properties:
@@ -218,6 +386,38 @@ components:
                 text:
                     type: string
                 color:
+                    type: string
+        video.v1.ListVideosReply:
+            type: object
+            properties:
+                videos:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/video.v1.Video'
+                nextPageToken:
+                    type: string
+        video.v1.PublishVideoRequest:
+            required:
+                - bvid
+                - title
+            type: object
+            properties:
+                bvid:
+                    type: string
+                title:
+                    type: string
+                description:
+                    type: string
+                tags:
+                    type: array
+                    items:
+                        type: string
+        video.v1.StartVideoViewRequest:
+            required:
+                - bvid
+            type: object
+            properties:
+                bvid:
                     type: string
         video.v1.Video:
             type: object
@@ -255,6 +455,17 @@ components:
                     type: array
                     items:
                         type: string
+                ownerId:
+                    type: string
+                status:
+                    type: integer
+                    format: enum
+                createdAt:
+                    type: string
+                    format: date-time
+                updatedAt:
+                    type: string
+                    format: date-time
         video.v1.VideoLike:
             type: object
             properties:
@@ -299,6 +510,41 @@ components:
                     format: int32
                 defaultStream:
                     type: boolean
+        video.v1.VideoUploadStatus:
+            type: object
+            properties:
+                bvid:
+                    type: string
+                status:
+                    type: integer
+                    format: enum
+                failureReason:
+                    type: string
+                manifestUrl:
+                    type: string
+                coverUrl:
+                    type: string
+        video.v1.VideoViewResult:
+            type: object
+            properties:
+                counted:
+                    type: boolean
+                viewCount:
+                    type: string
+                remainingToday:
+                    type: integer
+                    format: int32
+                nextEligibleAt:
+                    type: string
+                    format: date-time
+        video.v1.VideoViewSession:
+            type: object
+            properties:
+                sessionId:
+                    type: string
+                startedAt:
+                    type: string
+                    format: date-time
 tags:
     - name: UserService
     - name: VideoService

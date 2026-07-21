@@ -15,6 +15,7 @@ internal/service/         Transport adapters; one file per resource.
 internal/biz/             Domain models, usecases, repo interfaces, errors.
 internal/data/            Repo implementations and storage clients.
 internal/media/           Upload jobs, ffprobe/FFmpeg, local DASH files.
+internal/middleware/      JWT implementation and request identity context.
 internal/worker/          Kratos-managed background jobs.
 ```
 
@@ -102,6 +103,12 @@ design rather than add the import.
 - Own streaming uploads after the transport has supplied an `io.Reader`,
   ffprobe/FFmpeg execution, temporary upload jobs, and published local DASH
   files. It does not import `biz` or persist database rows.
+
+**middleware**
+
+- Own JWT signing/parsing implementations and transport middleware that writes
+  authenticated identity into request context. Services read identity from that
+  context instead of reparsing authorization headers.
 
 **worker**
 

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -12,16 +13,17 @@ import (
 
 	"bilibili-lite/internal/biz"
 	"bilibili-lite/internal/conf"
+	appMiddleware "bilibili-lite/internal/middleware"
 
 	kratosHTTP "github.com/go-kratos/kratos/v3/transport/http"
 )
 
 // VideoUploadHTTPHandler streams one multipart MP4 directly into the media usecase.
 type VideoUploadHTTPHandler struct {
-	videoUsecase *biz.VideoUsecase
-	userUsecase  *biz.UserUsecase
-	maxBytes     int64
-	idleTimeout  time.Duration
+	videoUsecase  *biz.VideoUsecase
+	maxBytes      int64
+	maxCoverBytes int64
+	idleTimeout   time.Duration
 }
 
 // idleDeadlineReader refreshes the HTTP read deadline whenever upload data is consumed.
@@ -32,12 +34,12 @@ type idleDeadlineReader struct {
 }
 
 // NewVideoUploadHTTPHandler creates the authenticated HTTP adapter for streaming MP4 uploads.
-func NewVideoUploadHTTPHandler(videoUsecase *biz.VideoUsecase, userUsecase *biz.UserUsecase, dataConfig *conf.Data) *VideoUploadHTTPHandler {
+func NewVideoUploadHTTPHandler(videoUsecase *biz.VideoUsecase, dataConfig *conf.Data) *VideoUploadHTTPHandler {
 	return &VideoUploadHTTPHandler{
-		videoUsecase: videoUsecase,
-		userUsecase:  userUsecase,
-		maxBytes:     dataConfig.GetMedia().GetMaxUploadBytes(),
-		idleTimeout:  dataConfig.GetMedia().GetUploadIdleTimeout().AsDuration(),
+		videoUsecase:  videoUsecase,
+		maxBytes:      dataConfig.GetMedia().GetMaxUploadBytes(),
+		maxCoverBytes: dataConfig.GetMedia().GetMaxCoverBytes(),
+		idleTimeout:   dataConfig.GetMedia().GetUploadIdleTimeout().AsDuration(),
 	}
 }
 
@@ -57,19 +59,19 @@ func (h *VideoUploadHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	userID, err := h.userUsecase.AuthenticateAccess(parseBearerToken(r.Header.Get("Authorization")))
+	userID, err := appMiddleware.RequireUserID(r.Context())
 	if err != nil {
 		kratosHTTP.DefaultErrorEncoder(w, r, err)
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, h.maxBytes+1024*1024)
+	r.Body = http.MaxBytesReader(w, r.Body, h.maxBytes+h.maxCoverBytes+1024*1024)
 	multipartReader, err := r.MultipartReader()
 	if err != nil {
 		kratosHTTP.DefaultErrorEncoder(w, r, biz.ErrVideoInvalidArgument)
 		return
 	}
 
-	metadata := make(map[string]string, 3)
+	var cover []byte
 	for {
 		multipartPart, nextErr := multipartReader.NextPart()
 		if errors.Is(nextErr, io.EOF) {
@@ -86,24 +88,32 @@ func (h *VideoUploadHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 			return
 		}
 
-		if multipartPart.FormName() != "file" {
-			if err := readUploadField(multipartPart, metadata); err != nil {
+		if multipartPart.FormName() == "cover" {
+			if !isSupportedCover(multipartPart.FileName()) {
 				kratosHTTP.DefaultErrorEncoder(w, r, biz.ErrVideoInvalidArgument)
+				return
+			}
+			cover, err = readCover(multipartPart, h.maxCoverBytes)
+			if err != nil {
+				kratosHTTP.DefaultErrorEncoder(w, r, err)
 				return
 			}
 			continue
 		}
-		if !strings.EqualFold(filepath.Ext(multipartPart.FileName()), ".mp4") || strings.TrimSpace(metadata["title"]) == "" {
+		if multipartPart.FormName() != "file" {
+			continue
+		}
+		if !strings.EqualFold(filepath.Ext(multipartPart.FileName()), ".mp4") {
 			kratosHTTP.DefaultErrorEncoder(w, r, biz.ErrVideoInvalidArgument)
 			return
 		}
 
 		upload := &biz.VideoUploadInput{
-			OwnerID:     userID,
-			Title:       metadata["title"],
-			Description: metadata["description"],
-			Tags:        splitTags(metadata["tags"]),
-			Content:     newIdleDeadlineReader(multipartPart, w, h.idleTimeout),
+			OwnerID: userID,
+			Content: newIdleDeadlineReader(multipartPart, w, h.idleTimeout),
+		}
+		if len(cover) > 0 {
+			upload.Cover = bytes.NewReader(cover)
 		}
 		result, err := h.videoUsecase.UploadVideo(r.Context(), upload)
 		if err != nil {
@@ -115,7 +125,8 @@ func (h *VideoUploadHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"success": true, "bvid": bvid,
-			"manifestUrl": result.ManifestURL, "videoUrl": "/video/" + bvid,
+			"status": result.Status, "manifestUrl": result.ManifestURL,
+			"coverUrl": result.CoverURL, "videoUrl": "/video/" + bvid,
 		})
 		return
 	}
@@ -127,22 +138,22 @@ func (r *idleDeadlineReader) Read(buffer []byte) (int, error) {
 	return r.source.Read(buffer)
 }
 
-// readUploadField reads one bounded metadata field from the multipart request.
-func readUploadField(part *multipart.Part, metadata map[string]string) error {
-	if part.FormName() != "title" && part.FormName() != "description" && part.FormName() != "tags" {
-		return nil
+func readCover(part *multipart.Part, limit int64) ([]byte, error) {
+	value, err := io.ReadAll(io.LimitReader(part, limit+1))
+	if err != nil {
+		return nil, biz.ErrVideoUploadInterrupted
 	}
-	value, err := io.ReadAll(io.LimitReader(part, 64*1024+1))
-	if err != nil || len(value) > 64*1024 {
-		return biz.ErrVideoInvalidArgument
+	if int64(len(value)) > limit {
+		return nil, biz.ErrVideoUploadTooLarge
 	}
-	metadata[part.FormName()] = string(value)
-	return nil
+	return value, nil
 }
 
-// splitTags accepts comma or newline separated tags from the upload form.
-func splitTags(value string) []string {
-	return strings.FieldsFunc(value, func(r rune) bool {
-		return r == ',' || r == '，' || r == '\n'
-	})
+func isSupportedCover(filename string) bool {
+	switch strings.ToLower(filepath.Ext(filename)) {
+	case ".jpg", ".jpeg", ".png", ".webp":
+		return true
+	default:
+		return false
+	}
 }

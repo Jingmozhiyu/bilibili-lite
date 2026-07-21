@@ -41,6 +41,7 @@ message Data {
     google.protobuf.Duration upload_idle_timeout = 2;
     google.protobuf.Duration transcode_timeout = 3;
     int64 max_upload_bytes = 4;
+    int64 max_cover_bytes = 5;
   }
 }
 

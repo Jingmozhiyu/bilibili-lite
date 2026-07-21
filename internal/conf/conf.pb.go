@@ -432,6 +432,7 @@ type Data_Media struct {
 	UploadIdleTimeout *durationpb.Duration   `protobuf:"bytes,2,opt,name=upload_idle_timeout,json=uploadIdleTimeout,proto3" json:"upload_idle_timeout,omitempty"`
 	TranscodeTimeout  *durationpb.Duration   `protobuf:"bytes,3,opt,name=transcode_timeout,json=transcodeTimeout,proto3" json:"transcode_timeout,omitempty"`
 	MaxUploadBytes    int64                  `protobuf:"varint,4,opt,name=max_upload_bytes,json=maxUploadBytes,proto3" json:"max_upload_bytes,omitempty"`
+	MaxCoverBytes     int64                  `protobuf:"varint,5,opt,name=max_cover_bytes,json=maxCoverBytes,proto3" json:"max_cover_bytes,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -494,6 +495,13 @@ func (x *Data_Media) GetMaxUploadBytes() int64 {
 	return 0
 }
 
+func (x *Data_Media) GetMaxCoverBytes() int64 {
+	if x != nil {
+		return x.MaxCoverBytes
+	}
+	return 0
+}
+
 var File_conf_conf_proto protoreflect.FileDescriptor
 
 const file_conf_conf_proto_rawDesc = "" +
@@ -514,19 +522,20 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\x04GRPC\x12\x18\n" +
 	"\anetwork\x18\x01 \x01(\tR\anetwork\x12\x12\n" +
 	"\x04addr\x18\x02 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\x95\x03\n" +
+	"\atimeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xbd\x03\n" +
 	"\x04Data\x125\n" +
 	"\bdatabase\x18\x01 \x01(\v2\x19.kratos.api.Data.DatabaseR\bdatabase\x12,\n" +
 	"\x05media\x18\x03 \x01(\v2\x16.kratos.api.Data.MediaR\x05media\x1a:\n" +
 	"\bDatabase\x12\x16\n" +
 	"\x06driver\x18\x01 \x01(\tR\x06driver\x12\x16\n" +
-	"\x06source\x18\x02 \x01(\tR\x06source\x1a\xe5\x01\n" +
+	"\x06source\x18\x02 \x01(\tR\x06source\x1a\x8d\x02\n" +
 	"\x05Media\x12\x1f\n" +
 	"\vstorage_dir\x18\x01 \x01(\tR\n" +
 	"storageDir\x12I\n" +
 	"\x13upload_idle_timeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x11uploadIdleTimeout\x12F\n" +
 	"\x11transcode_timeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\x10transcodeTimeout\x12(\n" +
-	"\x10max_upload_bytes\x18\x04 \x01(\x03R\x0emaxUploadBytesJ\x04\b\x02\x10\x03\"\xac\x01\n" +
+	"\x10max_upload_bytes\x18\x04 \x01(\x03R\x0emaxUploadBytes\x12&\n" +
+	"\x0fmax_cover_bytes\x18\x05 \x01(\x03R\rmaxCoverBytesJ\x04\b\x02\x10\x03\"\xac\x01\n" +
 	"\x04Auth\x12\x16\n" +
 	"\x06issuer\x18\x01 \x01(\tR\x06issuer\x12\x16\n" +
 	"\x06secret\x18\x02 \x01(\tR\x06secret\x128\n" +

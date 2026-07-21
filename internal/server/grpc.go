@@ -4,6 +4,7 @@ import (
 	userV1 "bilibili-lite/api/user/v1"
 	videoV1 "bilibili-lite/api/video/v1"
 	"bilibili-lite/internal/conf"
+	appMiddleware "bilibili-lite/internal/middleware"
 	"bilibili-lite/internal/service"
 
 	"github.com/go-kratos/kratos/v3/middleware/recovery"
@@ -11,10 +12,11 @@ import (
 )
 
 // NewGRPCServer creates and registers the gRPC transport.
-func NewGRPCServer(serverConfig *conf.Server, videoService *service.VideoService, userService *service.UserService) *grpc.Server {
+func NewGRPCServer(serverConfig *conf.Server, authenticator *appMiddleware.Authenticator, videoService *service.VideoService, userService *service.UserService) *grpc.Server {
 	opts := []grpc.ServerOption{
 		grpc.Middleware(
 			recovery.Recovery(),
+			authenticator.Server(),
 		),
 	}
 	if serverConfig.Grpc.Network != "" {

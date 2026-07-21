@@ -1,89 +1,42 @@
 import type { MediaPlayerClass } from 'dashjs'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  AUTH_STORAGE_KEY,
+  asRecord,
+  authorizedFetch,
+  ensureFreshAuthSession,
+  fetchJson,
+  normalizeAuthSession,
+  normalizeVideoDetail,
+  normalizeVideoLike,
+  normalizeVideoList,
+  normalizeVideoPlay,
+  normalizeVideoViewResult,
+  normalizeVideoViewSession,
+  parseJSON,
+  parseJsonResponse,
+  persistAuthSession,
+  postJson,
+  readAuthSession,
+  readString,
+  toErrorMessage,
+  toNumber,
+} from './api'
+import type { AuthSession, MetricValue, VideoDetail, VideoPlay } from './types'
 import './App.css'
-
-type MetricValue = number | string
-
-type VideoDetail = {
-  bvid: string
-  title: string
-  description: string
-  ownerName: string
-  ownerAvatarUrl?: string
-  coverUrl?: string
-  durationSeconds: MetricValue
-  viewCount: MetricValue
-  danmakuCount: MetricValue
-  likeCount: MetricValue
-  coinCount: MetricValue
-  favoriteCount: MetricValue
-  shareCount: MetricValue
-  publishTime?: string
-  tags: string[]
-}
-
-type VideoStream = {
-  id: string
-  label: string
-  codec: string
-  mimeType: string
-  url: string
-  width: number
-  height: number
-  bandwidth: number
-  defaultStream: boolean
-}
-
-type DanmakuItem = {
-  timeSeconds: number
-  text: string
-  color: string
-}
-
-type VideoPlay = {
-  bvid: string
-  streams: VideoStream[]
-  danmaku?: {
-    enabled: boolean
-    format: string
-    items: DanmakuItem[]
-  }
-}
 
 type LoadState =
   | { status: 'loading' }
   | { status: 'ready'; detail: VideoDetail; play: VideoPlay }
   | { status: 'error'; message: string }
 
-type AuthUser = {
-  id: number
-  username: string
-  displayName: string
-  avatarUrl?: string
-  bio?: string
-}
-
-type AuthSession = {
-  accessToken: string
-  refreshToken: string
-  expiresAt: string
-  refreshExpiresAt: string
-  user: AuthUser
-}
-
-type VideoLike = {
-  bvid: string
-  liked: boolean
-  likeCount: MetricValue
-}
-
 type UploadResult = {
   bvid: string
+  status: string
   manifestUrl: string
+  coverUrl: string
   videoUrl: string
 }
-
-const AUTH_STORAGE_KEY = 'bilibili-lite.auth-session'
 
 function App() {
   const bvid = getBvidFromPath()
@@ -101,6 +54,12 @@ function VideoPage({ bvid }: { bvid: string }) {
   const [like, setLike] = useState({ liked: false, count: 0, pending: false })
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const dashPlayerRef = useRef<MediaPlayerClass | null>(null)
+  const viewSessionRef = useRef('')
+  const watchedSecondsRef = useRef(0)
+  const previousPlaybackTimeRef = useRef<number | null>(null)
+  const startingViewRef = useRef(false)
+  const completingViewRef = useRef(false)
+  const completedViewRef = useRef(false)
 
   useEffect(() => {
     let ignore = false
@@ -210,6 +169,75 @@ function VideoPage({ bvid }: { bvid: string }) {
     }
   }, [selectedStream])
 
+  useEffect(() => {
+    viewSessionRef.current = ''
+    watchedSecondsRef.current = 0
+    previousPlaybackTimeRef.current = null
+    startingViewRef.current = false
+    completingViewRef.current = false
+    completedViewRef.current = false
+  }, [bvid, session?.user.id])
+
+  async function startViewSession() {
+    if (!session || completedViewRef.current || viewSessionRef.current || startingViewRef.current) return
+    startingViewRef.current = true
+    try {
+      const { response, session: nextSession } = await authorizedFetch(
+        `/api/v1/videos/${encodeURIComponent(bvid)}/view-sessions`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+        session,
+      )
+      const viewSession = normalizeVideoViewSession(await parseJsonResponse(response))
+      viewSessionRef.current = viewSession.sessionId
+      persistAuthSession(nextSession)
+      setSession(nextSession)
+    } catch {
+      viewSessionRef.current = ''
+    } finally {
+      startingViewRef.current = false
+    }
+  }
+
+  async function completeViewSession() {
+    if (!session || !viewSessionRef.current || completingViewRef.current) return
+    completingViewRef.current = true
+    try {
+      const { response, session: nextSession } = await authorizedFetch(
+        `/api/v1/videos/${encodeURIComponent(bvid)}/view-sessions/${encodeURIComponent(viewSessionRef.current)}:complete`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+        session,
+      )
+      const result = normalizeVideoViewResult(await parseJsonResponse(response))
+      persistAuthSession(nextSession)
+      setSession(nextSession)
+      setState((current) => current.status === 'ready'
+        ? { ...current, detail: { ...current.detail, viewCount: result.viewCount } }
+        : current)
+      completedViewRef.current = true
+      viewSessionRef.current = ''
+    } catch {
+      completingViewRef.current = false
+    }
+  }
+
+  function trackPlayback(video: HTMLVideoElement) {
+    setCurrentTime(video.currentTime)
+    if (!session || video.paused) {
+      previousPlaybackTimeRef.current = video.currentTime
+      return
+    }
+    if (!completedViewRef.current && !viewSessionRef.current) void startViewSession()
+    const previous = previousPlaybackTimeRef.current
+    const delta = previous === null ? 0 : video.currentTime - previous
+    previousPlaybackTimeRef.current = video.currentTime
+    if (delta > 0 && delta <= 1.5) {
+      watchedSecondsRef.current += delta
+    }
+    if (!completedViewRef.current && watchedSecondsRef.current >= 5.5) {
+      void completeViewSession()
+    }
+  }
+
   async function toggleLike() {
     if (!session) {
       setAuthOpen(true)
@@ -295,9 +323,8 @@ function VideoPage({ bvid }: { bvid: string }) {
                   muted
                   playsInline
                   preload="metadata"
-                  onTimeUpdate={(event) =>
-                    setCurrentTime(event.currentTarget.currentTime)
-                  }
+                  onPlaying={() => void startViewSession()}
+                  onTimeUpdate={(event) => trackPlayback(event.currentTarget)}
                 />
               ) : (
                 <div className="player-empty">没有可用的视频资源</div>
@@ -436,7 +463,27 @@ function HomePage() {
   const [session, setSession] = useState<AuthSession | null>(readAuthSession)
   const [authOpen, setAuthOpen] = useState(false)
   const [uploadOpen, setUploadOpen] = useState(false)
+  const [videos, setVideos] = useState<VideoDetail[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const userLabel = session?.user.displayName || session?.user.username
+
+  useEffect(() => {
+    let ignore = false
+    fetchJson<unknown>('/api/v1/videos?page_size=24')
+      .then((payload) => {
+        if (!ignore) setVideos(normalizeVideoList(payload))
+      })
+      .catch((error: Error) => {
+        if (!ignore) setLoadError(error.message)
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false)
+      })
+    return () => {
+      ignore = true
+    }
+  }, [])
 
   function startUpload() {
     setUploadOpen(true)
@@ -462,22 +509,53 @@ function HomePage() {
         </div>
       </header>
 
-      <section className="home-empty" aria-labelledby="home-empty-title">
-        <div className="home-empty-content">
-          <div className="home-upload-mark" aria-hidden="true">
-            ↑
+      {loading ? (
+        <section className="home-feed" aria-label="正在加载视频">
+          <div className="home-video-grid loading">
+            {Array.from({ length: 8 }, (_, index) => <div className="home-video-skeleton" key={index} />)}
           </div>
-          <h1 id="home-empty-title">还没有视频</h1>
-          <p>
-            {session
-              ? `${userLabel}，上传第一支视频开始放映。`
-              : '登录后上传第一支视频，发布后从 BV1 开始。'}
-          </p>
-          <button type="button" className="home-upload-button" onClick={startUpload}>
-            {session ? '上传第一支视频' : '登录并上传'}
-          </button>
-        </div>
-      </section>
+        </section>
+      ) : videos.length > 0 ? (
+        <section className="home-feed" aria-labelledby="home-feed-title">
+          <div className="home-feed-heading">
+            <div>
+              <h1 id="home-feed-title">最新投稿</h1>
+              <span>{videos.length} 个视频</span>
+            </div>
+            <button type="button" className="home-upload-button compact" onClick={startUpload}>投稿</button>
+          </div>
+          <div className="home-video-grid">
+            {videos.map((video) => (
+              <a className="home-video-card" href={`/video/${video.bvid}`} key={video.bvid}>
+                <div className="home-video-cover">
+                  {video.coverUrl ? <img src={video.coverUrl} alt="" /> : <span>{video.bvid}</span>}
+                  <small>{formatDuration(video.durationSeconds)}</small>
+                </div>
+                <h2>{video.title}</h2>
+                <p>{video.ownerName}</p>
+                <div><span>{formatCount(video.viewCount)} 播放</span><span>{formatDate(video.publishTime)}</span></div>
+              </a>
+            ))}
+          </div>
+        </section>
+      ) : (
+        <section className="home-empty" aria-labelledby="home-empty-title">
+          <div className="home-empty-content">
+            <div className="home-upload-mark" aria-hidden="true">↑</div>
+            <h1 id="home-empty-title">还没有视频</h1>
+            <p>
+              {loadError
+                ? '视频列表暂时无法加载。'
+                : session
+                  ? `${userLabel}，上传第一支视频开始放映。`
+                  : '登录后上传第一支视频，发布后即可在首页看到。'}
+            </p>
+            <button type="button" className="home-upload-button" onClick={startUpload}>
+              {session ? '上传第一支视频' : '登录并上传'}
+            </button>
+          </div>
+        </section>
+      )}
     </main>
   )
 }
@@ -540,7 +618,8 @@ function AuthMenu({
   const [uploadDescription, setUploadDescription] = useState('')
   const [uploadTags, setUploadTags] = useState('')
   const [uploadFile, setUploadFile] = useState<File | null>(null)
-  const [uploadPhase, setUploadPhase] = useState<'idle' | 'uploading' | 'processing' | 'success' | 'error'>('idle')
+  const [uploadCover, setUploadCover] = useState<File | null>(null)
+  const [uploadPhase, setUploadPhase] = useState<'idle' | 'uploading' | 'processing' | 'ready' | 'publishing' | 'success' | 'error'>('idle')
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadMessage, setUploadMessage] = useState('')
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
@@ -622,6 +701,35 @@ function AuthMenu({
     event.preventDefault()
     if (!session || !uploadFile) return
 
+    if (uploadResult) {
+      if (!uploadTitle.trim()) return
+      setUploadPhase('publishing')
+      setUploadMessage('')
+      try {
+        const { session: nextSession } = await authorizedFetch(
+          `/api/v1/videos/${encodeURIComponent(uploadResult.bvid)}/publish`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: uploadTitle,
+              description: uploadDescription,
+              tags: splitTags(uploadTags),
+            }),
+          },
+          session,
+        )
+        persistAuthSession(nextSession)
+        onSessionChange(nextSession)
+        setUploadPhase('success')
+        setUploadMessage('视频已发布，可以从首页和详情页访问')
+      } catch (publishError) {
+        setUploadPhase('error')
+        setUploadMessage(toErrorMessage(publishError, '发布失败'))
+      }
+      return
+    }
+
     setUploadPhase('uploading')
     setUploadProgress(0)
     setUploadMessage('')
@@ -633,9 +741,7 @@ function AuthMenu({
       onSessionChange(activeSession)
 
       const form = new FormData()
-      form.append('title', uploadTitle)
-      form.append('description', uploadDescription)
-      form.append('tags', uploadTags)
+      if (uploadCover) form.append('cover', uploadCover)
       form.append('file', uploadFile)
 
       const result = await new Promise<UploadResult>((resolve, reject) => {
@@ -658,7 +764,9 @@ function AuthMenu({
           }
           resolve({
             bvid: readString(payload, 'bvid'),
+            status: readString(payload, 'status'),
             manifestUrl: readString(payload, 'manifestUrl', 'manifest_url'),
+            coverUrl: readString(payload, 'coverUrl', 'cover_url'),
             videoUrl: readString(payload, 'videoUrl', 'video_url'),
           })
         })
@@ -668,8 +776,8 @@ function AuthMenu({
       })
 
       setUploadResult(result)
-      setUploadPhase('success')
-      setUploadMessage('视频已完成 DASH 处理并发布')
+      setUploadPhase('ready')
+      setUploadMessage('上传与转码完成，请确认视频信息后发布')
     } catch (uploadError) {
       setUploadPhase('error')
       setUploadMessage(toErrorMessage(uploadError, '上传失败'))
@@ -736,7 +844,7 @@ function AuthMenu({
                 <button
                   type="button"
                   className="auth-secondary-button"
-                  disabled={pending || uploadPhase === 'uploading' || uploadPhase === 'processing'}
+                  disabled={pending || uploadPhase === 'uploading' || uploadPhase === 'processing' || uploadPhase === 'publishing'}
                   onClick={() => void logout()}
                 >
                   {pending ? '正在退出…' : '退出登录'}
@@ -823,7 +931,17 @@ function AuthMenu({
                   setUploadFile(event.target.files?.[0] ?? null)
                   setUploadPhase('idle')
                   setUploadMessage('')
+                  setUploadResult(null)
                 }}
+              />
+            </label>
+            <label className="upload-file-field secondary">
+              <span>{uploadCover ? uploadCover.name : '选择封面（可选）'}</span>
+              <small>{uploadCover ? formatFileSize(uploadCover.size) : 'JPG、PNG 或 WebP；为空时自动截帧'}</small>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                onChange={(event) => setUploadCover(event.target.files?.[0] ?? null)}
               />
             </label>
             <label>
@@ -842,19 +960,19 @@ function AuthMenu({
             {uploadPhase !== 'idle' && (
               <div className="upload-status" aria-live="polite">
                 <div className="upload-status-row">
-                  <span>{uploadPhase === 'uploading' ? '正在上传' : uploadPhase === 'processing' ? '正在生成 DASH 分片' : uploadPhase === 'success' ? '处理完成' : '处理失败'}</span>
+                  <span>{uploadPhase === 'uploading' ? '正在上传' : uploadPhase === 'processing' ? '正在生成 DASH 分片' : uploadPhase === 'ready' ? '等待发布' : uploadPhase === 'publishing' ? '正在发布' : uploadPhase === 'success' ? '发布完成' : '处理失败'}</span>
                   {uploadPhase === 'uploading' && <strong>{uploadProgress}%</strong>}
                 </div>
                 <div className={uploadPhase === 'processing' ? 'upload-progress processing' : 'upload-progress'}>
                   <span style={{ width: uploadPhase === 'processing' ? '38%' : `${uploadProgress}%` }} />
                 </div>
                 {uploadMessage && <p className={uploadPhase === 'error' ? 'upload-message error' : 'upload-message'}>{uploadMessage}</p>}
-                {uploadResult && <a className="upload-result-link" href={uploadResult.videoUrl}>查看 {uploadResult.bvid}</a>}
+                {uploadResult && uploadPhase === 'success' && <a className="upload-result-link" href={uploadResult.videoUrl}>查看 {uploadResult.bvid}</a>}
               </div>
             )}
 
-            <button className="auth-primary-button" type="submit" disabled={!uploadFile || !uploadTitle.trim() || uploadPhase === 'uploading' || uploadPhase === 'processing'}>
-              {uploadPhase === 'uploading' ? '上传中…' : uploadPhase === 'processing' ? '处理中…' : '开始上传'}
+            <button className="auth-primary-button" type="submit" disabled={!uploadFile || (Boolean(uploadResult) && !uploadTitle.trim()) || uploadPhase === 'uploading' || uploadPhase === 'processing' || uploadPhase === 'publishing' || uploadPhase === 'success'}>
+              {uploadPhase === 'uploading' ? '上传中…' : uploadPhase === 'processing' ? '处理中…' : uploadPhase === 'publishing' ? '发布中…' : uploadResult ? '发布视频' : '开始上传'}
             </button>
           </form>
         </section>
@@ -863,273 +981,9 @@ function AuthMenu({
   )
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}: ${url}`)
-  }
-  return (await response.json()) as T
-}
-
-async function postJson<T = unknown>(
-  url: string,
-  body: Record<string, unknown>,
-  accessToken?: string,
-): Promise<T> {
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-    },
-    body: JSON.stringify(body),
-  })
-
-  if (!response.ok) {
-    const payload = asRecord(await response.json().catch(() => null))
-    const message = readString(payload, 'message')
-    throw new Error(`${response.status}${message ? ` ${message}` : ''}`)
-  }
-
-  return (await response.json()) as T
-}
-
-async function authorizedFetch(
-  url: string,
-  init: RequestInit,
-  session: AuthSession,
-): Promise<{ response: Response; session: AuthSession }> {
-  let activeSession = await ensureFreshAuthSession(session)
-  let response = await fetch(url, {
-    ...init,
-    headers: {
-      ...init.headers,
-      Authorization: `Bearer ${activeSession.accessToken}`,
-    },
-  })
-  if (response.status === 401) {
-    activeSession = await refreshAuthSession(activeSession)
-    response = await fetch(url, {
-      ...init,
-      headers: {
-        ...init.headers,
-        Authorization: `Bearer ${activeSession.accessToken}`,
-      },
-    })
-  }
-  if (!response.ok) {
-    const payload = asRecord(await response.json().catch(() => null))
-    throw new Error(readString(payload, 'message') || `${response.status} ${response.statusText}`)
-  }
-  return { response, session: activeSession }
-}
-
-async function ensureFreshAuthSession(session: AuthSession) {
-  const refreshBefore = new Date(session.expiresAt).getTime() - 60_000
-  if (Date.now() < refreshBefore) return session
-  return refreshAuthSession(session)
-}
-
-async function refreshAuthSession(session: AuthSession) {
-  const response = await postJson<unknown>('/api/v1/auth/refresh', {
-    refreshToken: session.refreshToken,
-  })
-  return normalizeAuthSession(response)
-}
-
-async function parseJsonResponse<T>(response: Response): Promise<T> {
-  return (await response.json()) as T
-}
-
-function persistAuthSession(session: AuthSession) {
-  window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session))
-}
-
-function parseJSON(value: string): unknown {
-  try {
-    return JSON.parse(value)
-  } catch {
-    return null
-  }
-}
-
 function getBvidFromPath() {
   const match = window.location.pathname.match(/^\/video\/([^/]+)$/)
   return match?.[1] ?? null
-}
-
-function toNumber(value: MetricValue | undefined) {
-  if (typeof value === 'number') return value
-  if (!value) return 0
-  return Number(value)
-}
-
-function normalizeVideoDetail(value: unknown): VideoDetail {
-  const record = asRecord(value)
-  return {
-    bvid: readString(record, 'bvid'),
-    title: readString(record, 'title'),
-    description: readString(record, 'description'),
-    ownerName: readString(record, 'ownerName', 'owner_name'),
-    ownerAvatarUrl: readString(record, 'ownerAvatarUrl', 'owner_avatar_url'),
-    coverUrl: readString(record, 'coverUrl', 'cover_url'),
-    durationSeconds: readMetric(record, 'durationSeconds', 'duration_seconds'),
-    viewCount: readMetric(record, 'viewCount', 'view_count'),
-    danmakuCount: readMetric(record, 'danmakuCount', 'danmaku_count'),
-    likeCount: readMetric(record, 'likeCount', 'like_count'),
-    coinCount: readMetric(record, 'coinCount', 'coin_count'),
-    favoriteCount: readMetric(record, 'favoriteCount', 'favorite_count'),
-    shareCount: readMetric(record, 'shareCount', 'share_count'),
-    publishTime: readTimestamp(record, 'publishTime', 'publish_time'),
-    tags: readArray(record, 'tags').map(String),
-  }
-}
-
-function normalizeVideoPlay(value: unknown): VideoPlay {
-  const record = asRecord(value)
-  const danmaku = asRecord(record.danmaku)
-  const streams = readArray(record, 'streams')
-    .map((stream) => {
-      const item = asRecord(stream)
-      return {
-        id: readString(item, 'id'),
-        label: readString(item, 'label'),
-        codec: readString(item, 'codec'),
-        mimeType: readString(item, 'mimeType', 'mime_type'),
-        url: readString(item, 'url'),
-        width: Number(readMetric(item, 'width')),
-        height: Number(readMetric(item, 'height')),
-        bandwidth: Number(readMetric(item, 'bandwidth')),
-        defaultStream: readBoolean(item, 'defaultStream', 'default_stream'),
-      }
-    })
-    .filter(
-      (stream) =>
-        stream.mimeType === 'application/dash+xml' && stream.url.endsWith('.mpd'),
-    )
-
-  return {
-    bvid: readString(record, 'bvid'),
-    streams,
-    danmaku: {
-      enabled: readBoolean(danmaku, 'enabled'),
-      format: readString(danmaku, 'format'),
-      items: readArray(danmaku, 'items').map((danmakuItem) => {
-        const item = asRecord(danmakuItem)
-        return {
-          timeSeconds: Number(readMetric(item, 'timeSeconds', 'time_seconds')),
-          text: readString(item, 'text'),
-          color: readString(item, 'color') || '#ffffff',
-        }
-      }),
-    },
-  }
-}
-
-function normalizeAuthSession(value: unknown): AuthSession {
-  const record = asRecord(value)
-  const user = asRecord(record.user)
-  const expiresAt = readTimestamp(record, 'expiresAt', 'expires_at')
-  const refreshExpiresAt = readTimestamp(record, 'refreshExpiresAt', 'refresh_expires_at')
-  const accessToken = readString(record, 'accessToken', 'access_token')
-  const refreshToken = readString(record, 'refreshToken', 'refresh_token')
-
-  if (!accessToken || !refreshToken || !expiresAt || !refreshExpiresAt || !readString(user, 'username')) {
-    throw new Error('登录响应不完整')
-  }
-
-  return {
-    accessToken,
-    refreshToken,
-    expiresAt,
-    refreshExpiresAt,
-    user: {
-      id: Number(readMetric(user, 'id')),
-      username: readString(user, 'username'),
-      displayName: readString(user, 'displayName', 'display_name'),
-      avatarUrl: readString(user, 'avatarUrl', 'avatar_url'),
-      bio: readString(user, 'bio'),
-    },
-  }
-}
-
-function normalizeVideoLike(value: unknown): VideoLike {
-  const record = asRecord(value)
-  return {
-    bvid: readString(record, 'bvid'),
-    liked: readBoolean(record, 'liked'),
-    likeCount: readMetric(record, 'likeCount', 'like_count'),
-  }
-}
-
-function readAuthSession(): AuthSession | null {
-  try {
-    const stored = window.localStorage.getItem(AUTH_STORAGE_KEY)
-    if (!stored) return null
-    const session = normalizeAuthSession(JSON.parse(stored))
-    if (new Date(session.refreshExpiresAt).getTime() <= Date.now()) {
-      window.localStorage.removeItem(AUTH_STORAGE_KEY)
-      return null
-    }
-    return session
-  } catch {
-    window.localStorage.removeItem(AUTH_STORAGE_KEY)
-    return null
-  }
-}
-
-function toErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return value as Record<string, unknown>
-  }
-  return {}
-}
-
-function readString(record: Record<string, unknown>, ...keys: string[]) {
-  for (const key of keys) {
-    const value = record[key]
-    if (typeof value === 'string') return value
-  }
-  return ''
-}
-
-function readMetric(
-  record: Record<string, unknown>,
-  ...keys: string[]
-): MetricValue {
-  for (const key of keys) {
-    const value = record[key]
-    if (typeof value === 'number' || typeof value === 'string') return value
-  }
-  return 0
-}
-
-function readBoolean(record: Record<string, unknown>, ...keys: string[]) {
-  for (const key of keys) {
-    const value = record[key]
-    if (typeof value === 'boolean') return value
-  }
-  return false
-}
-
-function readArray(record: Record<string, unknown>, key: string): unknown[] {
-  const value = record[key]
-  return Array.isArray(value) ? value : []
-}
-
-function readTimestamp(record: Record<string, unknown>, ...keys: string[]) {
-  for (const key of keys) {
-    const value = record[key]
-    if (typeof value === 'string') return value
-    const timestamp = asRecord(value)
-    const seconds = readMetric(timestamp, 'seconds')
-    if (seconds) return new Date(Number(seconds) * 1000).toISOString()
-  }
-  return undefined
 }
 
 function formatCount(value: MetricValue | undefined) {
@@ -1141,6 +995,13 @@ function formatCount(value: MetricValue | undefined) {
 function formatBitrate(value: number) {
   if (!value) return '-'
   return `${(value / 1000 / 1000).toFixed(1)} Mbps`
+}
+
+function formatDuration(value: MetricValue | undefined) {
+  const seconds = Math.max(0, Math.floor(toNumber(value)))
+  const minutes = Math.floor(seconds / 60)
+  const remainder = seconds % 60
+  return `${minutes}:${remainder.toString().padStart(2, '0')}`
 }
 
 function formatDate(value?: string) {
@@ -1157,6 +1018,10 @@ function formatDate(value?: string) {
 function formatFileSize(bytes: number) {
   if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GB`
   return `${(bytes / 1024 ** 2).toFixed(1)} MB`
+}
+
+function splitTags(value: string) {
+  return value.split(/[,，\n]/).map((tag) => tag.trim()).filter(Boolean)
 }
 
 export default App

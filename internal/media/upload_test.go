@@ -79,7 +79,7 @@ func TestCleanupStaleUploads(t *testing.T) {
 func newTestManager(t *testing.T, maxUploadBytes int64) *Manager {
 	t.Helper()
 	root := t.TempDir()
-	manager := newManager(root, time.Minute, time.Minute, maxUploadBytes)
+	manager := newManager(root, time.Minute, time.Minute, maxUploadBytes, 1024)
 	for _, dir := range []string{manager.uploadRoot(), manager.DASHRoot()} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatalf("create media directory: %v", err)

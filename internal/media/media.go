@@ -20,6 +20,7 @@ type Manager struct {
 	uploadIdleTimeout time.Duration
 	transcodeTimeout  time.Duration
 	maxUploadBytes    int64
+	maxCoverBytes     int64
 }
 
 // NewManager validates media configuration and prepares local upload and DASH directories.
@@ -29,14 +30,14 @@ func NewManager(dataConfig *conf.Data) (*Manager, error) {
 	}
 	uploadIdleTimeout := dataConfig.Media.UploadIdleTimeout.AsDuration()
 	transcodeTimeout := dataConfig.Media.TranscodeTimeout.AsDuration()
-	if uploadIdleTimeout <= 0 || transcodeTimeout <= 0 || dataConfig.Media.MaxUploadBytes <= 0 {
+	if uploadIdleTimeout <= 0 || transcodeTimeout <= 0 || dataConfig.Media.MaxUploadBytes <= 0 || dataConfig.Media.MaxCoverBytes <= 0 {
 		return nil, fmt.Errorf("media timeout and size limits must be positive")
 	}
 	root, err := filepath.Abs(dataConfig.Media.StorageDir)
 	if err != nil {
 		return nil, fmt.Errorf("resolve media storage path: %w", err)
 	}
-	manager := newManager(root, uploadIdleTimeout, transcodeTimeout, dataConfig.Media.MaxUploadBytes)
+	manager := newManager(root, uploadIdleTimeout, transcodeTimeout, dataConfig.Media.MaxUploadBytes, dataConfig.Media.MaxCoverBytes)
 	for _, dir := range []string{manager.root, manager.uploadRoot(), manager.DASHRoot()} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return nil, fmt.Errorf("create media storage %s: %w", dir, err)
@@ -50,12 +51,13 @@ func (m *Manager) DASHRoot() string {
 	return filepath.Join(m.root, "dash")
 }
 
-func newManager(root string, uploadIdleTimeout, transcodeTimeout time.Duration, maxUploadBytes int64) *Manager {
+func newManager(root string, uploadIdleTimeout, transcodeTimeout time.Duration, maxUploadBytes, maxCoverBytes int64) *Manager {
 	return &Manager{
 		root:              root,
 		uploadIdleTimeout: uploadIdleTimeout,
 		transcodeTimeout:  transcodeTimeout,
 		maxUploadBytes:    maxUploadBytes,
+		maxCoverBytes:     maxCoverBytes,
 	}
 }
 

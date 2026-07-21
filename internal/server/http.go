@@ -9,6 +9,7 @@ import (
 	videoV1 "bilibili-lite/api/video/v1"
 	"bilibili-lite/internal/conf"
 	"bilibili-lite/internal/media"
+	appMiddleware "bilibili-lite/internal/middleware"
 	"bilibili-lite/internal/service"
 
 	"github.com/go-kratos/kratos/v3/middleware/recovery"
@@ -19,10 +20,11 @@ import (
 )
 
 // NewHTTPServer creates and registers the HTTP transport.
-func NewHTTPServer(serverConfig *conf.Server, mediaManager *media.Manager, videoService *service.VideoService, videoUploadHandler *service.VideoUploadHTTPHandler, userService *service.UserService) *kratosHTTP.Server {
+func NewHTTPServer(serverConfig *conf.Server, mediaManager *media.Manager, authenticator *appMiddleware.Authenticator, videoService *service.VideoService, videoUploadHandler *service.VideoUploadHTTPHandler, userService *service.UserService) *kratosHTTP.Server {
 	opts := []kratosHTTP.ServerOption{
 		kratosHTTP.Middleware(
 			recovery.Recovery(),
+			authenticator.Server(),
 			validate.Validator(func(req any) error {
 				if msg, ok := req.(proto.Message); ok {
 					if err := fieldbehavior.ValidateRequiredFields(msg); err != nil {
@@ -45,7 +47,7 @@ func NewHTTPServer(serverConfig *conf.Server, mediaManager *media.Manager, video
 	srv := kratosHTTP.NewServer(opts...)
 	videoV1.RegisterVideoServiceHTTPServer(srv, videoService)
 	userV1.RegisterUserServiceHTTPServer(srv, userService)
-	srv.Handle("/api/v1/videos/upload", videoUploadHandler)
+	srv.Handle("/api/v1/videos/upload", authenticator.RequireHTTP(videoUploadHandler))
 	srv.HandlePrefix("/media/dash/", http.StripPrefix("/media/dash/", dashFileServer(mediaManager.DASHRoot())))
 	return srv
 }

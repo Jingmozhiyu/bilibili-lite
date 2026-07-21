@@ -22,6 +22,8 @@ type videoPO struct {
 	Title           string `gorm:"size:200;not null"`
 	Description     string `gorm:"type:text"`
 	CoverURL        string `gorm:"size:500"`
+	Status          string `gorm:"size:32;not null;default:published;index"`
+	FailureReason   string `gorm:"type:text;not null;default:''"`
 	DurationSeconds int64  `gorm:"not null;default:0"`
 	ViewCount       int64  `gorm:"not null;default:0"`
 	DanmakuCount    int64  `gorm:"not null;default:0"`
@@ -29,8 +31,10 @@ type videoPO struct {
 	CoinCount       int64  `gorm:"not null;default:0"`
 	FavoriteCount   int64  `gorm:"not null;default:0"`
 	ShareCount      int64  `gorm:"not null;default:0"`
-	PublishTime     time.Time
-	Tags            []string `gorm:"serializer:json;type:jsonb"`
+	ReadyAt         *time.Time
+	PublishTime     *time.Time
+	DeletedAt       *time.Time `gorm:"index"`
+	Tags            []string   `gorm:"serializer:json;type:jsonb"`
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
@@ -117,3 +121,17 @@ type videoSharePO struct {
 }
 
 func (videoSharePO) TableName() string { return "user_video_shares" }
+
+type videoViewSessionPO struct {
+	ID          string  `gorm:"size:64;primaryKey"`
+	VideoID     uint64  `gorm:"not null;index:idx_view_session_video_user"`
+	Video       videoPO `gorm:"foreignKey:VideoID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	UserID      uint64  `gorm:"not null;index:idx_view_session_video_user"`
+	User        userPO  `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	StartedAt   time.Time
+	CompletedAt *time.Time `gorm:"index"`
+	Counted     bool       `gorm:"not null;default:false"`
+	CreatedAt   time.Time
+}
+
+func (videoViewSessionPO) TableName() string { return "video_view_sessions" }

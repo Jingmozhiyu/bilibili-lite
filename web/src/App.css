@@ -400,6 +400,13 @@
   clip-path: inset(50%);
 }
 
+.upload-file-field.secondary {
+  min-height: 64px;
+  border-style: solid;
+  border-color: var(--border);
+  background: var(--surface-2);
+}
+
 .upload-status {
   display: grid;
   gap: 8px;
@@ -515,6 +522,120 @@
 .home-upload-button:hover {
   background: oklch(62% 0.165 218);
   transform: translateY(-1px);
+}
+
+.home-feed {
+  width: min(1440px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 28px 0 56px;
+}
+
+.home-feed-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 18px;
+}
+
+.home-feed-heading h1 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 22px;
+  line-height: 1.3;
+}
+
+.home-feed-heading span {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.home-upload-button.compact {
+  min-height: 36px;
+  padding: 7px 16px;
+}
+
+.home-video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 24px 16px;
+}
+
+.home-video-card {
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.home-video-cover,
+.home-video-skeleton {
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.home-video-cover {
+  position: relative;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+}
+
+.home-video-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 180ms ease;
+}
+
+.home-video-card:hover .home-video-cover img {
+  transform: scale(1.025);
+}
+
+.home-video-cover small {
+  position: absolute;
+  right: 8px;
+  bottom: 7px;
+  padding: 2px 5px;
+  color: #fff;
+  font-size: 11px;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 68%);
+}
+
+.home-video-card h2 {
+  display: -webkit-box;
+  min-height: 42px;
+  margin: 10px 0 2px;
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 15px;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.home-video-card p,
+.home-video-card > div:last-child {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.home-video-card > div:last-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.home-video-skeleton {
+  background:
+    linear-gradient(90deg, transparent, rgb(255 255 255 / 55%), transparent),
+    var(--surface-2);
+  background-size: 220px 100%, 100% 100%;
+  animation: shimmer 1.2s ease-in-out infinite;
 }
 
 .watch-layout {
@@ -1013,6 +1134,16 @@
 
   .home-empty h1 {
     font-size: 24px;
+  }
+
+  .home-feed {
+    width: calc(100% - 32px);
+    padding-top: 20px;
+  }
+
+  .home-video-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px 10px;
   }
 
   .owner-block {

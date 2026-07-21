@@ -3,7 +3,6 @@ package data
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"bilibili-lite/internal/biz"
@@ -13,70 +12,114 @@ import (
 	"gorm.io/gorm"
 )
 
-// PublishVideoFromMP4 streams an upload into media processing, then persists its video and DASH stream.
-func (r *videoRepo) PublishVideoFromMP4(ctx context.Context, input *biz.VideoUploadInput) (*biz.VideoUploadResult, error) {
+// ProcessVideoUpload allocates a BV record first, then prepares its media as a ready draft.
+func (r *videoRepo) ProcessVideoUpload(ctx context.Context, input *biz.VideoUploadInput) (*biz.VideoUploadResult, error) {
+	record := videoPO{
+		OwnerID: input.OwnerID, Title: "", Description: "",
+		Status: string(biz.VideoStatusProcessing), Tags: []string{},
+	}
+	if err := r.data.db.WithContext(ctx).Create(&record).Error; err != nil {
+		return nil, biz.ErrVideoStorage
+	}
+	videoID := biz.VideoID(record.ID)
+	fail := func(reason string, publicError error) (*biz.VideoUploadResult, error) {
+		r.markVideoUploadFailed(ctx, videoID, reason)
+		return nil, publicError
+	}
+
 	job, err := r.mediaManager.CreateUploadJob()
 	if err != nil {
-		return nil, biz.ErrVideoStorage
+		return fail("storage initialization failed", biz.ErrVideoStorage)
 	}
 	if err := r.mediaManager.StoreUpload(ctx, job, input.Content); err != nil {
 		if errors.Is(err, media.ErrUploadTooLarge) {
-			return nil, biz.ErrVideoUploadTooLarge
+			return fail("video exceeds upload limit", biz.ErrVideoUploadTooLarge)
 		}
-		return nil, biz.ErrVideoUploadInterrupted
+		return fail("upload interrupted", biz.ErrVideoUploadInterrupted)
+	}
+	customCover := input.Cover != nil
+	if customCover {
+		if err := r.mediaManager.StoreCover(ctx, job, input.Cover); err != nil {
+			if errors.Is(err, media.ErrCoverTooLarge) {
+				return fail("cover exceeds upload limit", biz.ErrVideoUploadTooLarge)
+			}
+			return fail("cover upload interrupted", biz.ErrVideoUploadInterrupted)
+		}
 	}
 
 	metadata, err := r.mediaManager.InspectMP4(ctx, job)
 	if err != nil {
-		return nil, biz.ErrVideoProcessing
+		return fail("media inspection failed", biz.ErrVideoProcessing)
+	}
+	if err := r.mediaManager.GenerateCover(ctx, job, metadata, customCover); err != nil {
+		return fail("cover generation failed", biz.ErrVideoProcessing)
 	}
 	if err := r.mediaManager.TranscodeDASH(ctx, job); err != nil {
-		return nil, biz.ErrVideoProcessing
+		return fail("DASH transcoding failed", biz.ErrVideoProcessing)
 	}
 
-	result, err := r.persistAndPublishUploadedVideo(ctx, input, metadata, job)
+	manifestURL, publishedDir, err := r.mediaManager.PublishDASH(job, videoID.BVID())
 	if err != nil {
-		log.Error("publish uploaded video", "error", err)
-		return nil, err
+		return fail("media publication failed", biz.ErrVideoStorage)
+	}
+	coverURL := "/media/dash/" + videoID.BVID() + "/cover.jpg"
+	if err := r.markVideoUploadReady(ctx, videoID, metadata, manifestURL, coverURL); err != nil {
+		if cleanupErr := r.mediaManager.RemovePublished(publishedDir); cleanupErr != nil {
+			log.Error("remove rolled-back DASH directory", "path", publishedDir, "error", cleanupErr)
+		}
+		return fail("media metadata persistence failed", err)
 	}
 	if err := r.mediaManager.RemoveUploadJob(job); err != nil {
 		log.Error("remove completed upload job", "error", err)
 	}
-	return result, nil
+	return &biz.VideoUploadResult{
+		VideoID: videoID, Status: biz.VideoStatusReady,
+		ManifestURL: manifestURL, CoverURL: coverURL,
+	}, nil
 }
 
-// persistAndPublishUploadedVideo obtains the auto-increment ID, publishes DASH files, and inserts the stream atomically.
-func (r *videoRepo) persistAndPublishUploadedVideo(ctx context.Context, input *biz.VideoUploadInput, metadata *media.Metadata, job *media.UploadJob) (*biz.VideoUploadResult, error) {
-	record := videoPO{
-		OwnerID: input.OwnerID, Title: input.Title,
-		Description: input.Description, DurationSeconds: metadata.DurationSeconds,
-		PublishTime: time.Now(), Tags: append([]string(nil), input.Tags...),
-	}
-	var result *biz.VideoUploadResult
-	var publishedDir string
-	if err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&record).Error; err != nil {
-			return err
+func (r *videoRepo) markVideoUploadReady(ctx context.Context, videoID biz.VideoID, metadata *media.Metadata, manifestURL, coverURL string) error {
+	now := time.Now()
+	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&videoPO{}).
+			Where("id = ? AND status = ?", uint64(videoID), string(biz.VideoStatusProcessing)).
+			Updates(map[string]any{
+				"status": string(biz.VideoStatusReady), "failure_reason": "",
+				"duration_seconds": metadata.DurationSeconds, "cover_url": coverURL,
+				"ready_at": &now, "updated_at": now,
+			})
+		if result.Error != nil {
+			return result.Error
 		}
-		videoID := biz.VideoID(record.ID)
-		bvid := videoID.BVID()
-		manifestURL, finalDir, err := r.mediaManager.PublishDASH(job, bvid)
-		if err != nil {
-			return fmt.Errorf("publish media: %w", err)
+		if result.RowsAffected != 1 {
+			return biz.ErrVideoInvalidState
 		}
-		publishedDir = finalDir
 		stream := videoStreamPO{
-			VideoID: record.ID, StreamKey: "dash-main", Label: "DASH",
+			VideoID: uint64(videoID), StreamKey: "dash-main", Label: "DASH",
 			Codec: "avc1,mp4a", MimeType: "application/dash+xml", URL: manifestURL,
-			Width: metadata.Width, Height: metadata.Height, Bandwidth: metadata.Bandwidth, DefaultStream: true,
+			Width: metadata.Width, Height: metadata.Height, Bandwidth: metadata.Bandwidth,
+			DefaultStream: true,
 		}
-		result = &biz.VideoUploadResult{VideoID: videoID, ManifestURL: manifestURL}
 		return tx.Create(&stream).Error
-	}); err != nil {
-		if cleanupErr := r.mediaManager.RemovePublished(publishedDir); cleanupErr != nil {
-			log.Error("remove rolled-back DASH directory", "path", publishedDir, "error", cleanupErr)
+	})
+	if err != nil {
+		if errors.Is(err, biz.ErrVideoInvalidState) {
+			return biz.ErrVideoInvalidState
 		}
-		return nil, biz.ErrVideoStorage
+		return biz.ErrVideoStorage
 	}
-	return result, nil
+	return nil
+}
+
+func (r *videoRepo) markVideoUploadFailed(ctx context.Context, videoID biz.VideoID, reason string) {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	err := r.data.db.WithContext(cleanupCtx).Model(&videoPO{}).
+		Where("id = ? AND status = ?", uint64(videoID), string(biz.VideoStatusProcessing)).
+		Updates(map[string]any{
+			"status": string(biz.VideoStatusFailed), "failure_reason": reason, "updated_at": time.Now(),
+		}).Error
+	if err != nil {
+		log.Error("mark video upload failed", "bvid", videoID.BVID(), "error", err)
+	}
 }

@@ -2,12 +2,11 @@ package service
 
 import (
 	"context"
-	"strings"
 
 	v1 "bilibili-lite/api/user/v1"
 	"bilibili-lite/internal/biz"
+	appMiddleware "bilibili-lite/internal/middleware"
 
-	"github.com/go-kratos/kratos/v3/transport"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -35,14 +34,10 @@ func (s *UserService) Login(ctx context.Context, req *v1.LoginRequest) (*v1.Logi
 
 // Logout validates the supplied access token; clients complete stateless logout by discarding tokens.
 func (s *UserService) Logout(ctx context.Context, req *v1.LogoutRequest) (*emptypb.Empty, error) {
-	accessToken := req.GetAccessToken()
-	if tr, ok := transport.FromServerContext(ctx); ok {
-		if bearer := parseBearerToken(tr.RequestHeader().Get("Authorization")); bearer != "" {
-			accessToken = bearer
+	if _, ok := appMiddleware.UserID(ctx); !ok {
+		if err := s.userUsecase.Logout(req.GetAccessToken()); err != nil {
+			return nil, err
 		}
-	}
-	if err := s.userUsecase.Logout(accessToken); err != nil {
-		return nil, err
 	}
 	return &emptypb.Empty{}, nil
 }
@@ -78,13 +73,4 @@ func convertUserReply(in *biz.User) *v1.User {
 		AvatarUrl:   in.AvatarURL,
 		Bio:         in.Bio,
 	}
-}
-
-// parseBearerToken extracts a token from a case-insensitive Authorization Bearer header.
-func parseBearerToken(value string) string {
-	const prefix = "Bearer "
-	if len(value) < len(prefix) || !strings.EqualFold(value[:len(prefix)], prefix) {
-		return ""
-	}
-	return strings.TrimSpace(value[len(prefix):])
 }

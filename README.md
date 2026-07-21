@@ -50,6 +50,7 @@ internal/service/     Transport-facing service methods
 internal/biz/         Usecases, entities, errors, repository interfaces
 internal/data/        PostgreSQL repositories and persistence models
 internal/media/       Upload jobs, FFmpeg processing, local DASH storage
+internal/middleware/  JWT implementation and request identity middleware
 internal/worker/      Kratos-managed background cleanup jobs
 third_party/          Protobuf dependencies
 storage/              Video & photo resources
@@ -172,25 +173,46 @@ JWTs are stateless in this local version and no Redis or session table is used.
 Logout discards both browser tokens; an Access JWT already issued remains valid
 until its two-hour expiry.
 
-Upload one MP4 after login. Metadata fields must precede the file part so the
-backend can stream the file directly into its managed temporary directory:
+Upload one MP4 after login. A custom cover is optional and must precede the
+video part; when omitted, FFmpeg captures a random video frame:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/v1/videos/upload \
   -H 'Authorization: Bearer <access-token>' \
-  -F 'title=My video' \
-  -F 'description=Uploaded locally' \
-  -F 'tags=local,DASH' \
+  -F 'cover=@/absolute/path/cover.png;type=image/png' \
   -F 'file=@/absolute/path/video.mp4;type=video/mp4'
 ```
 
-The request returns only after DASH processing succeeds. DASH is the only
-supported playback format; the original MP4 is retained only as a temporary
-transcoding input. Published manifests live at
+The request allocates the numeric video row and BV identifier immediately. It
+returns after DASH processing reaches `ready`; final metadata is submitted in a
+separate publication step:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/videos/BV1/publish \
+  -H 'Authorization: Bearer <access-token>' \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"My video","description":"Uploaded locally","tags":["local","DASH"]}'
+```
+
+The lifecycle is `processing -> ready -> published`, with terminal `failed`
+and `deleted` states. Every inserted video consumes its auto-increment ID even
+when processing fails or it is later deleted. DASH is the only supported
+playback format; the original MP4 is retained only as a temporary transcoding
+input. Published manifests live at
 `/media/dash/<BVID>/manifest.mpd`. Incomplete jobs live under
 `storage/.uploads` and are removed after 30 seconds without upload or transcode
-activity. The database row and public media directory are created only after
-the complete manifest and segments exist.
+activity.
+
+Homepage and public submission feeds use paginated list endpoints:
+
+```text
+GET /api/v1/videos?page_size=20&page_token=...
+GET /api/v1/users/{user_id}/videos?page_size=20&page_token=...
+```
+
+A logged-in view is counted only after completing a server-timed session at
+least five seconds after it started. The same account/video pair can increment
+at most once per hour and ten times per Asia/Shanghai calendar day.
 
 Like operations require an Access JWT and are idempotent:
 
@@ -203,10 +225,9 @@ curl -X DELETE http://127.0.0.1:8000/api/v1/videos/BV1/like \
   -H 'Authorization: Bearer <access-token>'
 ```
 
-During local development, GORM `AutoMigrate` creates missing tables, columns,
-indexes, and constraints. It deliberately does not provide a complete history
-for destructive schema changes. Before production deployment, use versioned SQL
-migrations for column renames, type changes, and removals.
+Embedded, versioned PostgreSQL migrations in `internal/data/migrations` are
+applied once at service startup and recorded in `schema_migrations`. Add a new
+numbered SQL file for every schema change; do not rewrite an applied migration.
 
 ## Docker
 

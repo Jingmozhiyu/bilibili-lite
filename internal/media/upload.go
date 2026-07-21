@@ -17,10 +17,14 @@ const uploadHeartbeatName = ".heartbeat"
 // ErrUploadTooLarge reports that an upload exceeded the configured byte limit.
 var ErrUploadTooLarge = errors.New("upload too large")
 
+// ErrCoverTooLarge reports that a custom cover exceeded the configured byte limit.
+var ErrCoverTooLarge = errors.New("cover too large")
+
 // UploadJob identifies the private files used by one in-progress upload.
 type UploadJob struct {
 	directory  string
 	sourcePath string
+	coverPath  string
 	outputDir  string
 }
 
@@ -34,6 +38,7 @@ func (m *Manager) CreateUploadJob() (*UploadJob, error) {
 		directory: filepath.Join(m.uploadRoot(), jobID),
 	}
 	job.sourcePath = filepath.Join(job.directory, "source.mp4.part")
+	job.coverPath = filepath.Join(job.directory, "cover.part")
 	job.outputDir = filepath.Join(job.directory, "output")
 	if err := os.MkdirAll(job.outputDir, 0o755); err != nil {
 		return nil, err
@@ -49,7 +54,27 @@ func (m *Manager) StoreUpload(ctx context.Context, job *UploadJob, source io.Rea
 	if job == nil || source == nil {
 		return fmt.Errorf("upload job and source are required")
 	}
-	file, err := os.OpenFile(job.sourcePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	return storeReader(ctx, job, job.sourcePath, source, m.maxUploadBytes, ErrUploadTooLarge)
+}
+
+// StoreCover writes a bounded optional custom cover into the private upload job.
+func (m *Manager) StoreCover(ctx context.Context, job *UploadJob, source io.Reader) error {
+	if job == nil || source == nil {
+		return fmt.Errorf("upload job and cover source are required")
+	}
+	return storeReader(ctx, job, job.coverPath, source, m.maxCoverBytes, ErrCoverTooLarge)
+}
+
+// RemoveVideo deletes all publicly served media belonging to a BV identifier.
+func (m *Manager) RemoveVideo(bvid string) error {
+	if bvid == "" {
+		return nil
+	}
+	return os.RemoveAll(filepath.Join(m.DASHRoot(), bvid))
+}
+
+func storeReader(ctx context.Context, job *UploadJob, path string, source io.Reader, limit int64, limitError error) error {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}
@@ -64,8 +89,8 @@ func (m *Manager) StoreUpload(ctx context.Context, job *UploadJob, source io.Rea
 		n, readErr := source.Read(buffer)
 		if n > 0 {
 			written += int64(n)
-			if written > m.maxUploadBytes {
-				return ErrUploadTooLarge
+			if written > limit {
+				return limitError
 			}
 			if _, err := file.Write(buffer[:n]); err != nil {
 				return err
