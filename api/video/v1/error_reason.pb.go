@@ -33,20 +33,28 @@ const (
 	ErrorReason_VIDEO_FORBIDDEN          ErrorReason = 6
 	ErrorReason_VIDEO_INVALID_STATE      ErrorReason = 7
 	ErrorReason_VIDEO_VIEW_TOO_EARLY     ErrorReason = 8
+	ErrorReason_VIDEO_INSUFFICIENT_COINS ErrorReason = 9
+	ErrorReason_VIDEO_COIN_LIMIT_REACHED ErrorReason = 10
+	ErrorReason_VIDEO_DANMAKU_NOT_FOUND  ErrorReason = 11
+	ErrorReason_VIDEO_COMMENT_NOT_FOUND  ErrorReason = 12
 )
 
 // Enum value maps for ErrorReason.
 var (
 	ErrorReason_name = map[int32]string{
-		0: "VIDEO_UNSPECIFIED",
-		1: "VIDEO_NOT_FOUND",
-		2: "VIDEO_INVALID_ARGUMENT",
-		3: "VIDEO_PROCESSING_FAILED",
-		4: "VIDEO_UPLOAD_INTERRUPTED",
-		5: "VIDEO_UPLOAD_TOO_LARGE",
-		6: "VIDEO_FORBIDDEN",
-		7: "VIDEO_INVALID_STATE",
-		8: "VIDEO_VIEW_TOO_EARLY",
+		0:  "VIDEO_UNSPECIFIED",
+		1:  "VIDEO_NOT_FOUND",
+		2:  "VIDEO_INVALID_ARGUMENT",
+		3:  "VIDEO_PROCESSING_FAILED",
+		4:  "VIDEO_UPLOAD_INTERRUPTED",
+		5:  "VIDEO_UPLOAD_TOO_LARGE",
+		6:  "VIDEO_FORBIDDEN",
+		7:  "VIDEO_INVALID_STATE",
+		8:  "VIDEO_VIEW_TOO_EARLY",
+		9:  "VIDEO_INSUFFICIENT_COINS",
+		10: "VIDEO_COIN_LIMIT_REACHED",
+		11: "VIDEO_DANMAKU_NOT_FOUND",
+		12: "VIDEO_COMMENT_NOT_FOUND",
 	}
 	ErrorReason_value = map[string]int32{
 		"VIDEO_UNSPECIFIED":        0,
@@ -58,6 +66,10 @@ var (
 		"VIDEO_FORBIDDEN":          6,
 		"VIDEO_INVALID_STATE":      7,
 		"VIDEO_VIEW_TOO_EARLY":     8,
+		"VIDEO_INSUFFICIENT_COINS": 9,
+		"VIDEO_COIN_LIMIT_REACHED": 10,
+		"VIDEO_DANMAKU_NOT_FOUND":  11,
+		"VIDEO_COMMENT_NOT_FOUND":  12,
 	}
 )
 
@@ -92,7 +104,7 @@ var File_video_v1_error_reason_proto protoreflect.FileDescriptor
 
 const file_video_v1_error_reason_proto_rawDesc = "" +
 	"\n" +
-	"\x1bvideo/v1/error_reason.proto\x12\bvideo.v1*\xf4\x01\n" +
+	"\x1bvideo/v1/error_reason.proto\x12\bvideo.v1*\xea\x02\n" +
 	"\vErrorReason\x12\x15\n" +
 	"\x11VIDEO_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fVIDEO_NOT_FOUND\x10\x01\x12\x1a\n" +
@@ -102,7 +114,12 @@ const file_video_v1_error_reason_proto_rawDesc = "" +
 	"\x16VIDEO_UPLOAD_TOO_LARGE\x10\x05\x12\x13\n" +
 	"\x0fVIDEO_FORBIDDEN\x10\x06\x12\x17\n" +
 	"\x13VIDEO_INVALID_STATE\x10\a\x12\x18\n" +
-	"\x14VIDEO_VIEW_TOO_EARLY\x10\bB8\n" +
+	"\x14VIDEO_VIEW_TOO_EARLY\x10\b\x12\x1c\n" +
+	"\x18VIDEO_INSUFFICIENT_COINS\x10\t\x12\x1c\n" +
+	"\x18VIDEO_COIN_LIMIT_REACHED\x10\n" +
+	"\x12\x1b\n" +
+	"\x17VIDEO_DANMAKU_NOT_FOUND\x10\v\x12\x1b\n" +
+	"\x17VIDEO_COMMENT_NOT_FOUND\x10\fB8\n" +
 	"\bvideo.v1P\x01Z\x1dbilibili-lite/api/video/v1;v1\xa2\x02\n" +
 	"APIVideoV1b\x06proto3"
 

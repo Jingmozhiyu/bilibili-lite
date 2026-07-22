@@ -72,5 +72,6 @@ func convertUserReply(in *biz.User) *v1.User {
 		DisplayName: in.DisplayName,
 		AvatarUrl:   in.AvatarURL,
 		Bio:         in.Bio,
+		CoinBalance: in.CoinBalance,
 	}
 }

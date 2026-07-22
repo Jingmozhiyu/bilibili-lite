@@ -57,6 +57,72 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/user.v1.LoginReply'
+    /api/v1/users/me/video-coins:
+        get:
+            tags:
+                - VideoService
+            operationId: VideoService_ListMyCoinedVideos
+            parameters:
+                - name: pageSize
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/video.v1.ListVideoHistoryReply'
+    /api/v1/users/me/video-favorites:
+        get:
+            tags:
+                - VideoService
+            operationId: VideoService_ListMyFavoriteVideos
+            parameters:
+                - name: pageSize
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/video.v1.ListVideoHistoryReply'
+    /api/v1/users/me/video-likes:
+        get:
+            tags:
+                - VideoService
+            operationId: VideoService_ListMyLikedVideos
+            parameters:
+                - name: pageSize
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/video.v1.ListVideoHistoryReply'
     /api/v1/users/{userId}/videos:
         get:
             tags:
@@ -138,6 +204,197 @@ paths:
                 "200":
                     description: OK
                     content: {}
+    /api/v1/videos/{bvid}/coin:
+        post:
+            tags:
+                - VideoService
+            operationId: VideoService_CoinVideo
+            parameters:
+                - name: bvid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/video.v1.CoinVideoRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/video.v1.VideoEngagement'
+    /api/v1/videos/{bvid}/comments:
+        get:
+            tags:
+                - VideoService
+            operationId: VideoService_ListVideoComments
+            parameters:
+                - name: bvid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: pageSize
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/video.v1.ListVideoCommentsReply'
+        post:
+            tags:
+                - VideoService
+            operationId: VideoService_CreateVideoComment
+            parameters:
+                - name: bvid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/video.v1.CreateVideoCommentRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/video.v1.VideoComment'
+    /api/v1/videos/{bvid}/comments/{commentId}:
+        delete:
+            tags:
+                - VideoService
+            operationId: VideoService_DeleteVideoComment
+            parameters:
+                - name: bvid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: commentId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content: {}
+    /api/v1/videos/{bvid}/danmakus:
+        post:
+            tags:
+                - VideoService
+            operationId: VideoService_CreateDanmaku
+            parameters:
+                - name: bvid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/video.v1.CreateDanmakuRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/video.v1.DanmakuItem'
+    /api/v1/videos/{bvid}/danmakus/{danmakuId}:
+        delete:
+            tags:
+                - VideoService
+            operationId: VideoService_DeleteDanmaku
+            parameters:
+                - name: bvid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: danmakuId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content: {}
+    /api/v1/videos/{bvid}/engagement:
+        get:
+            tags:
+                - VideoService
+            operationId: VideoService_GetVideoEngagement
+            parameters:
+                - name: bvid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/video.v1.VideoEngagement'
+    /api/v1/videos/{bvid}/favorite:
+        post:
+            tags:
+                - VideoService
+            operationId: VideoService_FavoriteVideo
+            parameters:
+                - name: bvid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/video.v1.VideoEngagement'
+        delete:
+            tags:
+                - VideoService
+            operationId: VideoService_UnfavoriteVideo
+            parameters:
+                - name: bvid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/video.v1.VideoEngagement'
     /api/v1/videos/{bvid}/like:
         get:
             tags:
@@ -232,6 +489,30 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/video.v1.Video'
+    /api/v1/videos/{bvid}/shares:
+        post:
+            tags:
+                - VideoService
+            operationId: VideoService_ShareVideo
+            parameters:
+                - name: bvid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/video.v1.ShareVideoRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/video.v1.VideoShare'
     /api/v1/videos/{bvid}/upload-status:
         get:
             tags:
@@ -356,6 +637,19 @@ components:
                     type: string
                 bio:
                     type: string
+                coinBalance:
+                    type: string
+        video.v1.CoinVideoRequest:
+            required:
+                - bvid
+                - targetAmount
+            type: object
+            properties:
+                bvid:
+                    type: string
+                targetAmount:
+                    type: integer
+                    format: int32
         video.v1.CompleteVideoViewRequest:
             required:
                 - bvid
@@ -365,6 +659,31 @@ components:
                 bvid:
                     type: string
                 sessionId:
+                    type: string
+        video.v1.CreateDanmakuRequest:
+            required:
+                - bvid
+                - text
+            type: object
+            properties:
+                bvid:
+                    type: string
+                timeSeconds:
+                    type: number
+                    format: double
+                text:
+                    type: string
+                color:
+                    type: string
+        video.v1.CreateVideoCommentRequest:
+            required:
+                - bvid
+                - content
+            type: object
+            properties:
+                bvid:
+                    type: string
+                content:
                     type: string
         video.v1.DanmakuConfig:
             type: object
@@ -386,6 +705,33 @@ components:
                 text:
                     type: string
                 color:
+                    type: string
+                id:
+                    type: string
+                userId:
+                    type: string
+                userName:
+                    type: string
+                createdAt:
+                    type: string
+                    format: date-time
+        video.v1.ListVideoCommentsReply:
+            type: object
+            properties:
+                comments:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/video.v1.VideoComment'
+                nextPageToken:
+                    type: string
+        video.v1.ListVideoHistoryReply:
+            type: object
+            properties:
+                items:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/video.v1.VideoHistoryItem'
+                nextPageToken:
                     type: string
         video.v1.ListVideosReply:
             type: object
@@ -412,6 +758,16 @@ components:
                     type: array
                     items:
                         type: string
+        video.v1.ShareVideoRequest:
+            required:
+                - bvid
+                - requestId
+            type: object
+            properties:
+                bvid:
+                    type: string
+                requestId:
+                    type: string
         video.v1.StartVideoViewRequest:
             required:
                 - bvid
@@ -466,6 +822,59 @@ components:
                 updatedAt:
                     type: string
                     format: date-time
+                commentCount:
+                    type: string
+        video.v1.VideoComment:
+            type: object
+            properties:
+                id:
+                    type: string
+                bvid:
+                    type: string
+                userId:
+                    type: string
+                userName:
+                    type: string
+                userAvatarUrl:
+                    type: string
+                content:
+                    type: string
+                createdAt:
+                    type: string
+                    format: date-time
+        video.v1.VideoEngagement:
+            type: object
+            properties:
+                bvid:
+                    type: string
+                liked:
+                    type: boolean
+                favorited:
+                    type: boolean
+                myCoinAmount:
+                    type: integer
+                    format: int32
+                likeCount:
+                    type: string
+                favoriteCount:
+                    type: string
+                coinCount:
+                    type: string
+                shareCount:
+                    type: string
+                coinBalance:
+                    type: string
+        video.v1.VideoHistoryItem:
+            type: object
+            properties:
+                video:
+                    $ref: '#/components/schemas/video.v1.Video'
+                interactedAt:
+                    type: string
+                    format: date-time
+                coinAmount:
+                    type: integer
+                    format: int32
         video.v1.VideoLike:
             type: object
             properties:
@@ -486,6 +895,13 @@ components:
                         $ref: '#/components/schemas/video.v1.VideoStream'
                 danmaku:
                     $ref: '#/components/schemas/video.v1.DanmakuConfig'
+        video.v1.VideoShare:
+            type: object
+            properties:
+                bvid:
+                    type: string
+                shareCount:
+                    type: string
         video.v1.VideoStream:
             type: object
             properties:

@@ -35,6 +35,7 @@ func (r *userRepo) FindCredentialByUsername(ctx context.Context, username string
 			DisplayName: user.DisplayName,
 			AvatarURL:   user.AvatarURL,
 			Bio:         user.Bio,
+			CoinBalance: user.CoinBalance,
 		},
 		PasswordHash: user.PasswordHash,
 	}, nil
@@ -52,6 +53,6 @@ func (r *userRepo) FindUserByID(ctx context.Context, id uint64) (*biz.User, erro
 	}
 	return &biz.User{
 		ID: user.ID, Username: user.Username, DisplayName: user.DisplayName,
-		AvatarURL: user.AvatarURL, Bio: user.Bio,
+		AvatarURL: user.AvatarURL, Bio: user.Bio, CoinBalance: user.CoinBalance,
 	}, nil
 }

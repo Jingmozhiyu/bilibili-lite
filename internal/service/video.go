@@ -19,6 +19,11 @@ type VideoService struct {
 	videoUsecase *biz.VideoUsecase
 }
 
+// NewVideoService injects the video usecase.
+func NewVideoService(videoUsecase *biz.VideoUsecase) *VideoService {
+	return &VideoService{videoUsecase: videoUsecase}
+}
+
 // ListVideos returns one page of published videos for the homepage.
 func (s *VideoService) ListVideos(ctx context.Context, req *v1.ListVideosRequest) (*v1.ListVideosReply, error) {
 	list, err := s.videoUsecase.ListVideos(ctx, 0, req.GetPageSize(), req.GetPageToken())
@@ -38,11 +43,6 @@ func (s *VideoService) ListUserVideos(ctx context.Context, req *v1.ListUserVideo
 		return nil, err
 	}
 	return convertVideoListReply(list), nil
-}
-
-// NewVideoService injects the video usecase.
-func NewVideoService(videoUsecase *biz.VideoUsecase) *VideoService {
-	return &VideoService{videoUsecase: videoUsecase}
 }
 
 // GetVideo returns video detail by BVID.
@@ -96,6 +96,133 @@ func (s *VideoService) LikeVideo(ctx context.Context, req *v1.LikeVideoRequest) 
 // UnlikeVideo idempotently sets the authenticated caller's like state to inactive.
 func (s *VideoService) UnlikeVideo(ctx context.Context, req *v1.UnlikeVideoRequest) (*v1.VideoLike, error) {
 	return s.setVideoLike(ctx, req.GetBvid(), false)
+}
+
+// GetVideoEngagement returns the authenticated viewer's complete interaction state.
+func (s *VideoService) GetVideoEngagement(ctx context.Context, req *v1.GetVideoEngagementRequest) (*v1.VideoEngagement, error) {
+	videoID, userID, err := authenticatedVideoRequest(ctx, req.GetBvid())
+	if err != nil {
+		return nil, err
+	}
+	engagement, err := s.videoUsecase.GetVideoEngagement(ctx, userID, videoID)
+	if err != nil {
+		return nil, err
+	}
+	return convertVideoEngagement(engagement), nil
+}
+
+// FavoriteVideo idempotently sets the authenticated viewer's favorite state.
+func (s *VideoService) FavoriteVideo(ctx context.Context, req *v1.FavoriteVideoRequest) (*v1.VideoEngagement, error) {
+	return s.setVideoFavorite(ctx, req.GetBvid(), true)
+}
+
+// UnfavoriteVideo idempotently clears the authenticated viewer's favorite state.
+func (s *VideoService) UnfavoriteVideo(ctx context.Context, req *v1.UnfavoriteVideoRequest) (*v1.VideoEngagement, error) {
+	return s.setVideoFavorite(ctx, req.GetBvid(), false)
+}
+
+// CoinVideo irreversibly raises the viewer's cumulative contribution to the requested target.
+func (s *VideoService) CoinVideo(ctx context.Context, req *v1.CoinVideoRequest) (*v1.VideoEngagement, error) {
+	videoID, userID, err := authenticatedVideoRequest(ctx, req.GetBvid())
+	if err != nil {
+		return nil, err
+	}
+	engagement, err := s.videoUsecase.SetVideoCoinAmount(ctx, userID, videoID, req.GetTargetAmount())
+	if err != nil {
+		return nil, err
+	}
+	return convertVideoEngagement(engagement), nil
+}
+
+// ShareVideo records one idempotent share event.
+func (s *VideoService) ShareVideo(ctx context.Context, req *v1.ShareVideoRequest) (*v1.VideoShare, error) {
+	videoID, userID, err := authenticatedVideoRequest(ctx, req.GetBvid())
+	if err != nil {
+		return nil, err
+	}
+	share, err := s.videoUsecase.ShareVideo(ctx, userID, videoID, req.GetRequestId())
+	if err != nil {
+		return nil, err
+	}
+	return &v1.VideoShare{Bvid: share.VideoID.BVID(), ShareCount: share.ShareCount}, nil
+}
+
+// ListMyLikedVideos returns the caller's active like history.
+func (s *VideoService) ListMyLikedVideos(ctx context.Context, req *v1.ListVideoHistoryRequest) (*v1.ListVideoHistoryReply, error) {
+	return s.listVideoHistory(ctx, req, biz.VideoHistoryLiked)
+}
+
+// ListMyFavoriteVideos returns the caller's active favorite history.
+func (s *VideoService) ListMyFavoriteVideos(ctx context.Context, req *v1.ListVideoHistoryRequest) (*v1.ListVideoHistoryReply, error) {
+	return s.listVideoHistory(ctx, req, biz.VideoHistoryFavorited)
+}
+
+// ListMyCoinedVideos returns the caller's irreversible coin history.
+func (s *VideoService) ListMyCoinedVideos(ctx context.Context, req *v1.ListVideoHistoryRequest) (*v1.ListVideoHistoryReply, error) {
+	return s.listVideoHistory(ctx, req, biz.VideoHistoryCoined)
+}
+
+// CreateDanmaku publishes a timed comment at the supplied playback position.
+func (s *VideoService) CreateDanmaku(ctx context.Context, req *v1.CreateDanmakuRequest) (*v1.DanmakuItem, error) {
+	videoID, userID, err := authenticatedVideoRequest(ctx, req.GetBvid())
+	if err != nil {
+		return nil, err
+	}
+	item, err := s.videoUsecase.CreateDanmaku(ctx, userID, videoID, req.GetTimeSeconds(), req.GetText(), req.GetColor())
+	if err != nil {
+		return nil, err
+	}
+	return convertDanmakuItem(item), nil
+}
+
+// DeleteDanmaku removes a timed comment for its author or the video owner.
+func (s *VideoService) DeleteDanmaku(ctx context.Context, req *v1.DeleteDanmakuRequest) (*emptypb.Empty, error) {
+	videoID, userID, err := authenticatedVideoRequest(ctx, req.GetBvid())
+	if err != nil {
+		return nil, err
+	}
+	if err := s.videoUsecase.DeleteDanmaku(ctx, userID, videoID, req.GetDanmakuId()); err != nil {
+		return nil, err
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// ListVideoComments returns one public page of top-level comments.
+func (s *VideoService) ListVideoComments(ctx context.Context, req *v1.ListVideoCommentsRequest) (*v1.ListVideoCommentsReply, error) {
+	videoID, err := biz.ParseBVID(req.GetBvid())
+	if err != nil {
+		return nil, err
+	}
+	comments, err := s.videoUsecase.ListVideoComments(ctx, videoID, req.GetPageSize(), req.GetPageToken())
+	if err != nil {
+		return nil, err
+	}
+	return convertVideoCommentList(comments), nil
+}
+
+// CreateVideoComment publishes one authenticated top-level comment.
+func (s *VideoService) CreateVideoComment(ctx context.Context, req *v1.CreateVideoCommentRequest) (*v1.VideoComment, error) {
+	videoID, userID, err := authenticatedVideoRequest(ctx, req.GetBvid())
+	if err != nil {
+		return nil, err
+	}
+	comment, err := s.videoUsecase.CreateVideoComment(ctx, userID, videoID, req.GetContent())
+	if err != nil {
+		return nil, err
+	}
+	return convertVideoComment(comment), nil
+}
+
+// DeleteVideoComment removes a comment for its author or the video owner.
+func (s *VideoService) DeleteVideoComment(ctx context.Context, req *v1.DeleteVideoCommentRequest) (*emptypb.Empty, error) {
+	videoID, userID, err := authenticatedVideoRequest(ctx, req.GetBvid())
+	if err != nil {
+		return nil, err
+	}
+	if err := s.videoUsecase.DeleteVideoComment(ctx, userID, videoID, req.GetCommentId()); err != nil {
+		return nil, err
+	}
+	return &emptypb.Empty{}, nil
 }
 
 // GetVideoUploadStatus returns owner-only processing state for one allocated BV identifier.
@@ -227,6 +354,7 @@ func convertVideoReply(in *biz.Video) *v1.Video {
 		CoinCount:       in.CoinCount,
 		FavoriteCount:   in.FavoriteCount,
 		ShareCount:      in.ShareCount,
+		CommentCount:    in.CommentCount,
 		PublishTime:     timestampOrNil(in.PublishTime),
 		Tags:            append([]string(nil), in.Tags...),
 		OwnerId:         in.OwnerID,
@@ -296,11 +424,7 @@ func convertVideoPlayReply(in *biz.VideoPlay) *v1.VideoPlay {
 		})
 	}
 	for _, item := range in.Danmaku.Items {
-		out.Danmaku.Items = append(out.Danmaku.Items, &v1.DanmakuItem{
-			TimeSeconds: item.TimeSeconds,
-			Text:        item.Text,
-			Color:       item.Color,
-		})
+		out.Danmaku.Items = append(out.Danmaku.Items, convertDanmakuItem(&item))
 	}
 	return out
 }
@@ -308,4 +432,80 @@ func convertVideoPlayReply(in *biz.VideoPlay) *v1.VideoPlay {
 // convertVideoLike maps the like domain object to its public API reply.
 func convertVideoLike(in *biz.VideoLike) *v1.VideoLike {
 	return &v1.VideoLike{Bvid: in.VideoID.BVID(), Liked: in.Liked, LikeCount: in.LikeCount}
+}
+
+func (s *VideoService) setVideoFavorite(ctx context.Context, bvid string, favorited bool) (*v1.VideoEngagement, error) {
+	videoID, userID, err := authenticatedVideoRequest(ctx, bvid)
+	if err != nil {
+		return nil, err
+	}
+	engagement, err := s.videoUsecase.SetVideoFavorite(ctx, userID, videoID, favorited)
+	if err != nil {
+		return nil, err
+	}
+	return convertVideoEngagement(engagement), nil
+}
+
+func (s *VideoService) listVideoHistory(ctx context.Context, req *v1.ListVideoHistoryRequest, kind biz.VideoHistoryKind) (*v1.ListVideoHistoryReply, error) {
+	userID, err := appMiddleware.RequireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	history, err := s.videoUsecase.ListVideoHistory(ctx, userID, kind, req.GetPageSize(), req.GetPageToken())
+	if err != nil {
+		return nil, err
+	}
+	out := &v1.ListVideoHistoryReply{Items: make([]*v1.VideoHistoryItem, 0, len(history.Items)), NextPageToken: history.NextPageToken}
+	for index := range history.Items {
+		item := &history.Items[index]
+		out.Items = append(out.Items, &v1.VideoHistoryItem{
+			Video: convertVideoReply(&item.Video), InteractedAt: timestampOrNil(item.InteractedAt), CoinAmount: item.CoinAmount,
+		})
+	}
+	return out, nil
+}
+
+func authenticatedVideoRequest(ctx context.Context, bvid string) (biz.VideoID, uint64, error) {
+	videoID, err := biz.ParseBVID(bvid)
+	if err != nil {
+		return 0, 0, err
+	}
+	userID, err := appMiddleware.RequireUserID(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+	return videoID, userID, nil
+}
+
+func convertVideoEngagement(in *biz.VideoEngagement) *v1.VideoEngagement {
+	return &v1.VideoEngagement{
+		Bvid: in.VideoID.BVID(), Liked: in.Liked, Favorited: in.Favorited,
+		MyCoinAmount: in.MyCoinAmount, LikeCount: in.LikeCount,
+		FavoriteCount: in.FavoriteCount, CoinCount: in.CoinCount,
+		ShareCount: in.ShareCount, CoinBalance: in.CoinBalance,
+	}
+}
+
+func convertDanmakuItem(in *biz.DanmakuItem) *v1.DanmakuItem {
+	return &v1.DanmakuItem{
+		Id: in.ID, UserId: in.UserID, UserName: in.UserName,
+		TimeSeconds: in.TimeSeconds, Text: in.Text, Color: in.Color,
+		CreatedAt: timestampOrNil(in.CreatedAt),
+	}
+}
+
+func convertVideoComment(in *biz.VideoComment) *v1.VideoComment {
+	return &v1.VideoComment{
+		Id: in.ID, Bvid: in.VideoID.BVID(), UserId: in.UserID,
+		UserName: in.UserName, UserAvatarUrl: in.UserAvatarURL,
+		Content: in.Content, CreatedAt: timestampOrNil(in.CreatedAt),
+	}
+}
+
+func convertVideoCommentList(in *biz.VideoCommentList) *v1.ListVideoCommentsReply {
+	out := &v1.ListVideoCommentsReply{Comments: make([]*v1.VideoComment, 0, len(in.Comments)), NextPageToken: in.NextPageToken}
+	for index := range in.Comments {
+		out.Comments = append(out.Comments, convertVideoComment(&in.Comments[index]))
+	}
+	return out
 }

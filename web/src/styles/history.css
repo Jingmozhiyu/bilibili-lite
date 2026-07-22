@@ -1,0 +1,56 @@
+.history-page {
+  width: min(1500px, calc(100% - 48px));
+  min-height: calc(100svh - 64px);
+  margin: 0 auto;
+  padding: 34px 0 64px;
+}
+
+.history-heading {
+  display: flex;
+  gap: 13px;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.history-heading > span {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  color: var(--accent);
+  border-radius: 8px;
+  background: var(--accent-soft);
+}
+
+.history-heading h1,
+.history-heading p,
+.history-empty h1,
+.history-empty h2,
+.history-empty p {
+  margin: 0;
+}
+
+.history-heading h1 {
+  color: var(--text-strong);
+  font-size: 23px;
+}
+
+.history-heading p,
+.history-empty p {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.history-empty {
+  color: var(--text-muted);
+}
+
+.history-empty h1,
+.history-empty h2 {
+  margin-top: 12px;
+  color: var(--text-strong);
+}
+
+@media (max-width: 680px) {
+  .history-page { width: calc(100% - 28px); min-height: calc(100svh - 58px); padding-top: 24px; }
+}

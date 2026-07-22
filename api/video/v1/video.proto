@@ -55,6 +55,88 @@ service VideoService {
     };
   }
 
+  rpc GetVideoEngagement(GetVideoEngagementRequest) returns (VideoEngagement) {
+    option (google.api.http) = {
+      get: "/api/v1/videos/{bvid}/engagement"
+    };
+  }
+
+  rpc FavoriteVideo(FavoriteVideoRequest) returns (VideoEngagement) {
+    option (google.api.http) = {
+      post: "/api/v1/videos/{bvid}/favorite"
+    };
+  }
+
+  rpc UnfavoriteVideo(UnfavoriteVideoRequest) returns (VideoEngagement) {
+    option (google.api.http) = {
+      delete: "/api/v1/videos/{bvid}/favorite"
+    };
+  }
+
+  rpc CoinVideo(CoinVideoRequest) returns (VideoEngagement) {
+    option (google.api.http) = {
+      post: "/api/v1/videos/{bvid}/coin"
+      body: "*"
+    };
+  }
+
+  rpc ShareVideo(ShareVideoRequest) returns (VideoShare) {
+    option (google.api.http) = {
+      post: "/api/v1/videos/{bvid}/shares"
+      body: "*"
+    };
+  }
+
+  rpc ListMyLikedVideos(ListVideoHistoryRequest) returns (ListVideoHistoryReply) {
+    option (google.api.http) = {
+      get: "/api/v1/users/me/video-likes"
+    };
+  }
+
+  rpc ListMyFavoriteVideos(ListVideoHistoryRequest) returns (ListVideoHistoryReply) {
+    option (google.api.http) = {
+      get: "/api/v1/users/me/video-favorites"
+    };
+  }
+
+  rpc ListMyCoinedVideos(ListVideoHistoryRequest) returns (ListVideoHistoryReply) {
+    option (google.api.http) = {
+      get: "/api/v1/users/me/video-coins"
+    };
+  }
+
+  rpc CreateDanmaku(CreateDanmakuRequest) returns (DanmakuItem) {
+    option (google.api.http) = {
+      post: "/api/v1/videos/{bvid}/danmakus"
+      body: "*"
+    };
+  }
+
+  rpc DeleteDanmaku(DeleteDanmakuRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/api/v1/videos/{bvid}/danmakus/{danmaku_id}"
+    };
+  }
+
+  rpc ListVideoComments(ListVideoCommentsRequest) returns (ListVideoCommentsReply) {
+    option (google.api.http) = {
+      get: "/api/v1/videos/{bvid}/comments"
+    };
+  }
+
+  rpc CreateVideoComment(CreateVideoCommentRequest) returns (VideoComment) {
+    option (google.api.http) = {
+      post: "/api/v1/videos/{bvid}/comments"
+      body: "*"
+    };
+  }
+
+  rpc DeleteVideoComment(DeleteVideoCommentRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/api/v1/videos/{bvid}/comments/{comment_id}"
+    };
+  }
+
   rpc GetVideoUploadStatus(GetVideoUploadStatusRequest) returns (VideoUploadStatus) {
     option (google.api.http) = {
       get: "/api/v1/videos/{bvid}/upload-status"
@@ -118,6 +200,7 @@ message Video {
   VideoStatus status = 17;
   google.protobuf.Timestamp created_at = 18;
   google.protobuf.Timestamp updated_at = 19;
+  int64 comment_count = 20;
 }
 
 message ListVideosRequest {
@@ -164,6 +247,10 @@ message DanmakuItem {
   double time_seconds = 1;
   string text = 2;
   string color = 3;
+  uint64 id = 4;
+  uint64 user_id = 5;
+  string user_name = 6;
+  google.protobuf.Timestamp created_at = 7;
 }
 
 message GetVideoRequest {
@@ -190,6 +277,104 @@ message VideoLike {
   string bvid = 1;
   bool liked = 2;
   int64 like_count = 3;
+}
+
+message GetVideoEngagementRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message FavoriteVideoRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message UnfavoriteVideoRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message CoinVideoRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+  int32 target_amount = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+message ShareVideoRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+  string request_id = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+message VideoEngagement {
+  string bvid = 1;
+  bool liked = 2;
+  bool favorited = 3;
+  int32 my_coin_amount = 4;
+  int64 like_count = 5;
+  int64 favorite_count = 6;
+  int64 coin_count = 7;
+  int64 share_count = 8;
+  int64 coin_balance = 9;
+}
+
+message VideoShare {
+  string bvid = 1;
+  int64 share_count = 2;
+}
+
+message ListVideoHistoryRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message VideoHistoryItem {
+  Video video = 1;
+  google.protobuf.Timestamp interacted_at = 2;
+  int32 coin_amount = 3;
+}
+
+message ListVideoHistoryReply {
+  repeated VideoHistoryItem items = 1;
+  string next_page_token = 2;
+}
+
+message CreateDanmakuRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+  double time_seconds = 2;
+  string text = 3 [(google.api.field_behavior) = REQUIRED];
+  string color = 4;
+}
+
+message DeleteDanmakuRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+  uint64 danmaku_id = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+message VideoComment {
+  uint64 id = 1;
+  string bvid = 2;
+  uint64 user_id = 3;
+  string user_name = 4;
+  string user_avatar_url = 5;
+  string content = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+message ListVideoCommentsRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListVideoCommentsReply {
+  repeated VideoComment comments = 1;
+  string next_page_token = 2;
+}
+
+message CreateVideoCommentRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+  string content = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+message DeleteVideoCommentRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+  uint64 comment_id = 2 [(google.api.field_behavior) = REQUIRED];
 }
 
 message GetVideoUploadStatusRequest {

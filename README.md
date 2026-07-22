@@ -134,8 +134,13 @@ users without creating sample videos. `videos.id` is the numeric auto-increment
 primary key, and the API formats it as `BV1`, `BV2`, and so on. Related tables
 store `video_id` numeric foreign keys; BVID strings are not persisted.
 
+The media path is relative to the process working directory. Use the same
+application directory as `kratos run` so local uploads continue to resolve from
+`cmd/bilibili-lite/storage`:
+
 ```bash
-go run ./cmd/bilibili-lite -conf ./configs
+cd cmd/bilibili-lite
+go run . -conf ../../configs
 ```
 
 Default local ports are configured in `configs/config.yaml`:
@@ -200,8 +205,8 @@ when processing fails or it is later deleted. DASH is the only supported
 playback format; the original MP4 is retained only as a temporary transcoding
 input. Published manifests live at
 `/media/dash/<BVID>/manifest.mpd`. Incomplete jobs live under
-`storage/.uploads` and are removed after 30 seconds without upload or transcode
-activity.
+`cmd/bilibili-lite/storage/.uploads` during local development and are removed
+after 30 seconds without upload or transcode activity.
 
 Homepage and public submission feeds use paginated list endpoints:
 
@@ -223,6 +228,32 @@ curl -X POST http://127.0.0.1:8000/api/v1/videos/BV1/like \
   -H 'Authorization: Bearer <access-token>'
 curl -X DELETE http://127.0.0.1:8000/api/v1/videos/BV1/like \
   -H 'Authorization: Bearer <access-token>'
+```
+
+Favorites use the same desired-state semantics as likes: repeating `POST` or
+`DELETE` does not change the count twice. Coins use an irreversible cumulative
+target of one or two coins, atomically debit `users.coin_balance`, and reject a
+lower target. Shares are append-only events deduplicated by a client-generated
+`request_id`. PostgreSQL is the source of truth for every interaction and its
+counter; the semantic repository methods are the boundary for a future Redis
+cache, so Redis does not leak into handlers or usecases.
+
+The browser applies like and favorite changes optimistically but rolls them
+back when the server rejects or cannot receive the request. It deliberately
+does not persist an offline outbox: reconnecting reads the authoritative state
+instead of replaying stale toggles or irreversible coin/share actions.
+
+Interaction history and public discussion endpoints are paginated:
+
+```text
+GET    /api/v1/users/me/video-likes
+GET    /api/v1/users/me/video-favorites
+GET    /api/v1/users/me/video-coins
+POST   /api/v1/videos/{bvid}/danmakus
+DELETE /api/v1/videos/{bvid}/danmakus/{danmaku_id}
+GET    /api/v1/videos/{bvid}/comments
+POST   /api/v1/videos/{bvid}/comments
+DELETE /api/v1/videos/{bvid}/comments/{comment_id}
 ```
 
 Embedded, versioned PostgreSQL migrations in `internal/data/migrations` are

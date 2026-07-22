@@ -9,6 +9,7 @@ type userPO struct {
 	DisplayName  string `gorm:"size:100;not null"`
 	AvatarURL    string `gorm:"size:500"`
 	Bio          string `gorm:"size:500"`
+	CoinBalance  int64  `gorm:"not null;default:1000"`
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -31,6 +32,7 @@ type videoPO struct {
 	CoinCount       int64  `gorm:"not null;default:0"`
 	FavoriteCount   int64  `gorm:"not null;default:0"`
 	ShareCount      int64  `gorm:"not null;default:0"`
+	CommentCount    int64  `gorm:"not null;default:0"`
 	ReadyAt         *time.Time
 	PublishTime     *time.Time
 	DeletedAt       *time.Time `gorm:"index"`
@@ -101,26 +103,42 @@ func (videoFavoritePO) TableName() string { return "user_video_favorites" }
 
 type videoCoinPO struct {
 	ID        uint64  `gorm:"primaryKey;autoIncrement"`
-	UserID    uint64  `gorm:"not null;index"`
+	UserID    uint64  `gorm:"not null;index;uniqueIndex:idx_user_video_coin"`
 	User      userPO  `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-	VideoID   uint64  `gorm:"not null;index"`
+	VideoID   uint64  `gorm:"not null;index;uniqueIndex:idx_user_video_coin"`
 	Video     videoPO `gorm:"foreignKey:VideoID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-	Amount    int32   `gorm:"not null;check:amount > 0"`
+	Amount    int32   `gorm:"not null;check:amount >= 1 AND amount <= 2"`
 	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 func (videoCoinPO) TableName() string { return "user_video_coins" }
 
 type videoSharePO struct {
 	ID        uint64  `gorm:"primaryKey;autoIncrement"`
-	UserID    uint64  `gorm:"not null;index"`
+	UserID    uint64  `gorm:"not null;index;uniqueIndex:idx_user_video_share_request"`
 	User      userPO  `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-	VideoID   uint64  `gorm:"not null;index"`
+	VideoID   uint64  `gorm:"not null;index;uniqueIndex:idx_user_video_share_request"`
 	Video     videoPO `gorm:"foreignKey:VideoID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	RequestID string  `gorm:"size:64;not null;uniqueIndex:idx_user_video_share_request"`
 	CreatedAt time.Time
 }
 
 func (videoSharePO) TableName() string { return "user_video_shares" }
+
+type videoCommentPO struct {
+	ID        uint64  `gorm:"primaryKey;autoIncrement"`
+	VideoID   uint64  `gorm:"not null;index"`
+	Video     videoPO `gorm:"foreignKey:VideoID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	UserID    uint64  `gorm:"not null;index"`
+	User      userPO  `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	Content   string  `gorm:"size:2000;not null"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt *time.Time `gorm:"index"`
+}
+
+func (videoCommentPO) TableName() string { return "video_comments" }
 
 type videoViewSessionPO struct {
 	ID          string  `gorm:"size:64;primaryKey"`

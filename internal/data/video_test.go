@@ -22,6 +22,28 @@ func TestVideoPageTokenRoundTrip(t *testing.T) {
 	}
 }
 
+func TestVideoHistoryTokenRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	want := videoHistoryCursor{
+		UpdatedAt: time.Date(2026, 7, 22, 12, 34, 56, 789, time.UTC),
+		ID:        42,
+	}
+	token := encodeVideoHistoryToken(want)
+	got, err := decodeVideoHistoryToken(token)
+	if err != nil {
+		t.Fatalf("decodeVideoHistoryToken(%q) error = %v", token, err)
+	}
+	if !got.UpdatedAt.Equal(want.UpdatedAt) || got.ID != want.ID {
+		t.Fatalf("decodeVideoHistoryToken(%q) = %+v, want %+v", token, got, want)
+	}
+	for _, token := range []string{"invalid", "MTIz", "MTIzOjA"} {
+		if _, err := decodeVideoHistoryToken(token); err == nil {
+			t.Errorf("decodeVideoHistoryToken(%q) unexpectedly succeeded", token)
+		}
+	}
+}
+
 func TestBuildVideoViewResultUsesLatestLimit(t *testing.T) {
 	now := time.Date(2026, 7, 19, 10, 0, 0, 0, shanghaiTime)
 	result := buildVideoViewResult(false, 12, maxDailyVideoViews, sql.NullTime{

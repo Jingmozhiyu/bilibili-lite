@@ -1,8 +1,15 @@
 import type {
   AuthSession,
+  DanmakuItem,
   MetricValue,
+  VideoComment,
+  VideoCommentPage,
   VideoDetail,
+  VideoEngagement,
+  VideoHistoryItem,
+  VideoHistoryPage,
   VideoLike,
+  VideoListPage,
   VideoPlay,
   VideoViewResult,
   VideoViewSession,
@@ -10,12 +17,11 @@ import type {
 
 export const AUTH_STORAGE_KEY = 'bilibili-lite.auth-session'
 
-export async function fetchJson<T>(url: string): Promise<T> {
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}: ${url}`)
-  }
-  return (await response.json()) as T
+let refreshInFlight: Promise<AuthSession> | null = null
+
+export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, init)
+  return parseAPIResponse<T>(response, url)
 }
 
 export async function postJson<T = unknown>(
@@ -23,7 +29,7 @@ export async function postJson<T = unknown>(
   body: Record<string, unknown>,
   accessToken?: string,
 ): Promise<T> {
-  const response = await fetch(url, {
+  return fetchJson<T>(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -31,12 +37,6 @@ export async function postJson<T = unknown>(
     },
     body: JSON.stringify(body),
   })
-  if (!response.ok) {
-    const payload = asRecord(await response.json().catch(() => null))
-    const message = readString(payload, 'message')
-    throw new Error(`${response.status}${message ? ` ${message}` : ''}`)
-  }
-  return (await response.json()) as T
 }
 
 export async function authorizedFetch(
@@ -45,22 +45,37 @@ export async function authorizedFetch(
   session: AuthSession,
 ): Promise<{ response: Response; session: AuthSession }> {
   let activeSession = await ensureFreshAuthSession(session)
-  let response = await fetch(url, {
-    ...init,
-    headers: { ...init.headers, Authorization: `Bearer ${activeSession.accessToken}` },
-  })
+  let response = await fetch(url, withAuthorization(init, activeSession.accessToken))
   if (response.status === 401) {
     activeSession = await refreshAuthSession(activeSession)
-    response = await fetch(url, {
-      ...init,
-      headers: { ...init.headers, Authorization: `Bearer ${activeSession.accessToken}` },
-    })
+    response = await fetch(url, withAuthorization(init, activeSession.accessToken))
   }
   if (!response.ok) {
-    const payload = asRecord(await response.json().catch(() => null))
-    throw new Error(readString(payload, 'message') || `${response.status} ${response.statusText}`)
+    throw await responseError(response, url)
   }
   return { response, session: activeSession }
+}
+
+export async function authorizedJson<T>(
+  url: string,
+  init: RequestInit,
+  session: AuthSession,
+): Promise<{ data: T; session: AuthSession }> {
+  const result = await authorizedFetch(url, init, session)
+  return { data: await parseJsonResponse<T>(result.response), session: result.session }
+}
+
+export async function restoreAuthSession(): Promise<AuthSession | null> {
+  const session = readAuthSession()
+  if (!session) return null
+  try {
+    const fresh = await ensureFreshAuthSession(session)
+    persistAuthSession(fresh)
+    return fresh
+  } catch {
+    clearAuthSession()
+    return null
+  }
 }
 
 export async function ensureFreshAuthSession(session: AuthSession) {
@@ -77,18 +92,24 @@ export function persistAuthSession(session: AuthSession) {
   window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session))
 }
 
-export function parseJSON(value: string): unknown {
-  try {
-    return JSON.parse(value)
-  } catch {
-    return null
-  }
+export function clearAuthSession() {
+  window.localStorage.removeItem(AUTH_STORAGE_KEY)
 }
 
-export function toNumber(value: MetricValue | undefined) {
-  if (typeof value === 'number') return value
-  if (!value) return 0
-  return Number(value)
+export function readAuthSession(): AuthSession | null {
+  try {
+    const stored = window.localStorage.getItem(AUTH_STORAGE_KEY)
+    if (!stored) return null
+    const session = normalizeAuthSession(JSON.parse(stored))
+    if (new Date(session.refreshExpiresAt).getTime() <= Date.now()) {
+      clearAuthSession()
+      return null
+    }
+    return session
+  } catch {
+    clearAuthSession()
+    return null
+  }
 }
 
 export function normalizeVideoDetail(value: unknown): VideoDetail {
@@ -107,6 +128,7 @@ export function normalizeVideoDetail(value: unknown): VideoDetail {
     coinCount: readMetric(record, 'coinCount', 'coin_count'),
     favoriteCount: readMetric(record, 'favoriteCount', 'favorite_count'),
     shareCount: readMetric(record, 'shareCount', 'share_count'),
+    commentCount: readMetric(record, 'commentCount', 'comment_count'),
     publishTime: readTimestamp(record, 'publishTime', 'publish_time'),
     tags: readArray(record, 'tags').map(String),
     ownerId: toNumber(readMetric(record, 'ownerId', 'owner_id')),
@@ -114,8 +136,12 @@ export function normalizeVideoDetail(value: unknown): VideoDetail {
   }
 }
 
-export function normalizeVideoList(value: unknown): VideoDetail[] {
-  return readArray(asRecord(value), 'videos').map(normalizeVideoDetail)
+export function normalizeVideoList(value: unknown): VideoListPage {
+  const record = asRecord(value)
+  return {
+    videos: readArray(record, 'videos').map(normalizeVideoDetail),
+    nextPageToken: readString(record, 'nextPageToken', 'next_page_token'),
+  }
 }
 
 export function normalizeVideoPlay(value: unknown): VideoPlay {
@@ -135,13 +161,7 @@ export function normalizeVideoPlay(value: unknown): VideoPlay {
     bvid: readString(record, 'bvid'), streams,
     danmaku: {
       enabled: readBoolean(danmaku, 'enabled'), format: readString(danmaku, 'format'),
-      items: readArray(danmaku, 'items').map((entry) => {
-        const item = asRecord(entry)
-        return {
-          timeSeconds: Number(readMetric(item, 'timeSeconds', 'time_seconds')),
-          text: readString(item, 'text'), color: readString(item, 'color') || '#ffffff',
-        }
-      }),
+      items: readArray(danmaku, 'items').map(normalizeDanmaku),
     },
   }
 }
@@ -162,6 +182,7 @@ export function normalizeAuthSession(value: unknown): AuthSession {
       id: Number(readMetric(user, 'id')), username: readString(user, 'username'),
       displayName: readString(user, 'displayName', 'display_name'),
       avatarUrl: readString(user, 'avatarUrl', 'avatar_url'), bio: readString(user, 'bio'),
+      coinBalance: toNumber(readMetric(user, 'coinBalance', 'coin_balance')),
     },
   }
 }
@@ -171,6 +192,66 @@ export function normalizeVideoLike(value: unknown): VideoLike {
   return {
     bvid: readString(record, 'bvid'), liked: readBoolean(record, 'liked'),
     likeCount: readMetric(record, 'likeCount', 'like_count'),
+  }
+}
+
+export function normalizeVideoEngagement(value: unknown): VideoEngagement {
+  const record = asRecord(value)
+  return {
+    bvid: readString(record, 'bvid'), liked: readBoolean(record, 'liked'),
+    favorited: readBoolean(record, 'favorited'),
+    myCoinAmount: toNumber(readMetric(record, 'myCoinAmount', 'my_coin_amount')),
+    likeCount: readMetric(record, 'likeCount', 'like_count'),
+    favoriteCount: readMetric(record, 'favoriteCount', 'favorite_count'),
+    coinCount: readMetric(record, 'coinCount', 'coin_count'),
+    shareCount: readMetric(record, 'shareCount', 'share_count'),
+    coinBalance: toNumber(readMetric(record, 'coinBalance', 'coin_balance')),
+  }
+}
+
+export function normalizeVideoHistory(value: unknown): VideoHistoryPage {
+  const record = asRecord(value)
+  return {
+    items: readArray(record, 'items').map((entry): VideoHistoryItem => {
+      const item = asRecord(entry)
+      return {
+        video: normalizeVideoDetail(item.video),
+        interactedAt: readTimestamp(item, 'interactedAt', 'interacted_at'),
+        coinAmount: toNumber(readMetric(item, 'coinAmount', 'coin_amount')),
+      }
+    }),
+    nextPageToken: readString(record, 'nextPageToken', 'next_page_token'),
+  }
+}
+
+export function normalizeVideoComment(value: unknown): VideoComment {
+  const record = asRecord(value)
+  return {
+    id: toNumber(readMetric(record, 'id')), bvid: readString(record, 'bvid'),
+    userId: toNumber(readMetric(record, 'userId', 'user_id')),
+    userName: readString(record, 'userName', 'user_name'),
+    userAvatarUrl: readString(record, 'userAvatarUrl', 'user_avatar_url'),
+    content: readString(record, 'content'), createdAt: readTimestamp(record, 'createdAt', 'created_at'),
+  }
+}
+
+export function normalizeVideoComments(value: unknown): VideoCommentPage {
+  const record = asRecord(value)
+  return {
+    comments: readArray(record, 'comments').map(normalizeVideoComment),
+    nextPageToken: readString(record, 'nextPageToken', 'next_page_token'),
+  }
+}
+
+export function normalizeDanmaku(value: unknown): DanmakuItem {
+  const record = asRecord(value)
+  return {
+    id: toNumber(readMetric(record, 'id')),
+    userId: toNumber(readMetric(record, 'userId', 'user_id')),
+    userName: readString(record, 'userName', 'user_name'),
+    timeSeconds: Number(readMetric(record, 'timeSeconds', 'time_seconds')),
+    text: readString(record, 'text'), color: readString(record, 'color') || '#ffffff',
+    createdAt: readTimestamp(record, 'createdAt', 'created_at'),
   }
 }
 
@@ -192,20 +273,18 @@ export function normalizeVideoViewResult(value: unknown): VideoViewResult {
   }
 }
 
-export function readAuthSession(): AuthSession | null {
+export function parseJSON(value: string): unknown {
   try {
-    const stored = window.localStorage.getItem(AUTH_STORAGE_KEY)
-    if (!stored) return null
-    const session = normalizeAuthSession(JSON.parse(stored))
-    if (new Date(session.refreshExpiresAt).getTime() <= Date.now()) {
-      window.localStorage.removeItem(AUTH_STORAGE_KEY)
-      return null
-    }
-    return session
+    return JSON.parse(value)
   } catch {
-    window.localStorage.removeItem(AUTH_STORAGE_KEY)
     return null
   }
+}
+
+export function toNumber(value: MetricValue | undefined) {
+  if (typeof value === 'number') return value
+  if (!value) return 0
+  return Number(value)
 }
 
 export function toErrorMessage(error: unknown, fallback: string) {
@@ -225,8 +304,42 @@ export function readString(record: Record<string, unknown>, ...keys: string[]) {
   return ''
 }
 
-function refreshAuthSession(session: AuthSession) {
-  return postJson<unknown>('/api/v1/auth/refresh', { refreshToken: session.refreshToken }).then(normalizeAuthSession)
+async function refreshAuthSession(session: AuthSession) {
+  if (refreshInFlight) return refreshInFlight
+  if (new Date(session.refreshExpiresAt).getTime() <= Date.now()) {
+    throw new Error('登录状态已过期')
+  }
+  const request = postJson<unknown>('/api/v1/auth/refresh', { refresh_token: session.refreshToken })
+    .then(normalizeAuthSession)
+    .then((fresh) => {
+      persistAuthSession(fresh)
+      return fresh
+    })
+    .finally(() => {
+      refreshInFlight = null
+    })
+  refreshInFlight = request
+  return request
+}
+
+function withAuthorization(init: RequestInit, accessToken: string): RequestInit {
+  return {
+    ...init,
+    headers: { ...init.headers, Authorization: `Bearer ${accessToken}` },
+  }
+}
+
+async function parseAPIResponse<T>(response: Response, url: string): Promise<T> {
+  if (!response.ok) throw await responseError(response, url)
+  if (response.status === 204) return undefined as T
+  const text = await response.text()
+  return (text ? JSON.parse(text) : undefined) as T
+}
+
+async function responseError(response: Response, fallback: string) {
+  const payload = asRecord(await response.json().catch(() => null))
+  const message = readString(payload, 'message')
+  return new Error(`${response.status}${message ? ` ${message}` : ` ${response.statusText}: ${fallback}`}`)
 }
 
 function readMetric(record: Record<string, unknown>, ...keys: string[]): MetricValue {

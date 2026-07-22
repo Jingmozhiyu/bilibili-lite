@@ -27,6 +27,19 @@ const (
 	VideoService_GetVideoLike_FullMethodName         = "/video.v1.VideoService/GetVideoLike"
 	VideoService_LikeVideo_FullMethodName            = "/video.v1.VideoService/LikeVideo"
 	VideoService_UnlikeVideo_FullMethodName          = "/video.v1.VideoService/UnlikeVideo"
+	VideoService_GetVideoEngagement_FullMethodName   = "/video.v1.VideoService/GetVideoEngagement"
+	VideoService_FavoriteVideo_FullMethodName        = "/video.v1.VideoService/FavoriteVideo"
+	VideoService_UnfavoriteVideo_FullMethodName      = "/video.v1.VideoService/UnfavoriteVideo"
+	VideoService_CoinVideo_FullMethodName            = "/video.v1.VideoService/CoinVideo"
+	VideoService_ShareVideo_FullMethodName           = "/video.v1.VideoService/ShareVideo"
+	VideoService_ListMyLikedVideos_FullMethodName    = "/video.v1.VideoService/ListMyLikedVideos"
+	VideoService_ListMyFavoriteVideos_FullMethodName = "/video.v1.VideoService/ListMyFavoriteVideos"
+	VideoService_ListMyCoinedVideos_FullMethodName   = "/video.v1.VideoService/ListMyCoinedVideos"
+	VideoService_CreateDanmaku_FullMethodName        = "/video.v1.VideoService/CreateDanmaku"
+	VideoService_DeleteDanmaku_FullMethodName        = "/video.v1.VideoService/DeleteDanmaku"
+	VideoService_ListVideoComments_FullMethodName    = "/video.v1.VideoService/ListVideoComments"
+	VideoService_CreateVideoComment_FullMethodName   = "/video.v1.VideoService/CreateVideoComment"
+	VideoService_DeleteVideoComment_FullMethodName   = "/video.v1.VideoService/DeleteVideoComment"
 	VideoService_GetVideoUploadStatus_FullMethodName = "/video.v1.VideoService/GetVideoUploadStatus"
 	VideoService_PublishVideo_FullMethodName         = "/video.v1.VideoService/PublishVideo"
 	VideoService_DeleteVideo_FullMethodName          = "/video.v1.VideoService/DeleteVideo"
@@ -45,6 +58,19 @@ type VideoServiceClient interface {
 	GetVideoLike(ctx context.Context, in *GetVideoLikeRequest, opts ...grpc.CallOption) (*VideoLike, error)
 	LikeVideo(ctx context.Context, in *LikeVideoRequest, opts ...grpc.CallOption) (*VideoLike, error)
 	UnlikeVideo(ctx context.Context, in *UnlikeVideoRequest, opts ...grpc.CallOption) (*VideoLike, error)
+	GetVideoEngagement(ctx context.Context, in *GetVideoEngagementRequest, opts ...grpc.CallOption) (*VideoEngagement, error)
+	FavoriteVideo(ctx context.Context, in *FavoriteVideoRequest, opts ...grpc.CallOption) (*VideoEngagement, error)
+	UnfavoriteVideo(ctx context.Context, in *UnfavoriteVideoRequest, opts ...grpc.CallOption) (*VideoEngagement, error)
+	CoinVideo(ctx context.Context, in *CoinVideoRequest, opts ...grpc.CallOption) (*VideoEngagement, error)
+	ShareVideo(ctx context.Context, in *ShareVideoRequest, opts ...grpc.CallOption) (*VideoShare, error)
+	ListMyLikedVideos(ctx context.Context, in *ListVideoHistoryRequest, opts ...grpc.CallOption) (*ListVideoHistoryReply, error)
+	ListMyFavoriteVideos(ctx context.Context, in *ListVideoHistoryRequest, opts ...grpc.CallOption) (*ListVideoHistoryReply, error)
+	ListMyCoinedVideos(ctx context.Context, in *ListVideoHistoryRequest, opts ...grpc.CallOption) (*ListVideoHistoryReply, error)
+	CreateDanmaku(ctx context.Context, in *CreateDanmakuRequest, opts ...grpc.CallOption) (*DanmakuItem, error)
+	DeleteDanmaku(ctx context.Context, in *DeleteDanmakuRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ListVideoComments(ctx context.Context, in *ListVideoCommentsRequest, opts ...grpc.CallOption) (*ListVideoCommentsReply, error)
+	CreateVideoComment(ctx context.Context, in *CreateVideoCommentRequest, opts ...grpc.CallOption) (*VideoComment, error)
+	DeleteVideoComment(ctx context.Context, in *DeleteVideoCommentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	GetVideoUploadStatus(ctx context.Context, in *GetVideoUploadStatusRequest, opts ...grpc.CallOption) (*VideoUploadStatus, error)
 	PublishVideo(ctx context.Context, in *PublishVideoRequest, opts ...grpc.CallOption) (*Video, error)
 	DeleteVideo(ctx context.Context, in *DeleteVideoRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -130,6 +156,136 @@ func (c *videoServiceClient) UnlikeVideo(ctx context.Context, in *UnlikeVideoReq
 	return out, nil
 }
 
+func (c *videoServiceClient) GetVideoEngagement(ctx context.Context, in *GetVideoEngagementRequest, opts ...grpc.CallOption) (*VideoEngagement, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VideoEngagement)
+	err := c.cc.Invoke(ctx, VideoService_GetVideoEngagement_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *videoServiceClient) FavoriteVideo(ctx context.Context, in *FavoriteVideoRequest, opts ...grpc.CallOption) (*VideoEngagement, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VideoEngagement)
+	err := c.cc.Invoke(ctx, VideoService_FavoriteVideo_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *videoServiceClient) UnfavoriteVideo(ctx context.Context, in *UnfavoriteVideoRequest, opts ...grpc.CallOption) (*VideoEngagement, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VideoEngagement)
+	err := c.cc.Invoke(ctx, VideoService_UnfavoriteVideo_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *videoServiceClient) CoinVideo(ctx context.Context, in *CoinVideoRequest, opts ...grpc.CallOption) (*VideoEngagement, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VideoEngagement)
+	err := c.cc.Invoke(ctx, VideoService_CoinVideo_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *videoServiceClient) ShareVideo(ctx context.Context, in *ShareVideoRequest, opts ...grpc.CallOption) (*VideoShare, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VideoShare)
+	err := c.cc.Invoke(ctx, VideoService_ShareVideo_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *videoServiceClient) ListMyLikedVideos(ctx context.Context, in *ListVideoHistoryRequest, opts ...grpc.CallOption) (*ListVideoHistoryReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListVideoHistoryReply)
+	err := c.cc.Invoke(ctx, VideoService_ListMyLikedVideos_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *videoServiceClient) ListMyFavoriteVideos(ctx context.Context, in *ListVideoHistoryRequest, opts ...grpc.CallOption) (*ListVideoHistoryReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListVideoHistoryReply)
+	err := c.cc.Invoke(ctx, VideoService_ListMyFavoriteVideos_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *videoServiceClient) ListMyCoinedVideos(ctx context.Context, in *ListVideoHistoryRequest, opts ...grpc.CallOption) (*ListVideoHistoryReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListVideoHistoryReply)
+	err := c.cc.Invoke(ctx, VideoService_ListMyCoinedVideos_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *videoServiceClient) CreateDanmaku(ctx context.Context, in *CreateDanmakuRequest, opts ...grpc.CallOption) (*DanmakuItem, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DanmakuItem)
+	err := c.cc.Invoke(ctx, VideoService_CreateDanmaku_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *videoServiceClient) DeleteDanmaku(ctx context.Context, in *DeleteDanmakuRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, VideoService_DeleteDanmaku_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *videoServiceClient) ListVideoComments(ctx context.Context, in *ListVideoCommentsRequest, opts ...grpc.CallOption) (*ListVideoCommentsReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListVideoCommentsReply)
+	err := c.cc.Invoke(ctx, VideoService_ListVideoComments_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *videoServiceClient) CreateVideoComment(ctx context.Context, in *CreateVideoCommentRequest, opts ...grpc.CallOption) (*VideoComment, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VideoComment)
+	err := c.cc.Invoke(ctx, VideoService_CreateVideoComment_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *videoServiceClient) DeleteVideoComment(ctx context.Context, in *DeleteVideoCommentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, VideoService_DeleteVideoComment_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *videoServiceClient) GetVideoUploadStatus(ctx context.Context, in *GetVideoUploadStatusRequest, opts ...grpc.CallOption) (*VideoUploadStatus, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(VideoUploadStatus)
@@ -191,6 +347,19 @@ type VideoServiceServer interface {
 	GetVideoLike(context.Context, *GetVideoLikeRequest) (*VideoLike, error)
 	LikeVideo(context.Context, *LikeVideoRequest) (*VideoLike, error)
 	UnlikeVideo(context.Context, *UnlikeVideoRequest) (*VideoLike, error)
+	GetVideoEngagement(context.Context, *GetVideoEngagementRequest) (*VideoEngagement, error)
+	FavoriteVideo(context.Context, *FavoriteVideoRequest) (*VideoEngagement, error)
+	UnfavoriteVideo(context.Context, *UnfavoriteVideoRequest) (*VideoEngagement, error)
+	CoinVideo(context.Context, *CoinVideoRequest) (*VideoEngagement, error)
+	ShareVideo(context.Context, *ShareVideoRequest) (*VideoShare, error)
+	ListMyLikedVideos(context.Context, *ListVideoHistoryRequest) (*ListVideoHistoryReply, error)
+	ListMyFavoriteVideos(context.Context, *ListVideoHistoryRequest) (*ListVideoHistoryReply, error)
+	ListMyCoinedVideos(context.Context, *ListVideoHistoryRequest) (*ListVideoHistoryReply, error)
+	CreateDanmaku(context.Context, *CreateDanmakuRequest) (*DanmakuItem, error)
+	DeleteDanmaku(context.Context, *DeleteDanmakuRequest) (*emptypb.Empty, error)
+	ListVideoComments(context.Context, *ListVideoCommentsRequest) (*ListVideoCommentsReply, error)
+	CreateVideoComment(context.Context, *CreateVideoCommentRequest) (*VideoComment, error)
+	DeleteVideoComment(context.Context, *DeleteVideoCommentRequest) (*emptypb.Empty, error)
 	GetVideoUploadStatus(context.Context, *GetVideoUploadStatusRequest) (*VideoUploadStatus, error)
 	PublishVideo(context.Context, *PublishVideoRequest) (*Video, error)
 	DeleteVideo(context.Context, *DeleteVideoRequest) (*emptypb.Empty, error)
@@ -226,6 +395,45 @@ func (UnimplementedVideoServiceServer) LikeVideo(context.Context, *LikeVideoRequ
 }
 func (UnimplementedVideoServiceServer) UnlikeVideo(context.Context, *UnlikeVideoRequest) (*VideoLike, error) {
 	return nil, status.Error(codes.Unimplemented, "method UnlikeVideo not implemented")
+}
+func (UnimplementedVideoServiceServer) GetVideoEngagement(context.Context, *GetVideoEngagementRequest) (*VideoEngagement, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetVideoEngagement not implemented")
+}
+func (UnimplementedVideoServiceServer) FavoriteVideo(context.Context, *FavoriteVideoRequest) (*VideoEngagement, error) {
+	return nil, status.Error(codes.Unimplemented, "method FavoriteVideo not implemented")
+}
+func (UnimplementedVideoServiceServer) UnfavoriteVideo(context.Context, *UnfavoriteVideoRequest) (*VideoEngagement, error) {
+	return nil, status.Error(codes.Unimplemented, "method UnfavoriteVideo not implemented")
+}
+func (UnimplementedVideoServiceServer) CoinVideo(context.Context, *CoinVideoRequest) (*VideoEngagement, error) {
+	return nil, status.Error(codes.Unimplemented, "method CoinVideo not implemented")
+}
+func (UnimplementedVideoServiceServer) ShareVideo(context.Context, *ShareVideoRequest) (*VideoShare, error) {
+	return nil, status.Error(codes.Unimplemented, "method ShareVideo not implemented")
+}
+func (UnimplementedVideoServiceServer) ListMyLikedVideos(context.Context, *ListVideoHistoryRequest) (*ListVideoHistoryReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListMyLikedVideos not implemented")
+}
+func (UnimplementedVideoServiceServer) ListMyFavoriteVideos(context.Context, *ListVideoHistoryRequest) (*ListVideoHistoryReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListMyFavoriteVideos not implemented")
+}
+func (UnimplementedVideoServiceServer) ListMyCoinedVideos(context.Context, *ListVideoHistoryRequest) (*ListVideoHistoryReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListMyCoinedVideos not implemented")
+}
+func (UnimplementedVideoServiceServer) CreateDanmaku(context.Context, *CreateDanmakuRequest) (*DanmakuItem, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateDanmaku not implemented")
+}
+func (UnimplementedVideoServiceServer) DeleteDanmaku(context.Context, *DeleteDanmakuRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteDanmaku not implemented")
+}
+func (UnimplementedVideoServiceServer) ListVideoComments(context.Context, *ListVideoCommentsRequest) (*ListVideoCommentsReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListVideoComments not implemented")
+}
+func (UnimplementedVideoServiceServer) CreateVideoComment(context.Context, *CreateVideoCommentRequest) (*VideoComment, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateVideoComment not implemented")
+}
+func (UnimplementedVideoServiceServer) DeleteVideoComment(context.Context, *DeleteVideoCommentRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteVideoComment not implemented")
 }
 func (UnimplementedVideoServiceServer) GetVideoUploadStatus(context.Context, *GetVideoUploadStatusRequest) (*VideoUploadStatus, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetVideoUploadStatus not implemented")
@@ -389,6 +597,240 @@ func _VideoService_UnlikeVideo_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _VideoService_GetVideoEngagement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetVideoEngagementRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VideoServiceServer).GetVideoEngagement(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VideoService_GetVideoEngagement_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VideoServiceServer).GetVideoEngagement(ctx, req.(*GetVideoEngagementRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _VideoService_FavoriteVideo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FavoriteVideoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VideoServiceServer).FavoriteVideo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VideoService_FavoriteVideo_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VideoServiceServer).FavoriteVideo(ctx, req.(*FavoriteVideoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _VideoService_UnfavoriteVideo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnfavoriteVideoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VideoServiceServer).UnfavoriteVideo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VideoService_UnfavoriteVideo_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VideoServiceServer).UnfavoriteVideo(ctx, req.(*UnfavoriteVideoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _VideoService_CoinVideo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CoinVideoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VideoServiceServer).CoinVideo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VideoService_CoinVideo_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VideoServiceServer).CoinVideo(ctx, req.(*CoinVideoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _VideoService_ShareVideo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ShareVideoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VideoServiceServer).ShareVideo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VideoService_ShareVideo_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VideoServiceServer).ShareVideo(ctx, req.(*ShareVideoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _VideoService_ListMyLikedVideos_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListVideoHistoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VideoServiceServer).ListMyLikedVideos(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VideoService_ListMyLikedVideos_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VideoServiceServer).ListMyLikedVideos(ctx, req.(*ListVideoHistoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _VideoService_ListMyFavoriteVideos_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListVideoHistoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VideoServiceServer).ListMyFavoriteVideos(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VideoService_ListMyFavoriteVideos_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VideoServiceServer).ListMyFavoriteVideos(ctx, req.(*ListVideoHistoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _VideoService_ListMyCoinedVideos_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListVideoHistoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VideoServiceServer).ListMyCoinedVideos(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VideoService_ListMyCoinedVideos_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VideoServiceServer).ListMyCoinedVideos(ctx, req.(*ListVideoHistoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _VideoService_CreateDanmaku_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateDanmakuRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VideoServiceServer).CreateDanmaku(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VideoService_CreateDanmaku_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VideoServiceServer).CreateDanmaku(ctx, req.(*CreateDanmakuRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _VideoService_DeleteDanmaku_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteDanmakuRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VideoServiceServer).DeleteDanmaku(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VideoService_DeleteDanmaku_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VideoServiceServer).DeleteDanmaku(ctx, req.(*DeleteDanmakuRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _VideoService_ListVideoComments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListVideoCommentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VideoServiceServer).ListVideoComments(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VideoService_ListVideoComments_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VideoServiceServer).ListVideoComments(ctx, req.(*ListVideoCommentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _VideoService_CreateVideoComment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateVideoCommentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VideoServiceServer).CreateVideoComment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VideoService_CreateVideoComment_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VideoServiceServer).CreateVideoComment(ctx, req.(*CreateVideoCommentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _VideoService_DeleteVideoComment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteVideoCommentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VideoServiceServer).DeleteVideoComment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VideoService_DeleteVideoComment_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VideoServiceServer).DeleteVideoComment(ctx, req.(*DeleteVideoCommentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _VideoService_GetVideoUploadStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetVideoUploadStatusRequest)
 	if err := dec(in); err != nil {
@@ -513,6 +955,58 @@ var VideoService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UnlikeVideo",
 			Handler:    _VideoService_UnlikeVideo_Handler,
+		},
+		{
+			MethodName: "GetVideoEngagement",
+			Handler:    _VideoService_GetVideoEngagement_Handler,
+		},
+		{
+			MethodName: "FavoriteVideo",
+			Handler:    _VideoService_FavoriteVideo_Handler,
+		},
+		{
+			MethodName: "UnfavoriteVideo",
+			Handler:    _VideoService_UnfavoriteVideo_Handler,
+		},
+		{
+			MethodName: "CoinVideo",
+			Handler:    _VideoService_CoinVideo_Handler,
+		},
+		{
+			MethodName: "ShareVideo",
+			Handler:    _VideoService_ShareVideo_Handler,
+		},
+		{
+			MethodName: "ListMyLikedVideos",
+			Handler:    _VideoService_ListMyLikedVideos_Handler,
+		},
+		{
+			MethodName: "ListMyFavoriteVideos",
+			Handler:    _VideoService_ListMyFavoriteVideos_Handler,
+		},
+		{
+			MethodName: "ListMyCoinedVideos",
+			Handler:    _VideoService_ListMyCoinedVideos_Handler,
+		},
+		{
+			MethodName: "CreateDanmaku",
+			Handler:    _VideoService_CreateDanmaku_Handler,
+		},
+		{
+			MethodName: "DeleteDanmaku",
+			Handler:    _VideoService_DeleteDanmaku_Handler,
+		},
+		{
+			MethodName: "ListVideoComments",
+			Handler:    _VideoService_ListVideoComments_Handler,
+		},
+		{
+			MethodName: "CreateVideoComment",
+			Handler:    _VideoService_CreateVideoComment_Handler,
+		},
+		{
+			MethodName: "DeleteVideoComment",
+			Handler:    _VideoService_DeleteVideoComment_Handler,
 		},
 		{
 			MethodName: "GetVideoUploadStatus",

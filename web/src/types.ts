@@ -14,10 +14,16 @@ export type VideoDetail = {
   coinCount: MetricValue
   favoriteCount: MetricValue
   shareCount: MetricValue
+  commentCount: MetricValue
   publishTime?: string
   tags: string[]
   ownerId?: number
   status?: string
+}
+
+export type VideoListPage = {
+  videos: VideoDetail[]
+  nextPageToken: string
 }
 
 export type VideoStream = {
@@ -33,9 +39,13 @@ export type VideoStream = {
 }
 
 export type DanmakuItem = {
+  id: number
+  userId: number
+  userName: string
   timeSeconds: number
   text: string
   color: string
+  createdAt?: string
 }
 
 export type VideoPlay = {
@@ -54,6 +64,7 @@ export type AuthUser = {
   displayName: string
   avatarUrl?: string
   bio?: string
+  coinBalance: number
 }
 
 export type AuthSession = {
@@ -70,6 +81,44 @@ export type VideoLike = {
   likeCount: MetricValue
 }
 
+export type VideoEngagement = {
+  bvid: string
+  liked: boolean
+  favorited: boolean
+  myCoinAmount: number
+  likeCount: MetricValue
+  favoriteCount: MetricValue
+  coinCount: MetricValue
+  shareCount: MetricValue
+  coinBalance: number
+}
+
+export type VideoHistoryItem = {
+  video: VideoDetail
+  interactedAt?: string
+  coinAmount: number
+}
+
+export type VideoHistoryPage = {
+  items: VideoHistoryItem[]
+  nextPageToken: string
+}
+
+export type VideoComment = {
+  id: number
+  bvid: string
+  userId: number
+  userName: string
+  userAvatarUrl?: string
+  content: string
+  createdAt?: string
+}
+
+export type VideoCommentPage = {
+  comments: VideoComment[]
+  nextPageToken: string
+}
+
 export type VideoViewSession = {
   sessionId: string
   startedAt: string
@@ -80,4 +129,12 @@ export type VideoViewResult = {
   viewCount: MetricValue
   remainingToday: number
   nextEligibleAt: string
+}
+
+export type UploadResult = {
+  bvid: string
+  status: string
+  manifestUrl: string
+  coverUrl: string
+  videoUrl: string
 }

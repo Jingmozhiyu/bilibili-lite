@@ -164,6 +164,17 @@ Tests live beside the code they cover (`*_test.go`). Test layers in
 isolation: service tests fake the usecase, biz tests fake the repo, data
 tests exercise repo implementations at the storage boundary.
 
+### Concurrency and performance
+
+* Use goroutines to overlap genuinely independent work, especially I/O. Do not add concurrency without a clear latency or throughput benefit.
+* For a fixed set of independent tasks, prefer `errgroup.WithContext` so failures cancel sibling work and all goroutines are joined before returning.
+* Use channels when they naturally model streaming, ownership transfer, fan-in/fan-out, or backpressure—not merely to collect fixed results or errors.
+* Keep concurrency bounded by the real bottleneck: database connections, external-service limits, CPU, memory, or queue capacity. Never create unbounded goroutines from unbounded input.
+* Propagate request cancellation, give each goroutine clear ownership of mutable results, and wait for all started goroutines on every return path.
+* Do not parallelize work that shares a serialized resource or atomic boundary. For example, keep statements within the same database transaction sequential, and prefer consolidating closely related reads when that reduces round trips.
+* When concurrency behavior changes, add focused tests and run `go test -race`.
+
+
 ## Generation & generated files
 
 Regenerate via `make api`, `make config`, or `make all`; never hand-edit

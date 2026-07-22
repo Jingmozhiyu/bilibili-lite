@@ -10,6 +10,7 @@ import (
 	"bilibili-lite/internal/biz"
 	"bilibili-lite/internal/media"
 
+	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -56,66 +57,40 @@ func (r *videoRepo) ListVideos(ctx context.Context, options biz.VideoListOptions
 
 // FindVideoByID loads a published video detail with its owner.
 func (r *videoRepo) FindVideoByID(ctx context.Context, videoID biz.VideoID) (*biz.Video, error) {
-	var record videoPO
-	err := r.data.db.WithContext(ctx).
-		Preload("Owner").
-		Where("status = ? AND deleted_at IS NULL", string(biz.VideoStatusPublished)).
-		First(&record, uint64(videoID)).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, biz.ErrVideoNotFound
-	}
+	record, err := findPublishedVideoPO(r.data.db.WithContext(ctx).Preload("Owner"), uint64(videoID), false)
 	if err != nil {
-		return nil, biz.ErrVideoStorage
+		return nil, mapVideoReadError(err)
 	}
-	return toBizVideo(record), nil
+	return toBizVideo(*record), nil
 }
 
 // FindVideoPlayByID loads DASH streams and timed danmaku for a published video.
 func (r *videoRepo) FindVideoPlayByID(ctx context.Context, videoID biz.VideoID) (*biz.VideoPlay, error) {
 	numericVideoID := uint64(videoID)
-	var record videoPO
-	err := r.data.db.WithContext(ctx).
-		Where("status = ? AND deleted_at IS NULL", string(biz.VideoStatusPublished)).
-		First(&record, numericVideoID).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, biz.ErrVideoNotFound
-	}
+	record, err := findPublishedVideoPO(r.data.db.WithContext(ctx), numericVideoID, false)
 	if err != nil {
-		return nil, biz.ErrVideoStorage
+		return nil, mapVideoReadError(err)
 	}
 
 	var streams []videoStreamPO
-	if err := r.data.db.WithContext(ctx).
-		Where("video_id = ? AND mime_type = ?", numericVideoID, "application/dash+xml").
-		Order("id ASC").Find(&streams).Error; err != nil {
-		return nil, biz.ErrVideoStorage
-	}
 	var danmakus []danmakuPO
-	if err := r.data.db.WithContext(ctx).Where("video_id = ?", numericVideoID).Order("time_seconds ASC").Find(&danmakus).Error; err != nil {
+	// These read-only aggregates are independent and can use separate pool connections.
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.Go(func() error {
+		return r.data.db.WithContext(groupCtx).
+			Where("video_id = ? AND mime_type = ?", numericVideoID, "application/dash+xml").
+			Order("id ASC").Find(&streams).Error
+	})
+	group.Go(func() error {
+		return r.data.db.WithContext(groupCtx).
+			Preload("User").
+			Where("video_id = ?", numericVideoID).
+			Order("time_seconds ASC").Find(&danmakus).Error
+	})
+	if err := group.Wait(); err != nil {
 		return nil, biz.ErrVideoStorage
 	}
-	return toBizVideoPlay(record, streams, danmakus), nil
-}
-
-// FindVideoLike loads the user's active like and the published video's authoritative count.
-func (r *videoRepo) FindVideoLike(ctx context.Context, userID uint64, videoID biz.VideoID) (*biz.VideoLike, error) {
-	numericVideoID := uint64(videoID)
-	var video videoPO
-	err := r.data.db.WithContext(ctx).
-		Where("status = ? AND deleted_at IS NULL", string(biz.VideoStatusPublished)).
-		First(&video, numericVideoID).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, biz.ErrVideoNotFound
-	}
-	if err != nil {
-		return nil, biz.ErrVideoStorage
-	}
-	var like videoLikePO
-	err = r.data.db.WithContext(ctx).Where("user_id = ? AND video_id = ?", userID, numericVideoID).First(&like).Error
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, biz.ErrVideoStorage
-	}
-	return &biz.VideoLike{VideoID: videoID, Liked: err == nil && like.Active, LikeCount: video.LikeCount}, nil
+	return toBizVideoPlay(*record, streams, danmakus), nil
 }
 
 // FindVideoUploadStatus returns processing details only when the requester owns the video.
@@ -148,53 +123,6 @@ func (r *videoRepo) FindVideoUploadStatus(ctx context.Context, userID uint64, vi
 		VideoID: biz.VideoID(record.ID), Status: biz.VideoStatus(record.Status),
 		FailureReason: record.FailureReason, ManifestURL: stream.URL, CoverURL: coverURL,
 	}, nil
-}
-
-// SetVideoLike atomically applies an idempotent like state and recounts active likes under a video row lock.
-func (r *videoRepo) SetVideoLike(ctx context.Context, userID uint64, videoID biz.VideoID, liked bool) (*biz.VideoLike, error) {
-	numericVideoID := uint64(videoID)
-	result := &biz.VideoLike{VideoID: videoID, Liked: liked}
-	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var video videoPO
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("status = ? AND deleted_at IS NULL", string(biz.VideoStatusPublished)).
-			First(&video, numericVideoID).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return biz.ErrVideoNotFound
-		}
-		if err != nil {
-			return err
-		}
-
-		var like videoLikePO
-		err = tx.Where("user_id = ? AND video_id = ?", userID, numericVideoID).First(&like).Error
-		switch {
-		case errors.Is(err, gorm.ErrRecordNotFound) && liked:
-			if err := tx.Create(&videoLikePO{UserID: userID, VideoID: numericVideoID, Active: true}).Error; err != nil {
-				return err
-			}
-		case err != nil && !errors.Is(err, gorm.ErrRecordNotFound):
-			return err
-		case err == nil && like.Active != liked:
-			if err := tx.Model(&like).Update("active", liked).Error; err != nil {
-				return err
-			}
-		}
-
-		if err := tx.Model(&videoLikePO{}).
-			Where("video_id = ? AND active = ?", numericVideoID, true).
-			Count(&result.LikeCount).Error; err != nil {
-			return err
-		}
-		return tx.Model(&video).Update("like_count", result.LikeCount).Error
-	})
-	if err != nil {
-		if errors.Is(err, biz.ErrVideoNotFound) {
-			return nil, biz.ErrVideoNotFound
-		}
-		return nil, biz.ErrVideoStorage
-	}
-	return result, nil
 }
 
 // PublishVideo atomically attaches final metadata and transitions a ready draft to published.
@@ -275,6 +203,30 @@ func (r *videoRepo) DeleteVideo(ctx context.Context, userID uint64, videoID biz.
 	return nil
 }
 
+// findPublishedVideoPO centralizes public visibility checks and optional row locking.
+func findPublishedVideoPO(db *gorm.DB, videoID uint64, lock bool) (*videoPO, error) {
+	query := db.Where("status = ? AND deleted_at IS NULL", string(biz.VideoStatusPublished))
+	if lock {
+		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
+	var video videoPO
+	err := query.First(&video, videoID).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, biz.ErrVideoNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &video, nil
+}
+
+func mapVideoReadError(err error) error {
+	if errors.Is(err, biz.ErrVideoNotFound) {
+		return biz.ErrVideoNotFound
+	}
+	return biz.ErrVideoStorage
+}
+
 func toBizVideo(v videoPO) *biz.Video {
 	out := &biz.Video{
 		ID: biz.VideoID(v.ID), OwnerID: v.OwnerID,
@@ -284,7 +236,8 @@ func toBizVideo(v videoPO) *biz.Video {
 		DurationSeconds: v.DurationSeconds, ViewCount: v.ViewCount,
 		DanmakuCount: v.DanmakuCount, LikeCount: v.LikeCount,
 		CoinCount: v.CoinCount, FavoriteCount: v.FavoriteCount, ShareCount: v.ShareCount,
-		CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt,
+		CommentCount: v.CommentCount,
+		CreatedAt:    v.CreatedAt, UpdatedAt: v.UpdatedAt,
 		Tags: append([]string(nil), v.Tags...),
 	}
 	if v.PublishTime != nil {
@@ -308,9 +261,7 @@ func toBizVideoPlay(video videoPO, streams []videoStreamPO, danmakus []danmakuPO
 		})
 	}
 	for _, danmaku := range danmakus {
-		out.Danmaku.Items = append(out.Danmaku.Items, biz.DanmakuItem{
-			TimeSeconds: danmaku.TimeSeconds, Text: danmaku.Text, Color: danmaku.Color,
-		})
+		out.Danmaku.Items = append(out.Danmaku.Items, *toBizDanmaku(danmaku, danmaku.User))
 	}
 	return out
 }

@@ -16,6 +16,8 @@ const (
 	bvidPrefix           = "BV"
 	defaultVideoPageSize = 20
 	maxVideoPageSize     = 50
+	maxDanmakuLength     = 100
+	maxCommentLength     = 2000
 )
 
 var (
@@ -28,6 +30,10 @@ var (
 	ErrVideoForbidden         = errors.Forbidden(v1.ErrorReason_VIDEO_FORBIDDEN.String(), "video operation is not allowed")
 	ErrVideoInvalidState      = errors.Conflict(v1.ErrorReason_VIDEO_INVALID_STATE.String(), "video is not in the required state")
 	ErrVideoViewTooEarly      = errors.BadRequest(v1.ErrorReason_VIDEO_VIEW_TOO_EARLY.String(), "video must be watched for at least five seconds")
+	ErrVideoInsufficientCoins = errors.BadRequest(v1.ErrorReason_VIDEO_INSUFFICIENT_COINS.String(), "coin balance is insufficient")
+	ErrVideoCoinLimit         = errors.Conflict(v1.ErrorReason_VIDEO_COIN_LIMIT_REACHED.String(), "video coin amount cannot be reduced or exceed two")
+	ErrVideoDanmakuNotFound   = errors.NotFound(v1.ErrorReason_VIDEO_DANMAKU_NOT_FOUND.String(), "danmaku not found")
+	ErrVideoCommentNotFound   = errors.NotFound(v1.ErrorReason_VIDEO_COMMENT_NOT_FOUND.String(), "video comment not found")
 )
 
 // VideoStatus is the lifecycle state persisted for every allocated BV identifier.
@@ -83,6 +89,7 @@ type Video struct {
 	CoinCount       int64
 	FavoriteCount   int64
 	ShareCount      int64
+	CommentCount    int64
 	PublishTime     time.Time
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
@@ -131,9 +138,13 @@ type DanmakuConfig struct {
 
 // DanmakuItem is a single timed comment.
 type DanmakuItem struct {
+	ID          uint64
+	UserID      uint64
+	UserName    string
 	TimeSeconds float64
 	Text        string
 	Color       string
+	CreatedAt   time.Time
 }
 
 // VideoLike is a user's current like state and the video's authoritative count.
@@ -141,6 +152,64 @@ type VideoLike struct {
 	VideoID   VideoID
 	Liked     bool
 	LikeCount int64
+}
+
+// VideoEngagement is the authenticated viewer's state and authoritative video counters.
+type VideoEngagement struct {
+	VideoID       VideoID
+	Liked         bool
+	Favorited     bool
+	MyCoinAmount  int32
+	LikeCount     int64
+	FavoriteCount int64
+	CoinCount     int64
+	ShareCount    int64
+	CoinBalance   int64
+}
+
+// VideoShare reports the count after recording one idempotent share event.
+type VideoShare struct {
+	VideoID    VideoID
+	ShareCount int64
+}
+
+// VideoHistoryKind selects one authenticated interaction history.
+type VideoHistoryKind string
+
+const (
+	VideoHistoryLiked     VideoHistoryKind = "liked"
+	VideoHistoryFavorited VideoHistoryKind = "favorited"
+	VideoHistoryCoined    VideoHistoryKind = "coined"
+)
+
+// VideoHistoryItem combines a published video with one viewer interaction.
+type VideoHistoryItem struct {
+	Video        Video
+	InteractedAt time.Time
+	CoinAmount   int32
+}
+
+// VideoHistoryList is one keyset-paginated interaction history page.
+type VideoHistoryList struct {
+	Items         []VideoHistoryItem
+	NextPageToken string
+}
+
+// VideoComment is one top-level comment with its author profile.
+type VideoComment struct {
+	ID            uint64
+	VideoID       VideoID
+	UserID        uint64
+	UserName      string
+	UserAvatarURL string
+	Content       string
+	CreatedAt     time.Time
+}
+
+// VideoCommentList is one keyset-paginated top-level comment page.
+type VideoCommentList struct {
+	Comments      []VideoComment
+	NextPageToken string
 }
 
 // VideoUploadInput carries one MP4 upload and an optional custom cover stream.
@@ -196,8 +265,18 @@ type VideoRepo interface {
 	FindVideoByID(context.Context, VideoID) (*Video, error)
 	FindVideoPlayByID(context.Context, VideoID) (*VideoPlay, error)
 	FindVideoLike(context.Context, uint64, VideoID) (*VideoLike, error)
+	FindVideoEngagement(context.Context, uint64, VideoID) (*VideoEngagement, error)
 	FindVideoUploadStatus(context.Context, uint64, VideoID) (*VideoUploadStatus, error)
 	SetVideoLike(context.Context, uint64, VideoID, bool) (*VideoLike, error)
+	SetVideoFavorite(context.Context, uint64, VideoID, bool) (*VideoEngagement, error)
+	SetVideoCoinAmount(context.Context, uint64, VideoID, int32) (*VideoEngagement, error)
+	CreateVideoShare(context.Context, uint64, VideoID, string) (*VideoShare, error)
+	ListVideoHistory(context.Context, uint64, VideoHistoryKind, int, string) (*VideoHistoryList, error)
+	CreateDanmaku(context.Context, uint64, VideoID, float64, string, string) (*DanmakuItem, error)
+	DeleteDanmaku(context.Context, uint64, VideoID, uint64) error
+	ListVideoComments(context.Context, VideoID, int, string) (*VideoCommentList, error)
+	CreateVideoComment(context.Context, uint64, VideoID, string) (*VideoComment, error)
+	DeleteVideoComment(context.Context, uint64, VideoID, uint64) error
 	ProcessVideoUpload(context.Context, *VideoUploadInput) (*VideoUploadResult, error)
 	PublishVideo(context.Context, *VideoPublishInput) (*Video, error)
 	DeleteVideo(context.Context, uint64, VideoID) error
@@ -252,6 +331,14 @@ func (uc *VideoUsecase) GetVideoLike(ctx context.Context, userID uint64, videoID
 	return uc.repo.FindVideoLike(ctx, userID, videoID)
 }
 
+// GetVideoEngagement returns all viewer-specific interaction state in one read.
+func (uc *VideoUsecase) GetVideoEngagement(ctx context.Context, userID uint64, videoID VideoID) (*VideoEngagement, error) {
+	if userID == 0 || videoID == 0 {
+		return nil, ErrVideoInvalidArgument
+	}
+	return uc.repo.FindVideoEngagement(ctx, userID, videoID)
+}
+
 // GetVideoUploadStatus returns processing state only to the video's owner.
 func (uc *VideoUsecase) GetVideoUploadStatus(ctx context.Context, userID uint64, videoID VideoID) (*VideoUploadStatus, error) {
 	if userID == 0 || videoID == 0 {
@@ -266,6 +353,93 @@ func (uc *VideoUsecase) SetVideoLike(ctx context.Context, userID uint64, videoID
 		return nil, ErrVideoInvalidArgument
 	}
 	return uc.repo.SetVideoLike(ctx, userID, videoID, liked)
+}
+
+// SetVideoFavorite idempotently applies the requested favorite state.
+func (uc *VideoUsecase) SetVideoFavorite(ctx context.Context, userID uint64, videoID VideoID, favorited bool) (*VideoEngagement, error) {
+	if userID == 0 || videoID == 0 {
+		return nil, ErrVideoInvalidArgument
+	}
+	return uc.repo.SetVideoFavorite(ctx, userID, videoID, favorited)
+}
+
+// SetVideoCoinAmount irreversibly raises the viewer's cumulative amount to one or two.
+func (uc *VideoUsecase) SetVideoCoinAmount(ctx context.Context, userID uint64, videoID VideoID, targetAmount int32) (*VideoEngagement, error) {
+	if userID == 0 || videoID == 0 || targetAmount < 1 || targetAmount > 2 {
+		return nil, ErrVideoInvalidArgument
+	}
+	return uc.repo.SetVideoCoinAmount(ctx, userID, videoID, targetAmount)
+}
+
+// ShareVideo records one share event, deduplicated by a client-generated request ID.
+func (uc *VideoUsecase) ShareVideo(ctx context.Context, userID uint64, videoID VideoID, requestID string) (*VideoShare, error) {
+	requestID = strings.TrimSpace(requestID)
+	if userID == 0 || videoID == 0 || requestID == "" || len(requestID) > 64 {
+		return nil, ErrVideoInvalidArgument
+	}
+	return uc.repo.CreateVideoShare(ctx, userID, videoID, requestID)
+}
+
+// ListVideoHistory returns one authenticated interaction history page.
+func (uc *VideoUsecase) ListVideoHistory(ctx context.Context, userID uint64, kind VideoHistoryKind, pageSize int32, pageToken string) (*VideoHistoryList, error) {
+	if userID == 0 || (kind != VideoHistoryLiked && kind != VideoHistoryFavorited && kind != VideoHistoryCoined) {
+		return nil, ErrVideoInvalidArgument
+	}
+	pageSize, err := normalizeVideoPageSize(pageSize)
+	if err != nil {
+		return nil, err
+	}
+	return uc.repo.ListVideoHistory(ctx, userID, kind, int(pageSize), strings.TrimSpace(pageToken))
+}
+
+// CreateDanmaku validates and publishes a timed comment on a video.
+func (uc *VideoUsecase) CreateDanmaku(ctx context.Context, userID uint64, videoID VideoID, timeSeconds float64, text, color string) (*DanmakuItem, error) {
+	text = strings.TrimSpace(text)
+	color = strings.TrimSpace(color)
+	if color == "" {
+		color = "#ffffff"
+	}
+	if userID == 0 || videoID == 0 || timeSeconds < 0 || text == "" || len([]rune(text)) > maxDanmakuLength || !validDanmakuColor(color) {
+		return nil, ErrVideoInvalidArgument
+	}
+	return uc.repo.CreateDanmaku(ctx, userID, videoID, timeSeconds, text, color)
+}
+
+// DeleteDanmaku removes a timed comment when called by its author or the video owner.
+func (uc *VideoUsecase) DeleteDanmaku(ctx context.Context, userID uint64, videoID VideoID, danmakuID uint64) error {
+	if userID == 0 || videoID == 0 || danmakuID == 0 {
+		return ErrVideoInvalidArgument
+	}
+	return uc.repo.DeleteDanmaku(ctx, userID, videoID, danmakuID)
+}
+
+// ListVideoComments returns one page of top-level comments.
+func (uc *VideoUsecase) ListVideoComments(ctx context.Context, videoID VideoID, pageSize int32, pageToken string) (*VideoCommentList, error) {
+	if videoID == 0 {
+		return nil, ErrVideoInvalidArgument
+	}
+	pageSize, err := normalizeVideoPageSize(pageSize)
+	if err != nil {
+		return nil, err
+	}
+	return uc.repo.ListVideoComments(ctx, videoID, int(pageSize), strings.TrimSpace(pageToken))
+}
+
+// CreateVideoComment publishes one top-level comment.
+func (uc *VideoUsecase) CreateVideoComment(ctx context.Context, userID uint64, videoID VideoID, content string) (*VideoComment, error) {
+	content = strings.TrimSpace(content)
+	if userID == 0 || videoID == 0 || content == "" || len([]rune(content)) > maxCommentLength {
+		return nil, ErrVideoInvalidArgument
+	}
+	return uc.repo.CreateVideoComment(ctx, userID, videoID, content)
+}
+
+// DeleteVideoComment removes a comment when called by its author or the video owner.
+func (uc *VideoUsecase) DeleteVideoComment(ctx context.Context, userID uint64, videoID VideoID, commentID uint64) error {
+	if userID == 0 || videoID == 0 || commentID == 0 {
+		return ErrVideoInvalidArgument
+	}
+	return uc.repo.DeleteVideoComment(ctx, userID, videoID, commentID)
 }
 
 // UploadVideo allocates a BV identifier immediately and processes uploaded media into a ready draft.
@@ -330,4 +504,22 @@ func cleanVideoTags(tags []string) []string {
 		cleanTags = append(cleanTags, tag)
 	}
 	return cleanTags
+}
+
+func normalizeVideoPageSize(pageSize int32) (int32, error) {
+	if pageSize < 0 || pageSize > maxVideoPageSize {
+		return 0, ErrVideoInvalidArgument
+	}
+	if pageSize == 0 {
+		return defaultVideoPageSize, nil
+	}
+	return pageSize, nil
+}
+
+func validDanmakuColor(color string) bool {
+	if len(color) != 7 || color[0] != '#' {
+		return false
+	}
+	_, err := strconv.ParseUint(color[1:], 16, 24)
+	return err == nil
 }

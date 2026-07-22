@@ -21,9 +21,9 @@ func seedInitialUsers(db *gorm.DB) error {
 			return fmt.Errorf("hash seed password: %w", err)
 		}
 		users := []userPO{
-			{Username: "demo", PasswordHash: string(passwordHash), DisplayName: "演示用户", Bio: "bilibili-lite 本地演示账号"},
-			{Username: "up-one", PasswordHash: string(passwordHash), DisplayName: "轻量放映室", Bio: "分享本地视频和开发记录"},
-			{Username: "viewer", PasswordHash: string(passwordHash), DisplayName: "普通观众", Bio: "正在体验视频详情页"},
+			{Username: "demo", PasswordHash: string(passwordHash), DisplayName: "演示用户", Bio: "bilibili-lite 本地演示账号", CoinBalance: 1000},
+			{Username: "up-one", PasswordHash: string(passwordHash), DisplayName: "轻量放映室", Bio: "分享本地视频和开发记录", CoinBalance: 1000},
+			{Username: "viewer", PasswordHash: string(passwordHash), DisplayName: "普通观众", Bio: "正在体验视频详情页", CoinBalance: 1000},
 		}
 		for index := range users {
 			if err := tx.Clauses(clause.OnConflict{

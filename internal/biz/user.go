@@ -25,6 +25,7 @@ type User struct {
 	DisplayName string
 	AvatarURL   string
 	Bio         string
+	CoinBalance int64
 }
 
 // UserCredential contains the stored credential needed during authentication.
