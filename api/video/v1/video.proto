@@ -37,12 +37,6 @@ service VideoService {
     };
   }
 
-  rpc GetVideoLike(GetVideoLikeRequest) returns (VideoLike) {
-    option (google.api.http) = {
-      get: "/api/v1/videos/{bvid}/like"
-    };
-  }
-
   rpc LikeVideo(LikeVideoRequest) returns (VideoLike) {
     option (google.api.http) = {
       post: "/api/v1/videos/{bvid}/like"
@@ -124,6 +118,12 @@ service VideoService {
     };
   }
 
+  rpc ListVideoCommentReplies(ListVideoCommentRepliesRequest) returns (ListVideoCommentsReply) {
+    option (google.api.http) = {
+      get: "/api/v1/videos/{bvid}/comments/{root_comment_id}/replies"
+    };
+  }
+
   rpc CreateVideoComment(CreateVideoCommentRequest) returns (VideoComment) {
     option (google.api.http) = {
       post: "/api/v1/videos/{bvid}/comments"
@@ -134,6 +134,25 @@ service VideoService {
   rpc DeleteVideoComment(DeleteVideoCommentRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       delete: "/api/v1/videos/{bvid}/comments/{comment_id}"
+    };
+  }
+
+
+  rpc LikeVideoComment(LikeVideoCommentRequest) returns (VideoCommentInteraction) {
+    option (google.api.http) = {
+      post: "/api/v1/videos/{bvid}/comments/{comment_id}/like"
+    };
+  }
+
+  rpc UnlikeVideoComment(UnlikeVideoCommentRequest) returns (VideoCommentInteraction) {
+    option (google.api.http) = {
+      delete: "/api/v1/videos/{bvid}/comments/{comment_id}/like"
+    };
+  }
+
+  rpc ListMyVideoComments(ListVideoHistoryRequest) returns (ListVideoCommentHistoryReply) {
+    option (google.api.http) = {
+      get: "/api/v1/users/me/video-comments"
     };
   }
 
@@ -261,10 +280,6 @@ message GetVideoPlayRequest {
   string bvid = 1 [(google.api.field_behavior) = REQUIRED];
 }
 
-message GetVideoLikeRequest {
-  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
-}
-
 message LikeVideoRequest {
   string bvid = 1 [(google.api.field_behavior) = REQUIRED];
 }
@@ -354,6 +369,14 @@ message VideoComment {
   string user_avatar_url = 5;
   string content = 6;
   google.protobuf.Timestamp created_at = 7;
+  uint64 root_id = 8;
+  uint64 parent_id = 9;
+  uint64 reply_to_user_id = 10;
+  string reply_to_user_name = 11;
+  int64 like_count = 12;
+  bool liked = 13;
+  int64 reply_count = 14;
+  bool deleted = 15;
 }
 
 message ListVideoCommentsRequest {
@@ -367,14 +390,48 @@ message ListVideoCommentsReply {
   string next_page_token = 2;
 }
 
+message ListVideoCommentRepliesRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+  uint64 root_comment_id = 2 [(google.api.field_behavior) = REQUIRED];
+  int32 page_size = 3;
+  string page_token = 4;
+}
+
 message CreateVideoCommentRequest {
   string bvid = 1 [(google.api.field_behavior) = REQUIRED];
   string content = 2 [(google.api.field_behavior) = REQUIRED];
+  uint64 parent_comment_id = 3;
 }
 
 message DeleteVideoCommentRequest {
   string bvid = 1 [(google.api.field_behavior) = REQUIRED];
   uint64 comment_id = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+message LikeVideoCommentRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+  uint64 comment_id = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+message UnlikeVideoCommentRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+  uint64 comment_id = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+message VideoCommentInteraction {
+  uint64 comment_id = 1;
+  bool liked = 2;
+  int64 like_count = 3;
+}
+
+message VideoCommentHistoryItem {
+  Video video = 1;
+  VideoComment comment = 2;
+}
+
+message ListVideoCommentHistoryReply {
+  repeated VideoCommentHistoryItem items = 1;
+  string next_page_token = 2;
 }
 
 message GetVideoUploadStatusRequest {

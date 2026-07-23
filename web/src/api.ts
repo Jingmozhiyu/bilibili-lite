@@ -1,9 +1,13 @@
 import type {
   AuthSession,
+  AuthUser,
   DanmakuItem,
   MetricValue,
   VideoComment,
   VideoCommentPage,
+  VideoCommentHistoryItem,
+  VideoCommentHistoryPage,
+  VideoCommentInteraction,
   VideoDetail,
   VideoEngagement,
   VideoHistoryItem,
@@ -178,12 +182,17 @@ export function normalizeAuthSession(value: unknown): AuthSession {
   }
   return {
     accessToken, refreshToken, expiresAt, refreshExpiresAt,
-    user: {
-      id: Number(readMetric(user, 'id')), username: readString(user, 'username'),
-      displayName: readString(user, 'displayName', 'display_name'),
-      avatarUrl: readString(user, 'avatarUrl', 'avatar_url'), bio: readString(user, 'bio'),
-      coinBalance: toNumber(readMetric(user, 'coinBalance', 'coin_balance')),
-    },
+    user: normalizeUser(user),
+  }
+}
+
+export function normalizeUser(value: unknown): AuthUser {
+  const user = asRecord(value)
+  return {
+    id: Number(readMetric(user, 'id')), username: readString(user, 'username'),
+    displayName: readString(user, 'displayName', 'display_name'),
+    avatarUrl: readString(user, 'avatarUrl', 'avatar_url'), bio: readString(user, 'bio'),
+    coinBalance: toNumber(readMetric(user, 'coinBalance', 'coin_balance')),
   }
 }
 
@@ -232,6 +241,34 @@ export function normalizeVideoComment(value: unknown): VideoComment {
     userName: readString(record, 'userName', 'user_name'),
     userAvatarUrl: readString(record, 'userAvatarUrl', 'user_avatar_url'),
     content: readString(record, 'content'), createdAt: readTimestamp(record, 'createdAt', 'created_at'),
+    rootId: toNumber(readMetric(record, 'rootId', 'root_id')),
+    parentId: toNumber(readMetric(record, 'parentId', 'parent_id')),
+    replyToUserId: toNumber(readMetric(record, 'replyToUserId', 'reply_to_user_id')),
+    replyToUserName: readString(record, 'replyToUserName', 'reply_to_user_name'),
+    likeCount: readMetric(record, 'likeCount', 'like_count'),
+    liked: readBoolean(record, 'liked'),
+    replyCount: readMetric(record, 'replyCount', 'reply_count'),
+    deleted: readBoolean(record, 'deleted'),
+  }
+}
+
+export function normalizeVideoCommentInteraction(value: unknown): VideoCommentInteraction {
+  const record = asRecord(value)
+  return {
+    commentId: toNumber(readMetric(record, 'commentId', 'comment_id')),
+    liked: readBoolean(record, 'liked'),
+    likeCount: readMetric(record, 'likeCount', 'like_count'),
+  }
+}
+
+export function normalizeVideoCommentHistory(value: unknown): VideoCommentHistoryPage {
+  const record = asRecord(value)
+  return {
+    items: readArray(record, 'items').map((entry): VideoCommentHistoryItem => {
+      const item = asRecord(entry)
+      return { video: normalizeVideoDetail(item.video), comment: normalizeVideoComment(item.comment) }
+    }),
+    nextPageToken: readString(record, 'nextPageToken', 'next_page_token'),
   }
 }
 

@@ -32,7 +32,7 @@ export function AppHeader({ authOpen, onAuthOpenChange, onUpload }: AppHeaderPro
         <Link className="brand" to="/"><span className="brand-mark">b</span><strong>bilibili-lite</strong></Link>
         <div className="header-links">
           <Link to="/"><Compass size={17} />首页</Link>
-          <Link to={session ? '/history/favorites' : '/'}><Clock3 size={17} />我的</Link>
+          <Link to={session ? '/space/me' : '/'}><Clock3 size={17} />我的</Link>
         </div>
         <form className="header-search" role="search" onSubmit={submitSearch}>
           <input aria-label="搜索 BV 号" placeholder="搜索 BV 号" value={query} onChange={(event) => setQuery(event.target.value)} />

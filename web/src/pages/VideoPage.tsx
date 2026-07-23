@@ -327,7 +327,8 @@ function VideoContent({ bvid }: { bvid: string }) {
       <div className="watch-layout">
         <div className="watch-main">
           <section className="player-shell" aria-label="视频播放器">
-            <video ref={videoRef} controls playsInline onPlaying={() => void startViewSession()} onTimeUpdate={(event) => trackPlayback(event.currentTarget)} onPause={(event) => { previousPlaybackTimeRef.current = event.currentTarget.currentTime }} />
+            {play.streams.length === 0 && <div className="player-empty"><AlertCircle size={28} /><strong>暂无可播放的 DASH 流</strong><span>视频资源可能仍在处理中</span></div>}
+            <video ref={videoRef} controls playsInline poster={detail.coverUrl} onPlaying={() => void startViewSession()} onTimeUpdate={(event) => trackPlayback(event.currentTarget)} onPause={(event) => { previousPlaybackTimeRef.current = event.currentTarget.currentTime }} />
             <div className="danmaku-stage" aria-hidden="true">{activeDanmaku.map((item, index) => <span key={`${item.id}-${index}`} style={{ top: `${10 + (index % 7) * 11}%`, color: item.color }}>{item.text}</span>)}</div>
           </section>
           <div className="player-toolbar">
@@ -346,7 +347,7 @@ function VideoContent({ bvid }: { bvid: string }) {
         </div>
 
         <aside className="watch-side">
-          <section className="owner-panel"><span className="owner-avatar">{detail.ownerName.slice(0, 1)}</span><div><strong>{detail.ownerName}</strong><p>视频作者</p></div><UserRound size={18} /></section>
+          <Link className="owner-panel" to={`/space/${detail.ownerId}`}><span className="owner-avatar">{detail.ownerAvatarUrl ? <img src={detail.ownerAvatarUrl} alt="" /> : detail.ownerName.slice(0, 1)}</span><div><strong>{detail.ownerName}</strong><p>查看作者主页</p></div><UserRound size={18} /></Link>
           <DanmakuPanel items={play.danmaku?.items ?? []} currentTime={currentTime} session={session} videoOwnerId={detail.ownerId} pending={danmakuPending} onCreate={createDanmaku} onDelete={(item) => void deleteDanmaku(item)} onLoginRequired={() => setInteractionMessage('请先点击右上角登录')} />
         </aside>
       </div>

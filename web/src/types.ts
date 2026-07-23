@@ -67,6 +67,8 @@ export type AuthUser = {
   coinBalance: number
 }
 
+export type UserProfile = AuthUser
+
 export type AuthSession = {
   accessToken: string
   refreshToken: string
@@ -112,6 +114,30 @@ export type VideoComment = {
   userAvatarUrl?: string
   content: string
   createdAt?: string
+  rootId: number
+  parentId: number
+  replyToUserId: number
+  replyToUserName: string
+  likeCount: MetricValue
+  liked: boolean
+  replyCount: MetricValue
+  deleted: boolean
+}
+
+export type VideoCommentInteraction = {
+  commentId: number
+  liked: boolean
+  likeCount: MetricValue
+}
+
+export type VideoCommentHistoryItem = {
+  video: VideoDetail
+  comment: VideoComment
+}
+
+export type VideoCommentHistoryPage = {
+  items: VideoCommentHistoryItem[]
+  nextPageToken: string
 }
 
 export type VideoCommentPage = {

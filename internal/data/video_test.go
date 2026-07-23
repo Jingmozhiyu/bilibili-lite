@@ -67,3 +67,30 @@ func TestMigrationVersion(t *testing.T) {
 		t.Fatal("migration without numeric prefix unexpectedly succeeded")
 	}
 }
+
+func TestRowToBizVideoCommentPreservesReplyTarget(t *testing.T) {
+	t.Parallel()
+	rootID := uint64(4)
+	parentID := uint64(5)
+	replyUserID := uint64(2)
+	comment := rowToBizVideoComment(videoCommentRow{
+		ID: 6, VideoID: 4, UserID: 1, UserName: "作者",
+		RootID: &rootID, ParentID: &parentID, ReplyToUserID: &replyUserID,
+		ReplyToUserName: "楼中楼成员", Content: "回复内容", LikeCount: 3, Liked: true,
+	})
+	if comment.RootID != rootID || comment.ParentID != parentID || comment.ReplyToUserID != replyUserID {
+		t.Fatalf("rowToBizVideoComment() relationships = %+v", comment)
+	}
+	if comment.ReplyToUserName != "楼中楼成员" || !comment.Liked || comment.LikeCount != 3 {
+		t.Fatalf("rowToBizVideoComment() interaction fields = %+v", comment)
+	}
+}
+
+func TestRowToBizVideoCommentHidesDeletedContent(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	comment := rowToBizVideoComment(videoCommentRow{ID: 1, Content: "不应返回", DeletedAt: &now})
+	if !comment.Deleted || comment.Content != "" {
+		t.Fatalf("rowToBizVideoComment() = %+v, want deleted comment without content", comment)
+	}
+}

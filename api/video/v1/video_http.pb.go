@@ -28,14 +28,16 @@ const OperationVideoServiceDeleteVideoComment = "/video.v1.VideoService/DeleteVi
 const OperationVideoServiceFavoriteVideo = "/video.v1.VideoService/FavoriteVideo"
 const OperationVideoServiceGetVideo = "/video.v1.VideoService/GetVideo"
 const OperationVideoServiceGetVideoEngagement = "/video.v1.VideoService/GetVideoEngagement"
-const OperationVideoServiceGetVideoLike = "/video.v1.VideoService/GetVideoLike"
 const OperationVideoServiceGetVideoPlay = "/video.v1.VideoService/GetVideoPlay"
 const OperationVideoServiceGetVideoUploadStatus = "/video.v1.VideoService/GetVideoUploadStatus"
 const OperationVideoServiceLikeVideo = "/video.v1.VideoService/LikeVideo"
+const OperationVideoServiceLikeVideoComment = "/video.v1.VideoService/LikeVideoComment"
 const OperationVideoServiceListMyCoinedVideos = "/video.v1.VideoService/ListMyCoinedVideos"
 const OperationVideoServiceListMyFavoriteVideos = "/video.v1.VideoService/ListMyFavoriteVideos"
 const OperationVideoServiceListMyLikedVideos = "/video.v1.VideoService/ListMyLikedVideos"
+const OperationVideoServiceListMyVideoComments = "/video.v1.VideoService/ListMyVideoComments"
 const OperationVideoServiceListUserVideos = "/video.v1.VideoService/ListUserVideos"
+const OperationVideoServiceListVideoCommentReplies = "/video.v1.VideoService/ListVideoCommentReplies"
 const OperationVideoServiceListVideoComments = "/video.v1.VideoService/ListVideoComments"
 const OperationVideoServiceListVideos = "/video.v1.VideoService/ListVideos"
 const OperationVideoServicePublishVideo = "/video.v1.VideoService/PublishVideo"
@@ -43,6 +45,7 @@ const OperationVideoServiceShareVideo = "/video.v1.VideoService/ShareVideo"
 const OperationVideoServiceStartVideoView = "/video.v1.VideoService/StartVideoView"
 const OperationVideoServiceUnfavoriteVideo = "/video.v1.VideoService/UnfavoriteVideo"
 const OperationVideoServiceUnlikeVideo = "/video.v1.VideoService/UnlikeVideo"
+const OperationVideoServiceUnlikeVideoComment = "/video.v1.VideoService/UnlikeVideoComment"
 
 type VideoServiceHTTPServer interface {
 	CoinVideo(context.Context, *CoinVideoRequest) (*VideoEngagement, error)
@@ -55,14 +58,16 @@ type VideoServiceHTTPServer interface {
 	FavoriteVideo(context.Context, *FavoriteVideoRequest) (*VideoEngagement, error)
 	GetVideo(context.Context, *GetVideoRequest) (*Video, error)
 	GetVideoEngagement(context.Context, *GetVideoEngagementRequest) (*VideoEngagement, error)
-	GetVideoLike(context.Context, *GetVideoLikeRequest) (*VideoLike, error)
 	GetVideoPlay(context.Context, *GetVideoPlayRequest) (*VideoPlay, error)
 	GetVideoUploadStatus(context.Context, *GetVideoUploadStatusRequest) (*VideoUploadStatus, error)
 	LikeVideo(context.Context, *LikeVideoRequest) (*VideoLike, error)
+	LikeVideoComment(context.Context, *LikeVideoCommentRequest) (*VideoCommentInteraction, error)
 	ListMyCoinedVideos(context.Context, *ListVideoHistoryRequest) (*ListVideoHistoryReply, error)
 	ListMyFavoriteVideos(context.Context, *ListVideoHistoryRequest) (*ListVideoHistoryReply, error)
 	ListMyLikedVideos(context.Context, *ListVideoHistoryRequest) (*ListVideoHistoryReply, error)
+	ListMyVideoComments(context.Context, *ListVideoHistoryRequest) (*ListVideoCommentHistoryReply, error)
 	ListUserVideos(context.Context, *ListUserVideosRequest) (*ListVideosReply, error)
+	ListVideoCommentReplies(context.Context, *ListVideoCommentRepliesRequest) (*ListVideoCommentsReply, error)
 	ListVideoComments(context.Context, *ListVideoCommentsRequest) (*ListVideoCommentsReply, error)
 	ListVideos(context.Context, *ListVideosRequest) (*ListVideosReply, error)
 	PublishVideo(context.Context, *PublishVideoRequest) (*Video, error)
@@ -70,6 +75,7 @@ type VideoServiceHTTPServer interface {
 	StartVideoView(context.Context, *StartVideoViewRequest) (*VideoViewSession, error)
 	UnfavoriteVideo(context.Context, *UnfavoriteVideoRequest) (*VideoEngagement, error)
 	UnlikeVideo(context.Context, *UnlikeVideoRequest) (*VideoLike, error)
+	UnlikeVideoComment(context.Context, *UnlikeVideoCommentRequest) (*VideoCommentInteraction, error)
 }
 
 func RegisterVideoServiceHTTPServer(s *http.Server, srv VideoServiceHTTPServer) {
@@ -78,7 +84,6 @@ func RegisterVideoServiceHTTPServer(s *http.Server, srv VideoServiceHTTPServer) 
 	r.Handle("GET", "/api/v1/users/{user_id}/videos", _VideoService_ListUserVideos0_HTTP_Handler(srv))
 	r.Handle("GET", "/api/v1/videos/{bvid}", _VideoService_GetVideo0_HTTP_Handler(srv))
 	r.Handle("GET", "/api/v1/videos/{bvid}/play", _VideoService_GetVideoPlay0_HTTP_Handler(srv))
-	r.Handle("GET", "/api/v1/videos/{bvid}/like", _VideoService_GetVideoLike0_HTTP_Handler(srv))
 	r.Handle("POST", "/api/v1/videos/{bvid}/like", _VideoService_LikeVideo0_HTTP_Handler(srv))
 	r.Handle("DELETE", "/api/v1/videos/{bvid}/like", _VideoService_UnlikeVideo0_HTTP_Handler(srv))
 	r.Handle("GET", "/api/v1/videos/{bvid}/engagement", _VideoService_GetVideoEngagement0_HTTP_Handler(srv))
@@ -92,8 +97,12 @@ func RegisterVideoServiceHTTPServer(s *http.Server, srv VideoServiceHTTPServer) 
 	r.Handle("POST", "/api/v1/videos/{bvid}/danmakus", _VideoService_CreateDanmaku0_HTTP_Handler(srv))
 	r.Handle("DELETE", "/api/v1/videos/{bvid}/danmakus/{danmaku_id}", _VideoService_DeleteDanmaku0_HTTP_Handler(srv))
 	r.Handle("GET", "/api/v1/videos/{bvid}/comments", _VideoService_ListVideoComments0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/v1/videos/{bvid}/comments/{root_comment_id}/replies", _VideoService_ListVideoCommentReplies0_HTTP_Handler(srv))
 	r.Handle("POST", "/api/v1/videos/{bvid}/comments", _VideoService_CreateVideoComment0_HTTP_Handler(srv))
 	r.Handle("DELETE", "/api/v1/videos/{bvid}/comments/{comment_id}", _VideoService_DeleteVideoComment0_HTTP_Handler(srv))
+	r.Handle("POST", "/api/v1/videos/{bvid}/comments/{comment_id}/like", _VideoService_LikeVideoComment0_HTTP_Handler(srv))
+	r.Handle("DELETE", "/api/v1/videos/{bvid}/comments/{comment_id}/like", _VideoService_UnlikeVideoComment0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/v1/users/me/video-comments", _VideoService_ListMyVideoComments0_HTTP_Handler(srv))
 	r.Handle("GET", "/api/v1/videos/{bvid}/upload-status", _VideoService_GetVideoUploadStatus0_HTTP_Handler(srv))
 	r.Handle("POST", "/api/v1/videos/{bvid}/publish", _VideoService_PublishVideo0_HTTP_Handler(srv))
 	r.Handle("DELETE", "/api/v1/videos/{bvid}", _VideoService_DeleteVideo0_HTTP_Handler(srv))
@@ -182,28 +191,6 @@ func _VideoService_GetVideoPlay0_HTTP_Handler(srv VideoServiceHTTPServer) func(c
 			return err
 		}
 		reply := out.(*VideoPlay)
-		return ctx.Result(200, reply)
-	}
-}
-
-func _VideoService_GetVideoLike0_HTTP_Handler(srv VideoServiceHTTPServer) func(ctx http.Context) error {
-	return func(ctx http.Context) error {
-		var in GetVideoLikeRequest
-		if err := ctx.BindQuery(&in); err != nil {
-			return err
-		}
-		if err := ctx.BindVars(&in); err != nil {
-			return err
-		}
-		http.SetOperation(ctx, OperationVideoServiceGetVideoLike)
-		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.GetVideoLike(ctx, req.(*GetVideoLikeRequest))
-		})
-		out, err := h(ctx, &in)
-		if err != nil {
-			return err
-		}
-		reply := out.(*VideoLike)
 		return ctx.Result(200, reply)
 	}
 }
@@ -485,6 +472,28 @@ func _VideoService_ListVideoComments0_HTTP_Handler(srv VideoServiceHTTPServer) f
 	}
 }
 
+func _VideoService_ListVideoCommentReplies0_HTTP_Handler(srv VideoServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in ListVideoCommentRepliesRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationVideoServiceListVideoCommentReplies)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.ListVideoCommentReplies(ctx, req.(*ListVideoCommentRepliesRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*ListVideoCommentsReply)
+		return ctx.Result(200, reply)
+	}
+}
+
 func _VideoService_CreateVideoComment0_HTTP_Handler(srv VideoServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in CreateVideoCommentRequest
@@ -525,6 +534,69 @@ func _VideoService_DeleteVideoComment0_HTTP_Handler(srv VideoServiceHTTPServer) 
 			return err
 		}
 		reply := out.(*emptypb.Empty)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _VideoService_LikeVideoComment0_HTTP_Handler(srv VideoServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in LikeVideoCommentRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationVideoServiceLikeVideoComment)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.LikeVideoComment(ctx, req.(*LikeVideoCommentRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*VideoCommentInteraction)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _VideoService_UnlikeVideoComment0_HTTP_Handler(srv VideoServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in UnlikeVideoCommentRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationVideoServiceUnlikeVideoComment)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.UnlikeVideoComment(ctx, req.(*UnlikeVideoCommentRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*VideoCommentInteraction)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _VideoService_ListMyVideoComments0_HTTP_Handler(srv VideoServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in ListVideoHistoryRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationVideoServiceListMyVideoComments)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.ListMyVideoComments(ctx, req.(*ListVideoHistoryRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*ListVideoCommentHistoryReply)
 		return ctx.Result(200, reply)
 	}
 }
@@ -650,14 +722,16 @@ type VideoServiceHTTPClient interface {
 	FavoriteVideo(ctx context.Context, req *FavoriteVideoRequest, opts ...http.CallOption) (rsp *VideoEngagement, err error)
 	GetVideo(ctx context.Context, req *GetVideoRequest, opts ...http.CallOption) (rsp *Video, err error)
 	GetVideoEngagement(ctx context.Context, req *GetVideoEngagementRequest, opts ...http.CallOption) (rsp *VideoEngagement, err error)
-	GetVideoLike(ctx context.Context, req *GetVideoLikeRequest, opts ...http.CallOption) (rsp *VideoLike, err error)
 	GetVideoPlay(ctx context.Context, req *GetVideoPlayRequest, opts ...http.CallOption) (rsp *VideoPlay, err error)
 	GetVideoUploadStatus(ctx context.Context, req *GetVideoUploadStatusRequest, opts ...http.CallOption) (rsp *VideoUploadStatus, err error)
 	LikeVideo(ctx context.Context, req *LikeVideoRequest, opts ...http.CallOption) (rsp *VideoLike, err error)
+	LikeVideoComment(ctx context.Context, req *LikeVideoCommentRequest, opts ...http.CallOption) (rsp *VideoCommentInteraction, err error)
 	ListMyCoinedVideos(ctx context.Context, req *ListVideoHistoryRequest, opts ...http.CallOption) (rsp *ListVideoHistoryReply, err error)
 	ListMyFavoriteVideos(ctx context.Context, req *ListVideoHistoryRequest, opts ...http.CallOption) (rsp *ListVideoHistoryReply, err error)
 	ListMyLikedVideos(ctx context.Context, req *ListVideoHistoryRequest, opts ...http.CallOption) (rsp *ListVideoHistoryReply, err error)
+	ListMyVideoComments(ctx context.Context, req *ListVideoHistoryRequest, opts ...http.CallOption) (rsp *ListVideoCommentHistoryReply, err error)
 	ListUserVideos(ctx context.Context, req *ListUserVideosRequest, opts ...http.CallOption) (rsp *ListVideosReply, err error)
+	ListVideoCommentReplies(ctx context.Context, req *ListVideoCommentRepliesRequest, opts ...http.CallOption) (rsp *ListVideoCommentsReply, err error)
 	ListVideoComments(ctx context.Context, req *ListVideoCommentsRequest, opts ...http.CallOption) (rsp *ListVideoCommentsReply, err error)
 	ListVideos(ctx context.Context, req *ListVideosRequest, opts ...http.CallOption) (rsp *ListVideosReply, err error)
 	PublishVideo(ctx context.Context, req *PublishVideoRequest, opts ...http.CallOption) (rsp *Video, err error)
@@ -665,6 +739,7 @@ type VideoServiceHTTPClient interface {
 	StartVideoView(ctx context.Context, req *StartVideoViewRequest, opts ...http.CallOption) (rsp *VideoViewSession, err error)
 	UnfavoriteVideo(ctx context.Context, req *UnfavoriteVideoRequest, opts ...http.CallOption) (rsp *VideoEngagement, err error)
 	UnlikeVideo(ctx context.Context, req *UnlikeVideoRequest, opts ...http.CallOption) (rsp *VideoLike, err error)
+	UnlikeVideoComment(ctx context.Context, req *UnlikeVideoCommentRequest, opts ...http.CallOption) (rsp *VideoCommentInteraction, err error)
 }
 
 type VideoServiceHTTPClientImpl struct {
@@ -839,22 +914,6 @@ func (c *VideoServiceHTTPClientImpl) GetVideoEngagement(ctx context.Context, in 
 	return &out, nil
 }
 
-func (c *VideoServiceHTTPClientImpl) GetVideoLike(ctx context.Context, in *GetVideoLikeRequest, opts ...http.CallOption) (*VideoLike, error) {
-	var out VideoLike
-	pattern := "/api/v1/videos/{bvid}/like"
-	path := http.BuildPath(pattern, in, http.WithQueryParams())
-	opts = append([]http.CallOption{
-		http.Accept("application/protojson"),
-		http.Operation(OperationVideoServiceGetVideoLike),
-		http.PathTemplate(pattern),
-	}, opts...)
-	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
 func (c *VideoServiceHTTPClientImpl) GetVideoPlay(ctx context.Context, in *GetVideoPlayRequest, opts ...http.CallOption) (*VideoPlay, error) {
 	var out VideoPlay
 	pattern := "/api/v1/videos/{bvid}/play"
@@ -894,6 +953,22 @@ func (c *VideoServiceHTTPClientImpl) LikeVideo(ctx context.Context, in *LikeVide
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
 		http.Operation(OperationVideoServiceLikeVideo),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *VideoServiceHTTPClientImpl) LikeVideoComment(ctx context.Context, in *LikeVideoCommentRequest, opts ...http.CallOption) (*VideoCommentInteraction, error) {
+	var out VideoCommentInteraction
+	pattern := "/api/v1/videos/{bvid}/comments/{comment_id}/like"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationVideoServiceLikeVideoComment),
 		http.PathTemplate(pattern),
 	}, opts...)
 	err := c.cc.Invoke(ctx, "POST", path, nil, &out, opts...)
@@ -951,6 +1026,22 @@ func (c *VideoServiceHTTPClientImpl) ListMyLikedVideos(ctx context.Context, in *
 	return &out, nil
 }
 
+func (c *VideoServiceHTTPClientImpl) ListMyVideoComments(ctx context.Context, in *ListVideoHistoryRequest, opts ...http.CallOption) (*ListVideoCommentHistoryReply, error) {
+	var out ListVideoCommentHistoryReply
+	pattern := "/api/v1/users/me/video-comments"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationVideoServiceListMyVideoComments),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 func (c *VideoServiceHTTPClientImpl) ListUserVideos(ctx context.Context, in *ListUserVideosRequest, opts ...http.CallOption) (*ListVideosReply, error) {
 	var out ListVideosReply
 	pattern := "/api/v1/users/{user_id}/videos"
@@ -958,6 +1049,22 @@ func (c *VideoServiceHTTPClientImpl) ListUserVideos(ctx context.Context, in *Lis
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
 		http.Operation(OperationVideoServiceListUserVideos),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *VideoServiceHTTPClientImpl) ListVideoCommentReplies(ctx context.Context, in *ListVideoCommentRepliesRequest, opts ...http.CallOption) (*ListVideoCommentsReply, error) {
+	var out ListVideoCommentsReply
+	pattern := "/api/v1/videos/{bvid}/comments/{root_comment_id}/replies"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationVideoServiceListVideoCommentReplies),
 		http.PathTemplate(pattern),
 	}, opts...)
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
@@ -1073,6 +1180,22 @@ func (c *VideoServiceHTTPClientImpl) UnlikeVideo(ctx context.Context, in *Unlike
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
 		http.Operation(OperationVideoServiceUnlikeVideo),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "DELETE", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *VideoServiceHTTPClientImpl) UnlikeVideoComment(ctx context.Context, in *UnlikeVideoCommentRequest, opts ...http.CallOption) (*VideoCommentInteraction, error) {
+	var out VideoCommentInteraction
+	pattern := "/api/v1/videos/{bvid}/comments/{comment_id}/like"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationVideoServiceUnlikeVideoComment),
 		http.PathTemplate(pattern),
 	}, opts...)
 	err := c.cc.Invoke(ctx, "DELETE", path, nil, &out, opts...)

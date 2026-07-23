@@ -60,14 +60,14 @@ export function HomePage() {
       </section>
 
       <section className="feed-section" aria-labelledby="feed-title">
-        <header className="feed-heading"><div><h1 id="feed-title">推荐</h1><p>最近发布的视频</p></div><span>{videos.length} 个视频</span></header>
+        <header className="feed-heading"><div><h1 id="feed-title">推荐</h1><p>发现刚刚发布的内容</p></div><span>{videos.length} 个视频</span></header>
         {loading ? (
-          <div className="video-grid" aria-label="正在加载视频">
-            {Array.from({ length: 10 }, (_, index) => <div className="video-skeleton" key={index} />)}
+          <div className="home-feed-grid" aria-label="正在加载视频">
+            {Array.from({ length: 8 }, (_, index) => <div className="video-skeleton" key={index} />)}
           </div>
         ) : videos.length > 0 ? (
           <>
-            <div className="video-grid">{videos.map((video) => <VideoCard key={video.bvid} video={video} />)}</div>
+            <div className="home-feed-grid">{videos.map((video, index) => <div className={index === 0 && videos.length >= 4 ? 'featured-video' : ''} key={video.bvid}><VideoCard video={video} /></div>)}</div>
             {nextPageToken && <button className="load-more-button" type="button" disabled={loadingMore} onClick={() => void loadMore()}><RefreshCw size={17} />{loadingMore ? '加载中' : '加载更多'}</button>}
           </>
         ) : (

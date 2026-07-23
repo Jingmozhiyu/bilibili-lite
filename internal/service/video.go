@@ -71,23 +71,6 @@ func (s *VideoService) GetVideoPlay(ctx context.Context, req *v1.GetVideoPlayReq
 	return convertVideoPlayReply(play), nil
 }
 
-// GetVideoLike authenticates the caller and returns their current like state for a video.
-func (s *VideoService) GetVideoLike(ctx context.Context, req *v1.GetVideoLikeRequest) (*v1.VideoLike, error) {
-	videoID, err := biz.ParseBVID(req.GetBvid())
-	if err != nil {
-		return nil, err
-	}
-	userID, err := appMiddleware.RequireUserID(ctx)
-	if err != nil {
-		return nil, err
-	}
-	like, err := s.videoUsecase.GetVideoLike(ctx, userID, videoID)
-	if err != nil {
-		return nil, err
-	}
-	return convertVideoLike(like), nil
-}
-
 // LikeVideo idempotently sets the authenticated caller's like state to active.
 func (s *VideoService) LikeVideo(ctx context.Context, req *v1.LikeVideoRequest) (*v1.VideoLike, error) {
 	return s.setVideoLike(ctx, req.GetBvid(), true)
@@ -193,7 +176,22 @@ func (s *VideoService) ListVideoComments(ctx context.Context, req *v1.ListVideoC
 	if err != nil {
 		return nil, err
 	}
-	comments, err := s.videoUsecase.ListVideoComments(ctx, videoID, req.GetPageSize(), req.GetPageToken())
+	viewerID, _ := appMiddleware.UserID(ctx)
+	comments, err := s.videoUsecase.ListVideoComments(ctx, viewerID, videoID, req.GetPageSize(), req.GetPageToken())
+	if err != nil {
+		return nil, err
+	}
+	return convertVideoCommentList(comments), nil
+}
+
+// ListVideoCommentReplies returns one public page of replies under a root comment.
+func (s *VideoService) ListVideoCommentReplies(ctx context.Context, req *v1.ListVideoCommentRepliesRequest) (*v1.ListVideoCommentsReply, error) {
+	videoID, err := biz.ParseBVID(req.GetBvid())
+	if err != nil {
+		return nil, err
+	}
+	viewerID, _ := appMiddleware.UserID(ctx)
+	comments, err := s.videoUsecase.ListVideoCommentReplies(ctx, viewerID, videoID, req.GetRootCommentId(), req.GetPageSize(), req.GetPageToken())
 	if err != nil {
 		return nil, err
 	}
@@ -206,11 +204,41 @@ func (s *VideoService) CreateVideoComment(ctx context.Context, req *v1.CreateVid
 	if err != nil {
 		return nil, err
 	}
-	comment, err := s.videoUsecase.CreateVideoComment(ctx, userID, videoID, req.GetContent())
+	comment, err := s.videoUsecase.CreateVideoComment(ctx, userID, videoID, req.GetParentCommentId(), req.GetContent())
 	if err != nil {
 		return nil, err
 	}
 	return convertVideoComment(comment), nil
+}
+
+// LikeVideoComment idempotently sets the caller's comment like state.
+func (s *VideoService) LikeVideoComment(ctx context.Context, req *v1.LikeVideoCommentRequest) (*v1.VideoCommentInteraction, error) {
+	return s.setVideoCommentLike(ctx, req.GetBvid(), req.GetCommentId(), true)
+}
+
+// UnlikeVideoComment idempotently clears the caller's comment like state.
+func (s *VideoService) UnlikeVideoComment(ctx context.Context, req *v1.UnlikeVideoCommentRequest) (*v1.VideoCommentInteraction, error) {
+	return s.setVideoCommentLike(ctx, req.GetBvid(), req.GetCommentId(), false)
+}
+
+// ListMyVideoComments returns the caller's authored comment history.
+func (s *VideoService) ListMyVideoComments(ctx context.Context, req *v1.ListVideoHistoryRequest) (*v1.ListVideoCommentHistoryReply, error) {
+	userID, err := appMiddleware.RequireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	history, err := s.videoUsecase.ListVideoCommentHistory(ctx, userID, req.GetPageSize(), req.GetPageToken())
+	if err != nil {
+		return nil, err
+	}
+	out := &v1.ListVideoCommentHistoryReply{Items: make([]*v1.VideoCommentHistoryItem, 0, len(history.Items)), NextPageToken: history.NextPageToken}
+	for index := range history.Items {
+		item := &history.Items[index]
+		out.Items = append(out.Items, &v1.VideoCommentHistoryItem{
+			Video: convertVideoReply(&item.Video), Comment: convertVideoComment(&item.Comment),
+		})
+	}
+	return out, nil
 }
 
 // DeleteVideoComment removes a comment for its author or the video owner.
@@ -333,6 +361,18 @@ func (s *VideoService) setVideoLike(ctx context.Context, bvid string, liked bool
 		return nil, err
 	}
 	return convertVideoLike(like), nil
+}
+
+func (s *VideoService) setVideoCommentLike(ctx context.Context, bvid string, commentID uint64, liked bool) (*v1.VideoCommentInteraction, error) {
+	videoID, userID, err := authenticatedVideoRequest(ctx, bvid)
+	if err != nil {
+		return nil, err
+	}
+	interaction, err := s.videoUsecase.SetVideoCommentLike(ctx, userID, videoID, commentID, liked)
+	if err != nil {
+		return nil, err
+	}
+	return &v1.VideoCommentInteraction{CommentId: interaction.CommentID, Liked: interaction.Liked, LikeCount: interaction.LikeCount}, nil
 }
 
 // convertVideoReply maps the video detail domain object to its public API reply.
@@ -499,6 +539,9 @@ func convertVideoComment(in *biz.VideoComment) *v1.VideoComment {
 		Id: in.ID, Bvid: in.VideoID.BVID(), UserId: in.UserID,
 		UserName: in.UserName, UserAvatarUrl: in.UserAvatarURL,
 		Content: in.Content, CreatedAt: timestampOrNil(in.CreatedAt),
+		RootId: in.RootID, ParentId: in.ParentID,
+		ReplyToUserId: in.ReplyToUserID, ReplyToUserName: in.ReplyToUserName,
+		LikeCount: in.LikeCount, Liked: in.Liked, ReplyCount: in.ReplyCount, Deleted: in.Deleted,
 	}
 }
 

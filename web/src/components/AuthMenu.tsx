@@ -1,4 +1,4 @@
-import { Coins, History, LogOut, Upload } from 'lucide-react'
+import { Coins, History, LogOut, Upload, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { authorizedFetch, normalizeAuthSession, postJson, toErrorMessage } from '../api'
@@ -73,9 +73,10 @@ export function AuthMenu({ open, onOpenChange, onUpload }: AuthMenuProps) {
               </div>
               <div className="coin-balance"><Coins size={17} /><span>硬币余额</span><strong>{session.user.coinBalance}</strong></div>
               <nav className="account-links" aria-label="互动历史">
-                <Link to="/history/likes" onClick={() => onOpenChange(false)}><History size={17} />点赞历史</Link>
-                <Link to="/history/favorites" onClick={() => onOpenChange(false)}><History size={17} />收藏历史</Link>
-                <Link to="/history/coins" onClick={() => onOpenChange(false)}><History size={17} />投币历史</Link>
+                <Link to="/space/me" onClick={() => onOpenChange(false)}><UserRound size={17} />个人主页</Link>
+                <Link to="/space/me?tab=likes" onClick={() => onOpenChange(false)}><History size={17} />点赞历史</Link>
+                <Link to="/space/me?tab=favorites" onClick={() => onOpenChange(false)}><History size={17} />收藏历史</Link>
+                <Link to="/space/me?tab=coins" onClick={() => onOpenChange(false)}><History size={17} />投币历史</Link>
               </nav>
               <button type="button" className="menu-primary" onClick={() => { onUpload(); onOpenChange(false) }}>
                 <Upload size={17} />投稿视频

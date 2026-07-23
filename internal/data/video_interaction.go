@@ -22,23 +22,8 @@ type videoEngagementRow struct {
 	CoinBalance   int64
 }
 
-type videoLikeRow struct {
-	VideoID   uint64
-	Liked     bool
-	LikeCount int64
-}
-
 // PostgreSQL is the source of truth for interaction state and counters. A future
 // Redis cache can decorate these semantic repository methods without changing biz.
-
-// FindVideoLike loads the viewer's like state and the authoritative counter in one query.
-func (r *videoRepo) FindVideoLike(ctx context.Context, userID uint64, videoID biz.VideoID) (*biz.VideoLike, error) {
-	row, err := loadVideoLike(r.data.db.WithContext(ctx), userID, uint64(videoID))
-	if err != nil {
-		return nil, mapVideoInteractionError(err)
-	}
-	return &biz.VideoLike{VideoID: biz.VideoID(row.VideoID), Liked: row.Liked, LikeCount: row.LikeCount}, nil
-}
 
 // FindVideoEngagement loads the viewer's state, counters, and current coin balance.
 func (r *videoRepo) FindVideoEngagement(ctx context.Context, userID uint64, videoID biz.VideoID) (*biz.VideoEngagement, error) {
@@ -147,10 +132,6 @@ func (r *videoRepo) SetVideoCoinAmount(ctx context.Context, userID uint64, video
 		if err != nil {
 			return err
 		}
-		if video.OwnerID == userID {
-			return biz.ErrVideoForbidden
-		}
-
 		var coin videoCoinPO
 		err = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("user_id = ? AND video_id = ?", userID, video.ID).
@@ -224,26 +205,6 @@ func (r *videoRepo) CreateVideoShare(ctx context.Context, userID uint64, videoID
 		return nil, mapVideoInteractionError(err)
 	}
 	return result, nil
-}
-
-func loadVideoLike(db *gorm.DB, userID, videoID uint64) (*videoLikeRow, error) {
-	var row videoLikeRow
-	result := db.Raw(`
-		SELECT v.id AS video_id,
-		       v.like_count,
-		       COALESCE(l.active, FALSE) AS liked
-		FROM videos v
-		LEFT JOIN user_video_likes l
-		  ON l.video_id = v.id AND l.user_id = ?
-		WHERE v.id = ? AND v.status = ? AND v.deleted_at IS NULL
-	`, userID, videoID, string(biz.VideoStatusPublished)).Scan(&row)
-	if result.Error != nil {
-		return nil, result.Error
-	}
-	if result.RowsAffected == 0 {
-		return nil, biz.ErrVideoNotFound
-	}
-	return &row, nil
 }
 
 // loadVideoEngagement uses one SQL snapshot instead of several sequential point reads.

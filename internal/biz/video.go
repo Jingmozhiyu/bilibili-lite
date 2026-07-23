@@ -197,18 +197,45 @@ type VideoHistoryList struct {
 
 // VideoComment is one top-level comment with its author profile.
 type VideoComment struct {
-	ID            uint64
-	VideoID       VideoID
-	UserID        uint64
-	UserName      string
-	UserAvatarURL string
-	Content       string
-	CreatedAt     time.Time
+	ID              uint64
+	VideoID         VideoID
+	UserID          uint64
+	UserName        string
+	UserAvatarURL   string
+	Content         string
+	CreatedAt       time.Time
+	RootID          uint64
+	ParentID        uint64
+	ReplyToUserID   uint64
+	ReplyToUserName string
+	LikeCount       int64
+	Liked           bool
+	ReplyCount      int64
+	Deleted         bool
 }
 
 // VideoCommentList is one keyset-paginated top-level comment page.
 type VideoCommentList struct {
 	Comments      []VideoComment
+	NextPageToken string
+}
+
+// VideoCommentInteraction is the viewer's desired state and authoritative count.
+type VideoCommentInteraction struct {
+	CommentID uint64
+	Liked     bool
+	LikeCount int64
+}
+
+// VideoCommentHistoryItem combines one authored comment with its published video.
+type VideoCommentHistoryItem struct {
+	Video   Video
+	Comment VideoComment
+}
+
+// VideoCommentHistoryList is one keyset-paginated authored comment page.
+type VideoCommentHistoryList struct {
+	Items         []VideoCommentHistoryItem
 	NextPageToken string
 }
 
@@ -264,7 +291,6 @@ type VideoRepo interface {
 	ListVideos(context.Context, VideoListOptions) (*VideoList, error)
 	FindVideoByID(context.Context, VideoID) (*Video, error)
 	FindVideoPlayByID(context.Context, VideoID) (*VideoPlay, error)
-	FindVideoLike(context.Context, uint64, VideoID) (*VideoLike, error)
 	FindVideoEngagement(context.Context, uint64, VideoID) (*VideoEngagement, error)
 	FindVideoUploadStatus(context.Context, uint64, VideoID) (*VideoUploadStatus, error)
 	SetVideoLike(context.Context, uint64, VideoID, bool) (*VideoLike, error)
@@ -274,9 +300,12 @@ type VideoRepo interface {
 	ListVideoHistory(context.Context, uint64, VideoHistoryKind, int, string) (*VideoHistoryList, error)
 	CreateDanmaku(context.Context, uint64, VideoID, float64, string, string) (*DanmakuItem, error)
 	DeleteDanmaku(context.Context, uint64, VideoID, uint64) error
-	ListVideoComments(context.Context, VideoID, int, string) (*VideoCommentList, error)
-	CreateVideoComment(context.Context, uint64, VideoID, string) (*VideoComment, error)
+	ListVideoComments(context.Context, uint64, VideoID, int, string) (*VideoCommentList, error)
+	ListVideoCommentReplies(context.Context, uint64, VideoID, uint64, int, string) (*VideoCommentList, error)
+	CreateVideoComment(context.Context, uint64, VideoID, uint64, string) (*VideoComment, error)
 	DeleteVideoComment(context.Context, uint64, VideoID, uint64) error
+	SetVideoCommentLike(context.Context, uint64, VideoID, uint64, bool) (*VideoCommentInteraction, error)
+	ListVideoCommentHistory(context.Context, uint64, int, string) (*VideoCommentHistoryList, error)
 	ProcessVideoUpload(context.Context, *VideoUploadInput) (*VideoUploadResult, error)
 	PublishVideo(context.Context, *VideoPublishInput) (*Video, error)
 	DeleteVideo(context.Context, uint64, VideoID) error
@@ -321,14 +350,6 @@ func (uc *VideoUsecase) GetVideoPlay(ctx context.Context, videoID VideoID) (*Vid
 		return nil, ErrVideoInvalidArgument
 	}
 	return uc.repo.FindVideoPlayByID(ctx, videoID)
-}
-
-// GetVideoLike returns the authenticated user's current state.
-func (uc *VideoUsecase) GetVideoLike(ctx context.Context, userID uint64, videoID VideoID) (*VideoLike, error) {
-	if userID == 0 || videoID == 0 {
-		return nil, ErrVideoInvalidArgument
-	}
-	return uc.repo.FindVideoLike(ctx, userID, videoID)
 }
 
 // GetVideoEngagement returns all viewer-specific interaction state in one read.
@@ -414,7 +435,7 @@ func (uc *VideoUsecase) DeleteDanmaku(ctx context.Context, userID uint64, videoI
 }
 
 // ListVideoComments returns one page of top-level comments.
-func (uc *VideoUsecase) ListVideoComments(ctx context.Context, videoID VideoID, pageSize int32, pageToken string) (*VideoCommentList, error) {
+func (uc *VideoUsecase) ListVideoComments(ctx context.Context, viewerID uint64, videoID VideoID, pageSize int32, pageToken string) (*VideoCommentList, error) {
 	if videoID == 0 {
 		return nil, ErrVideoInvalidArgument
 	}
@@ -422,16 +443,28 @@ func (uc *VideoUsecase) ListVideoComments(ctx context.Context, videoID VideoID, 
 	if err != nil {
 		return nil, err
 	}
-	return uc.repo.ListVideoComments(ctx, videoID, int(pageSize), strings.TrimSpace(pageToken))
+	return uc.repo.ListVideoComments(ctx, viewerID, videoID, int(pageSize), strings.TrimSpace(pageToken))
 }
 
-// CreateVideoComment publishes one top-level comment.
-func (uc *VideoUsecase) CreateVideoComment(ctx context.Context, userID uint64, videoID VideoID, content string) (*VideoComment, error) {
+// ListVideoCommentReplies returns one page of replies flattened under a root comment.
+func (uc *VideoUsecase) ListVideoCommentReplies(ctx context.Context, viewerID uint64, videoID VideoID, rootCommentID uint64, pageSize int32, pageToken string) (*VideoCommentList, error) {
+	if videoID == 0 || rootCommentID == 0 {
+		return nil, ErrVideoInvalidArgument
+	}
+	pageSize, err := normalizeVideoPageSize(pageSize)
+	if err != nil {
+		return nil, err
+	}
+	return uc.repo.ListVideoCommentReplies(ctx, viewerID, videoID, rootCommentID, int(pageSize), strings.TrimSpace(pageToken))
+}
+
+// CreateVideoComment publishes a root comment or a reply to an existing comment.
+func (uc *VideoUsecase) CreateVideoComment(ctx context.Context, userID uint64, videoID VideoID, parentCommentID uint64, content string) (*VideoComment, error) {
 	content = strings.TrimSpace(content)
 	if userID == 0 || videoID == 0 || content == "" || len([]rune(content)) > maxCommentLength {
 		return nil, ErrVideoInvalidArgument
 	}
-	return uc.repo.CreateVideoComment(ctx, userID, videoID, content)
+	return uc.repo.CreateVideoComment(ctx, userID, videoID, parentCommentID, content)
 }
 
 // DeleteVideoComment removes a comment when called by its author or the video owner.
@@ -440,6 +473,26 @@ func (uc *VideoUsecase) DeleteVideoComment(ctx context.Context, userID uint64, v
 		return ErrVideoInvalidArgument
 	}
 	return uc.repo.DeleteVideoComment(ctx, userID, videoID, commentID)
+}
+
+// SetVideoCommentLike idempotently applies the requested comment like state.
+func (uc *VideoUsecase) SetVideoCommentLike(ctx context.Context, userID uint64, videoID VideoID, commentID uint64, liked bool) (*VideoCommentInteraction, error) {
+	if userID == 0 || videoID == 0 || commentID == 0 {
+		return nil, ErrVideoInvalidArgument
+	}
+	return uc.repo.SetVideoCommentLike(ctx, userID, videoID, commentID, liked)
+}
+
+// ListVideoCommentHistory returns comments authored by the authenticated caller.
+func (uc *VideoUsecase) ListVideoCommentHistory(ctx context.Context, userID uint64, pageSize int32, pageToken string) (*VideoCommentHistoryList, error) {
+	if userID == 0 {
+		return nil, ErrVideoInvalidArgument
+	}
+	pageSize, err := normalizeVideoPageSize(pageSize)
+	if err != nil {
+		return nil, err
+	}
+	return uc.repo.ListVideoCommentHistory(ctx, userID, int(pageSize), strings.TrimSpace(pageToken))
 }
 
 // UploadVideo allocates a BV identifier immediately and processes uploaded media into a ready draft.

@@ -7,10 +7,12 @@ import { UploadContext } from './context/UploadContext'
 import { HistoryPage } from './pages/HistoryPage'
 import { HomePage } from './pages/HomePage'
 import { VideoPage } from './pages/VideoPage'
+import { UserPage } from './pages/UserPage'
 import './styles/shell.css'
 import './styles/home.css'
 import './styles/video.css'
 import './styles/history.css'
+import './styles/space.css'
 
 function App() {
   return (
@@ -18,6 +20,7 @@ function App() {
       <Route element={<AppLayout />}>
         <Route index element={<HomePage />} />
         <Route path="video/:bvid" element={<VideoPage />} />
+        <Route path="space/:userId" element={<UserPage />} />
         <Route path="history/:kind" element={<HistoryPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

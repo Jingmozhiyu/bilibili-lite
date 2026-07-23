@@ -127,18 +127,38 @@ type videoSharePO struct {
 func (videoSharePO) TableName() string { return "user_video_shares" }
 
 type videoCommentPO struct {
-	ID        uint64  `gorm:"primaryKey;autoIncrement"`
-	VideoID   uint64  `gorm:"not null;index"`
-	Video     videoPO `gorm:"foreignKey:VideoID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-	UserID    uint64  `gorm:"not null;index"`
-	User      userPO  `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-	Content   string  `gorm:"size:2000;not null"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt *time.Time `gorm:"index"`
+	ID            uint64          `gorm:"primaryKey;autoIncrement"`
+	VideoID       uint64          `gorm:"not null;index"`
+	Video         videoPO         `gorm:"foreignKey:VideoID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	UserID        uint64          `gorm:"not null;index"`
+	User          userPO          `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	RootID        *uint64         `gorm:"index"`
+	Root          *videoCommentPO `gorm:"foreignKey:RootID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	ParentID      *uint64         `gorm:"index"`
+	Parent        *videoCommentPO `gorm:"foreignKey:ParentID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	ReplyToUserID *uint64         `gorm:"index"`
+	ReplyToUser   *userPO         `gorm:"foreignKey:ReplyToUserID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
+	Content       string          `gorm:"size:2000;not null"`
+	LikeCount     int64           `gorm:"not null;default:0"`
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	DeletedAt     *time.Time `gorm:"index"`
 }
 
 func (videoCommentPO) TableName() string { return "video_comments" }
+
+type videoCommentLikePO struct {
+	ID        uint64         `gorm:"primaryKey;autoIncrement"`
+	UserID    uint64         `gorm:"not null;uniqueIndex:idx_user_comment_like"`
+	User      userPO         `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	CommentID uint64         `gorm:"not null;uniqueIndex:idx_user_comment_like;index"`
+	Comment   videoCommentPO `gorm:"foreignKey:CommentID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	Active    bool           `gorm:"not null;default:true"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (videoCommentLikePO) TableName() string { return "user_video_comment_likes" }
 
 type videoViewSessionPO struct {
 	ID          string  `gorm:"size:64;primaryKey"`

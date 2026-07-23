@@ -1,0 +1,335 @@
+.space-page {
+  min-height: calc(100svh - 64px);
+}
+
+.profile-band {
+  background:
+    linear-gradient(110deg, oklch(88% 0.08 217), oklch(93% 0.055 7) 68%, oklch(96% 0.03 152));
+  border-bottom: 1px solid var(--border);
+}
+
+.profile-inner {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) auto;
+  gap: 22px;
+  align-items: end;
+  width: min(1500px, calc(100% - 48px));
+  min-height: 220px;
+  margin: 0 auto;
+  padding: 48px 0 28px;
+}
+
+.profile-avatar {
+  display: grid;
+  overflow: hidden;
+  place-items: center;
+  color: #fff;
+  font-weight: 750;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.profile-avatar.large {
+  width: 92px;
+  height: 92px;
+  font-size: 34px;
+  border: 3px solid rgb(255 255 255 / 88%);
+  box-shadow: 0 2px 8px rgb(25 46 62 / 16%);
+}
+
+.profile-avatar img,
+.comment-avatar img,
+.owner-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-copy {
+  min-width: 0;
+  padding-bottom: 5px;
+}
+
+.profile-copy > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: baseline;
+}
+
+.profile-copy h1,
+.profile-copy p {
+  margin: 0;
+}
+
+.profile-copy h1 {
+  color: var(--text-strong);
+  font-size: 26px;
+}
+
+.profile-copy span,
+.profile-copy p {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.profile-copy p {
+  margin-top: 8px;
+}
+
+.profile-edit-button,
+.secondary-button {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 14px;
+  color: var(--text-strong);
+  border: 1px solid rgb(255 255 255 / 72%);
+  border-radius: 7px;
+  cursor: pointer;
+  background: rgb(255 255 255 / 74%);
+}
+
+.profile-edit-button:hover,
+.secondary-button:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.space-body {
+  width: min(1500px, calc(100% - 48px));
+  margin: 0 auto;
+  padding-bottom: 64px;
+}
+
+.space-tabs {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  min-height: 62px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+  scrollbar-width: none;
+}
+
+.space-tabs button {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 7px;
+  align-items: center;
+  height: 62px;
+  padding: 0 15px;
+  color: var(--text-muted);
+  border: 0;
+  cursor: pointer;
+  background: transparent;
+}
+
+.space-tabs button::after {
+  position: absolute;
+  right: 13px;
+  bottom: -1px;
+  left: 13px;
+  height: 2px;
+  content: '';
+  background: transparent;
+}
+
+.space-tabs button:hover,
+.space-tabs button.active {
+  color: var(--accent);
+}
+
+.space-tabs button.active::after {
+  background: var(--accent);
+}
+
+.space-content {
+  padding-top: 24px;
+}
+
+.space-content-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 26px 16px;
+  padding-top: 24px;
+}
+
+.space-content > .space-content-grid {
+  padding-top: 0;
+}
+
+.space-empty {
+  display: grid;
+  min-height: 360px;
+  place-content: center;
+  justify-items: center;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.space-empty h2,
+.space-empty p {
+  margin: 0;
+}
+
+.space-empty h2 {
+  margin-top: 10px;
+  color: var(--text-strong);
+  font-size: 19px;
+}
+
+.space-empty p {
+  margin-top: 5px;
+  font-size: 13px;
+}
+
+.comment-history-list {
+  display: grid;
+}
+
+.comment-history-list a {
+  display: grid;
+  gap: 7px;
+  padding: 17px 4px;
+  text-decoration: none;
+  border-bottom: 1px solid var(--border);
+}
+
+.comment-history-list a:hover strong {
+  color: var(--accent);
+}
+
+.comment-history-list div {
+  display: flex;
+  gap: 16px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.comment-history-list strong {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comment-history-list time,
+.comment-history-list p {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.comment-history-list p {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.comment-history-list p span {
+  color: var(--accent);
+}
+
+.profile-editor-backdrop {
+  position: fixed;
+  z-index: var(--z-backdrop);
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(13 24 35 / 54%);
+}
+
+.profile-editor {
+  display: grid;
+  gap: 16px;
+  width: min(520px, 100%);
+  padding: 22px;
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.profile-editor header,
+.profile-editor footer {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.profile-editor header strong {
+  color: var(--text-strong);
+  font-size: 18px;
+}
+
+.profile-editor header p {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.profile-editor label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.profile-editor input,
+.profile-editor textarea {
+  width: 100%;
+  padding: 9px 11px;
+  color: var(--text-strong);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  outline: 0;
+  resize: vertical;
+  background: var(--surface-2);
+}
+
+.profile-editor input:focus,
+.profile-editor textarea:focus {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.profile-editor footer {
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.secondary-button {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
+.profile-skeleton {
+  min-height: 220px;
+  background: linear-gradient(90deg, var(--surface-2), var(--surface), var(--surface-2));
+  background-size: 220% 100%;
+  animation: shimmer 1.3s ease-in-out infinite;
+}
+
+@media (max-width: 1320px) { .space-content-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 980px) { .space-content-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+@media (max-width: 680px) {
+  .space-page { min-height: calc(100svh - 58px); }
+  .profile-inner, .space-body { width: calc(100% - 28px); }
+  .profile-inner { grid-template-columns: 72px minmax(0, 1fr); gap: 14px; min-height: 190px; padding-top: 38px; }
+  .profile-avatar.large { width: 72px; height: 72px; font-size: 27px; }
+  .profile-copy h1 { font-size: 21px; }
+  .profile-edit-button { grid-column: 1 / -1; justify-self: start; min-height: 34px; }
+  .space-tabs { min-height: 54px; }
+  .space-tabs { gap: 0; }
+  .space-tabs button { gap: 5px; height: 54px; padding-inline: 8px; font-size: 13px; }
+  .space-content-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 10px; }
+  .profile-editor-backdrop { align-items: end; padding: 0; }
+  .profile-editor { width: 100%; border-radius: 8px 8px 0 0; }
+}

@@ -46,7 +46,35 @@ func (r *userRepo) FindUserByID(ctx context.Context, id uint64) (*biz.User, erro
 	var user userPO
 	err := r.data.db.WithContext(ctx).Where("id = ?", id).First(&user).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, biz.ErrSessionInvalid
+		return nil, biz.ErrUserNotFound
+	}
+	if err != nil {
+		return nil, biz.ErrUserStorage
+	}
+	return &biz.User{
+		ID: user.ID, Username: user.Username, DisplayName: user.DisplayName,
+		AvatarURL: user.AvatarURL, Bio: user.Bio, CoinBalance: user.CoinBalance,
+	}, nil
+}
+
+// UpdateUserProfile persists the caller's complete editable profile in one update.
+func (r *userRepo) UpdateUserProfile(ctx context.Context, id uint64, update biz.UserProfileUpdate) (*biz.User, error) {
+	var user userPO
+	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.First(&user, id).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&user).Updates(map[string]any{
+			"display_name": update.DisplayName,
+			"avatar_url":   update.AvatarURL,
+			"bio":          update.Bio,
+		}).Error; err != nil {
+			return err
+		}
+		return tx.First(&user, id).Error
+	})
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, biz.ErrUserNotFound
 	}
 	if err != nil {
 		return nil, biz.ErrUserStorage

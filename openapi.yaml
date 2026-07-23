@@ -57,6 +57,35 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/user.v1.LoginReply'
+    /api/v1/users/me:
+        get:
+            tags:
+                - UserService
+            operationId: UserService_GetMe
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/user.v1.User'
+        patch:
+            tags:
+                - UserService
+            operationId: UserService_UpdateMe
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/user.v1.UpdateMeRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/user.v1.User'
     /api/v1/users/me/video-coins:
         get:
             tags:
@@ -79,6 +108,28 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/video.v1.ListVideoHistoryReply'
+    /api/v1/users/me/video-comments:
+        get:
+            tags:
+                - VideoService
+            operationId: VideoService_ListMyVideoComments
+            parameters:
+                - name: pageSize
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/video.v1.ListVideoCommentHistoryReply'
     /api/v1/users/me/video-favorites:
         get:
             tags:
@@ -123,6 +174,24 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/video.v1.ListVideoHistoryReply'
+    /api/v1/users/{userId}:
+        get:
+            tags:
+                - UserService
+            operationId: UserService_GetUser
+            parameters:
+                - name: userId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/user.v1.User'
     /api/v1/users/{userId}/videos:
         get:
             tags:
@@ -298,6 +367,83 @@ paths:
                 "200":
                     description: OK
                     content: {}
+    /api/v1/videos/{bvid}/comments/{commentId}/like:
+        post:
+            tags:
+                - VideoService
+            operationId: VideoService_LikeVideoComment
+            parameters:
+                - name: bvid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: commentId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/video.v1.VideoCommentInteraction'
+        delete:
+            tags:
+                - VideoService
+            operationId: VideoService_UnlikeVideoComment
+            parameters:
+                - name: bvid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: commentId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/video.v1.VideoCommentInteraction'
+    /api/v1/videos/{bvid}/comments/{rootCommentId}/replies:
+        get:
+            tags:
+                - VideoService
+            operationId: VideoService_ListVideoCommentReplies
+            parameters:
+                - name: bvid
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: rootCommentId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: pageSize
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/video.v1.ListVideoCommentsReply'
     /api/v1/videos/{bvid}/danmakus:
         post:
             tags:
@@ -396,23 +542,6 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/video.v1.VideoEngagement'
     /api/v1/videos/{bvid}/like:
-        get:
-            tags:
-                - VideoService
-            operationId: VideoService_GetVideoLike
-            parameters:
-                - name: bvid
-                  in: path
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/video.v1.VideoLike'
         post:
             tags:
                 - VideoService
@@ -624,6 +753,17 @@ components:
             properties:
                 refreshToken:
                     type: string
+        user.v1.UpdateMeRequest:
+            required:
+                - displayName
+            type: object
+            properties:
+                displayName:
+                    type: string
+                avatarUrl:
+                    type: string
+                bio:
+                    type: string
         user.v1.User:
             type: object
             properties:
@@ -685,6 +825,8 @@ components:
                     type: string
                 content:
                     type: string
+                parentCommentId:
+                    type: string
         video.v1.DanmakuConfig:
             type: object
             properties:
@@ -715,6 +857,15 @@ components:
                 createdAt:
                     type: string
                     format: date-time
+        video.v1.ListVideoCommentHistoryReply:
+            type: object
+            properties:
+                items:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/video.v1.VideoCommentHistoryItem'
+                nextPageToken:
+                    type: string
         video.v1.ListVideoCommentsReply:
             type: object
             properties:
@@ -842,6 +993,38 @@ components:
                 createdAt:
                     type: string
                     format: date-time
+                rootId:
+                    type: string
+                parentId:
+                    type: string
+                replyToUserId:
+                    type: string
+                replyToUserName:
+                    type: string
+                likeCount:
+                    type: string
+                liked:
+                    type: boolean
+                replyCount:
+                    type: string
+                deleted:
+                    type: boolean
+        video.v1.VideoCommentHistoryItem:
+            type: object
+            properties:
+                video:
+                    $ref: '#/components/schemas/video.v1.Video'
+                comment:
+                    $ref: '#/components/schemas/video.v1.VideoComment'
+        video.v1.VideoCommentInteraction:
+            type: object
+            properties:
+                commentId:
+                    type: string
+                liked:
+                    type: boolean
+                likeCount:
+                    type: string
         video.v1.VideoEngagement:
             type: object
             properties:
