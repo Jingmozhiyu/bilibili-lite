@@ -46,10 +46,10 @@ func wireApp(confServer *conf.Server, confData *conf.Data, auth *conf.Auth, logg
 	videoService := service.NewVideoService(videoUsecase)
 	userRepo := data.NewUserRepo(dataData)
 	userUsecase := biz.NewUserUsecase(userRepo, tokenManager)
-	userService := service.NewUserService(userUsecase)
+	userService := service.NewUserService(userUsecase, manager)
 	grpcServer := server.NewGRPCServer(confServer, authenticator, videoService, userService)
 	videoUploadHTTPHandler := service.NewVideoUploadHTTPHandler(videoUsecase, confData)
-	httpServer := server.NewHTTPServer(confServer, manager, authenticator, videoService, videoUploadHTTPHandler, userService)
+	httpServer := server.NewHTTPServer(confServer, confData, manager, authenticator, videoService, videoUploadHTTPHandler, userService)
 	uploadJanitor := worker.NewUploadJanitor(manager)
 	app := newApp(logger, grpcServer, httpServer, uploadJanitor)
 	return app, func() {

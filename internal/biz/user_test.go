@@ -23,9 +23,15 @@ func (r *userRepoStub) UpdateUserProfile(_ context.Context, _ uint64, update Use
 	r.update = update
 	copy := *r.user
 	copy.DisplayName = update.DisplayName
-	copy.AvatarURL = update.AvatarURL
 	copy.Bio = update.Bio
 	return &copy, nil
+}
+
+func (r *userRepoStub) UpdateUserAvatar(_ context.Context, _ uint64, avatarURL string) (*User, string, error) {
+	copy := *r.user
+	previous := copy.AvatarURL
+	copy.AvatarURL = avatarURL
+	return &copy, previous, nil
 }
 
 func TestGetUserHidesCoinBalance(t *testing.T) {
@@ -47,12 +53,12 @@ func TestUpdateMeNormalizesProfile(t *testing.T) {
 	t.Parallel()
 	repo := &userRepoStub{user: &User{ID: 1, Username: "demo", CoinBalance: 1000}}
 	user, err := NewUserUsecase(repo, nil).UpdateMe(context.Background(), 1, UserProfileUpdate{
-		DisplayName: "  新昵称  ", AvatarURL: "  https://example.com/avatar.png  ", Bio: "  简介  ",
+		DisplayName: "  新昵称  ", Bio: "  简介  ",
 	})
 	if err != nil {
 		t.Fatalf("UpdateMe() error = %v", err)
 	}
-	if user.DisplayName != "新昵称" || repo.update.AvatarURL != "https://example.com/avatar.png" || repo.update.Bio != "简介" {
+	if user.DisplayName != "新昵称" || repo.update.Bio != "简介" {
 		t.Fatalf("UpdateMe() normalized update = %+v", repo.update)
 	}
 }
@@ -62,5 +68,20 @@ func TestUpdateMeRejectsEmptyDisplayName(t *testing.T) {
 	repo := &userRepoStub{user: &User{ID: 1}}
 	if _, err := NewUserUsecase(repo, nil).UpdateMe(context.Background(), 1, UserProfileUpdate{DisplayName: "   "}); err == nil {
 		t.Fatal("UpdateMe() unexpectedly accepted an empty display name")
+	}
+}
+
+func TestUpdateAvatarAcceptsOnlyManagedURLs(t *testing.T) {
+	t.Parallel()
+	repo := &userRepoStub{user: &User{ID: 1, AvatarURL: "/media/avatars/old.jpg"}}
+	user, previous, err := NewUserUsecase(repo, nil).UpdateAvatar(context.Background(), 1, "/media/avatars/new.png")
+	if err != nil {
+		t.Fatalf("UpdateAvatar() error = %v", err)
+	}
+	if user.AvatarURL != "/media/avatars/new.png" || previous != "/media/avatars/old.jpg" {
+		t.Fatalf("UpdateAvatar() user = %+v, previous = %q", user, previous)
+	}
+	if _, _, err := NewUserUsecase(repo, nil).UpdateAvatar(context.Background(), 1, "https://example.com/avatar.png"); err == nil {
+		t.Fatal("UpdateAvatar() unexpectedly accepted an external URL")
 	}
 }

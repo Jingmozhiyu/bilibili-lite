@@ -17,6 +17,7 @@ var (
 	ErrInvalidCredentials  = errors.Unauthorized(v1.ErrorReason_USER_INVALID_CREDENTIALS.String(), "invalid username or password")
 	ErrSessionInvalid      = errors.Unauthorized(v1.ErrorReason_USER_SESSION_INVALID.String(), "invalid session")
 	ErrUserStorage         = errors.InternalServer(v1.ErrorReason_USER_UNSPECIFIED.String(), "user storage unavailable")
+	ErrUserAvatarInvalid   = errors.BadRequest(v1.ErrorReason_USER_INVALID_ARGUMENT.String(), "avatar must be a JPEG or PNG image within the size limit")
 )
 
 // User is the public user domain model.
@@ -32,7 +33,6 @@ type User struct {
 // UserProfileUpdate contains the editable public profile fields.
 type UserProfileUpdate struct {
 	DisplayName string
-	AvatarURL   string
 	Bio         string
 }
 
@@ -77,6 +77,7 @@ type UserRepo interface {
 	FindCredentialByUsername(context.Context, string) (*UserCredential, error)
 	FindUserByID(context.Context, uint64) (*User, error)
 	UpdateUserProfile(context.Context, uint64, UserProfileUpdate) (*User, error)
+	UpdateUserAvatar(context.Context, uint64, string) (*User, string, error)
 }
 
 // UserUsecase handles authentication.
@@ -114,12 +115,22 @@ func (uc *UserUsecase) GetMe(ctx context.Context, userID uint64) (*User, error) 
 // UpdateMe validates and persists the authenticated caller's editable profile.
 func (uc *UserUsecase) UpdateMe(ctx context.Context, userID uint64, update UserProfileUpdate) (*User, error) {
 	update.DisplayName = strings.TrimSpace(update.DisplayName)
-	update.AvatarURL = strings.TrimSpace(update.AvatarURL)
 	update.Bio = strings.TrimSpace(update.Bio)
-	if userID == 0 || update.DisplayName == "" || len([]rune(update.DisplayName)) > 100 || len(update.AvatarURL) > 500 || len([]rune(update.Bio)) > 500 {
+	if userID == 0 || update.DisplayName == "" || len([]rune(update.DisplayName)) > 100 || len([]rune(update.Bio)) > 500 {
 		return nil, ErrUserInvalidArgument
 	}
 	return uc.repo.UpdateUserProfile(ctx, userID, update)
+}
+
+// UpdateAvatar atomically replaces or clears the caller's managed local avatar URL.
+func (uc *UserUsecase) UpdateAvatar(ctx context.Context, userID uint64, avatarURL string) (*User, string, error) {
+	avatarURL = strings.TrimSpace(avatarURL)
+	const prefix = "/media/avatars/"
+	name := strings.TrimPrefix(avatarURL, prefix)
+	if userID == 0 || (avatarURL != "" && (!strings.HasPrefix(avatarURL, prefix) || name == "" || strings.Contains(name, "/"))) {
+		return nil, "", ErrUserAvatarInvalid
+	}
+	return uc.repo.UpdateUserAvatar(ctx, userID, avatarURL)
 }
 
 // Login verifies a username and password before issuing a new access and refresh token pair.

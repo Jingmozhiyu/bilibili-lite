@@ -38,7 +38,7 @@ func NewManager(dataConfig *conf.Data) (*Manager, error) {
 		return nil, fmt.Errorf("resolve media storage path: %w", err)
 	}
 	manager := newManager(root, uploadIdleTimeout, transcodeTimeout, dataConfig.Media.MaxUploadBytes, dataConfig.Media.MaxCoverBytes)
-	for _, dir := range []string{manager.root, manager.uploadRoot(), manager.DASHRoot()} {
+	for _, dir := range []string{manager.root, manager.uploadRoot(), manager.DASHRoot(), manager.AvatarRoot()} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return nil, fmt.Errorf("create media storage %s: %w", dir, err)
 		}
@@ -49,6 +49,11 @@ func NewManager(dataConfig *conf.Data) (*Manager, error) {
 // DASHRoot returns the absolute directory exposed by the HTTP media file server.
 func (m *Manager) DASHRoot() string {
 	return filepath.Join(m.root, "dash")
+}
+
+// AvatarRoot returns the absolute directory exposed by the avatar file server.
+func (m *Manager) AvatarRoot() string {
+	return filepath.Join(m.root, "avatars")
 }
 
 func newManager(root string, uploadIdleTimeout, transcodeTimeout time.Duration, maxUploadBytes, maxCoverBytes int64) *Manager {

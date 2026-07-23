@@ -1,17 +1,10 @@
-import { Clapperboard, Gamepad2, Music2, Radio, RefreshCw, Sparkles, Upload } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Clapperboard, RefreshCw, Upload } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { fetchJson, normalizeVideoList, toErrorMessage } from '../api'
+import { HomeCarousel } from '../components/HomeCarousel'
 import { VideoCard } from '../components/VideoCard'
 import { useUploadPanel } from '../context/UploadContext'
 import type { VideoDetail } from '../types'
-
-const channels = [
-  { label: '动画', icon: Clapperboard },
-  { label: '音乐', icon: Music2 },
-  { label: '游戏', icon: Gamepad2 },
-  { label: '知识', icon: Sparkles },
-  { label: '直播', icon: Radio },
-]
 
 export function HomePage() {
   const openUpload = useUploadPanel()
@@ -20,6 +13,7 @@ export function HomePage() {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState('')
+  const recommendations = useMemo(() => fillRecommendationSlots(videos, 6), [videos])
 
   useEffect(() => {
     let active = true
@@ -51,37 +45,45 @@ export function HomePage() {
 
   return (
     <main className="home-page">
-      <section className="channel-strip" aria-label="内容分区">
-        <div className="channel-inner">
-          {channels.map(({ label, icon: Icon }) => <span className="channel-chip" key={label}><Icon size={18} /><span>{label}</span></span>)}
-          <span className="channel-divider" />
-          <button type="button" onClick={openUpload}><Upload size={18} /><span>投稿</span></button>
-        </div>
-      </section>
-
-      <section className="feed-section" aria-labelledby="feed-title">
-        <header className="feed-heading"><div><h1 id="feed-title">推荐</h1><p>发现刚刚发布的内容</p></div><span>{videos.length} 个视频</span></header>
+      <h1 className="sr-only">bilibili-lite 首页</h1>
+      <section className="home-showcase" aria-label="推荐内容">
+        <HomeCarousel />
         {loading ? (
-          <div className="home-feed-grid" aria-label="正在加载视频">
-            {Array.from({ length: 8 }, (_, index) => <div className="video-skeleton" key={index} />)}
+          <div className="recommend-grid" aria-label="正在加载推荐视频">
+            {Array.from({ length: 6 }, (_, index) => <div className="video-skeleton" key={index} />)}
           </div>
-        ) : videos.length > 0 ? (
-          <>
-            <div className="home-feed-grid">{videos.map((video, index) => <div className={index === 0 && videos.length >= 4 ? 'featured-video' : ''} key={video.bvid}><VideoCard video={video} /></div>)}</div>
-            {nextPageToken && <button className="load-more-button" type="button" disabled={loadingMore} onClick={() => void loadMore()}><RefreshCw size={17} />{loadingMore ? '加载中' : '加载更多'}</button>}
-          </>
+        ) : recommendations.length > 0 ? (
+          <div className="recommend-grid">
+            {recommendations.map((video, index) => <VideoCard video={video} key={`${video.bvid}-${index}`} />)}
+          </div>
         ) : (
-          <div className="home-empty">
-            <span className="empty-mark"><Clapperboard size={30} /></span>
-            <h2>{error ? '暂时无法读取视频' : '还没有视频'}</h2>
+          <div className="recommend-empty">
+            <Clapperboard size={30} />
+            <strong>{error ? '推荐暂时不可用' : '还没有推荐视频'}</strong>
             <p>{error || '上传第一支视频后，它会出现在这里。'}</p>
             <button className="primary-button" type="button" onClick={openUpload}><Upload size={18} />投稿视频</button>
           </div>
         )}
-        {error && videos.length > 0 && <p className="inline-error" role="status">{error}</p>}
       </section>
+
+      {videos.length > 0 && (
+        <section className="feed-section" aria-labelledby="feed-title">
+          <header className="feed-heading">
+            <div><h2 id="feed-title">最新投稿</h2><p>看看最近发布了什么</p></div>
+            <span>{videos.length} 个视频</span>
+          </header>
+          <div className="home-feed-grid">{videos.map((video) => <VideoCard video={video} key={video.bvid} />)}</div>
+          {nextPageToken && <button className="load-more-button" type="button" disabled={loadingMore} onClick={() => void loadMore()}><RefreshCw size={17} />{loadingMore ? '加载中' : '加载更多'}</button>}
+          {error && <p className="inline-error" role="status">{error}</p>}
+        </section>
+      )}
     </main>
   )
+}
+
+function fillRecommendationSlots(videos: VideoDetail[], size: number) {
+  if (videos.length === 0) return []
+  return Array.from({ length: size }, (_, index) => videos[index % videos.length])
 }
 
 async function loadPage(pageToken: string) {

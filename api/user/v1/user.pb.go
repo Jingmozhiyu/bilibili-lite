@@ -8,6 +8,7 @@ package v1
 
 import (
 	_ "google.golang.org/genproto/googleapis/api/annotations"
+	httpbody "google.golang.org/genproto/googleapis/api/httpbody"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
@@ -191,7 +192,6 @@ func (*GetMeRequest) Descriptor() ([]byte, []int) {
 type UpdateMeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	DisplayName   string                 `protobuf:"bytes,1,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	AvatarUrl     string                 `protobuf:"bytes,2,opt,name=avatar_url,json=avatarUrl,proto3" json:"avatar_url,omitempty"`
 	Bio           string                 `protobuf:"bytes,3,opt,name=bio,proto3" json:"bio,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -234,18 +234,47 @@ func (x *UpdateMeRequest) GetDisplayName() string {
 	return ""
 }
 
-func (x *UpdateMeRequest) GetAvatarUrl() string {
-	if x != nil {
-		return x.AvatarUrl
-	}
-	return ""
-}
-
 func (x *UpdateMeRequest) GetBio() string {
 	if x != nil {
 		return x.Bio
 	}
 	return ""
+}
+
+type DeleteMyAvatarRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteMyAvatarRequest) Reset() {
+	*x = DeleteMyAvatarRequest{}
+	mi := &file_user_v1_user_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteMyAvatarRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteMyAvatarRequest) ProtoMessage() {}
+
+func (x *DeleteMyAvatarRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_user_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteMyAvatarRequest.ProtoReflect.Descriptor instead.
+func (*DeleteMyAvatarRequest) Descriptor() ([]byte, []int) {
+	return file_user_v1_user_proto_rawDescGZIP(), []int{4}
 }
 
 type LoginRequest struct {
@@ -258,7 +287,7 @@ type LoginRequest struct {
 
 func (x *LoginRequest) Reset() {
 	*x = LoginRequest{}
-	mi := &file_user_v1_user_proto_msgTypes[4]
+	mi := &file_user_v1_user_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -270,7 +299,7 @@ func (x *LoginRequest) String() string {
 func (*LoginRequest) ProtoMessage() {}
 
 func (x *LoginRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_user_proto_msgTypes[4]
+	mi := &file_user_v1_user_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -283,7 +312,7 @@ func (x *LoginRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginRequest.ProtoReflect.Descriptor instead.
 func (*LoginRequest) Descriptor() ([]byte, []int) {
-	return file_user_v1_user_proto_rawDescGZIP(), []int{4}
+	return file_user_v1_user_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *LoginRequest) GetUsername() string {
@@ -313,7 +342,7 @@ type LoginReply struct {
 
 func (x *LoginReply) Reset() {
 	*x = LoginReply{}
-	mi := &file_user_v1_user_proto_msgTypes[5]
+	mi := &file_user_v1_user_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -325,7 +354,7 @@ func (x *LoginReply) String() string {
 func (*LoginReply) ProtoMessage() {}
 
 func (x *LoginReply) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_user_proto_msgTypes[5]
+	mi := &file_user_v1_user_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -338,7 +367,7 @@ func (x *LoginReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginReply.ProtoReflect.Descriptor instead.
 func (*LoginReply) Descriptor() ([]byte, []int) {
-	return file_user_v1_user_proto_rawDescGZIP(), []int{5}
+	return file_user_v1_user_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *LoginReply) GetAccessToken() string {
@@ -386,7 +415,7 @@ type LogoutRequest struct {
 
 func (x *LogoutRequest) Reset() {
 	*x = LogoutRequest{}
-	mi := &file_user_v1_user_proto_msgTypes[6]
+	mi := &file_user_v1_user_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -398,7 +427,7 @@ func (x *LogoutRequest) String() string {
 func (*LogoutRequest) ProtoMessage() {}
 
 func (x *LogoutRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_user_proto_msgTypes[6]
+	mi := &file_user_v1_user_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -411,7 +440,7 @@ func (x *LogoutRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogoutRequest.ProtoReflect.Descriptor instead.
 func (*LogoutRequest) Descriptor() ([]byte, []int) {
-	return file_user_v1_user_proto_rawDescGZIP(), []int{6}
+	return file_user_v1_user_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *LogoutRequest) GetAccessToken() string {
@@ -430,7 +459,7 @@ type RefreshRequest struct {
 
 func (x *RefreshRequest) Reset() {
 	*x = RefreshRequest{}
-	mi := &file_user_v1_user_proto_msgTypes[7]
+	mi := &file_user_v1_user_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -442,7 +471,7 @@ func (x *RefreshRequest) String() string {
 func (*RefreshRequest) ProtoMessage() {}
 
 func (x *RefreshRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_user_proto_msgTypes[7]
+	mi := &file_user_v1_user_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -455,7 +484,7 @@ func (x *RefreshRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RefreshRequest.ProtoReflect.Descriptor instead.
 func (*RefreshRequest) Descriptor() ([]byte, []int) {
-	return file_user_v1_user_proto_rawDescGZIP(), []int{7}
+	return file_user_v1_user_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *RefreshRequest) GetRefreshToken() string {
@@ -469,7 +498,7 @@ var File_user_v1_user_proto protoreflect.FileDescriptor
 
 const file_user_v1_user_proto_rawDesc = "" +
 	"\n" +
-	"\x12user/v1/user.proto\x12\auser.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xa9\x01\n" +
+	"\x12user/v1/user.proto\x12\auser.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x19google/api/httpbody.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xa9\x01\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12!\n" +
@@ -480,12 +509,11 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\fcoin_balance\x18\x06 \x01(\x03R\vcoinBalance\".\n" +
 	"\x0eGetUserRequest\x12\x1c\n" +
 	"\auser_id\x18\x01 \x01(\x04B\x03\xe0A\x02R\x06userId\"\x0e\n" +
-	"\fGetMeRequest\"j\n" +
+	"\fGetMeRequest\"Q\n" +
 	"\x0fUpdateMeRequest\x12&\n" +
-	"\fdisplay_name\x18\x01 \x01(\tB\x03\xe0A\x02R\vdisplayName\x12\x1d\n" +
-	"\n" +
-	"avatar_url\x18\x02 \x01(\tR\tavatarUrl\x12\x10\n" +
-	"\x03bio\x18\x03 \x01(\tR\x03bio\"P\n" +
+	"\fdisplay_name\x18\x01 \x01(\tB\x03\xe0A\x02R\vdisplayName\x12\x10\n" +
+	"\x03bio\x18\x03 \x01(\tR\x03bioJ\x04\b\x02\x10\x03\"\x17\n" +
+	"\x15DeleteMyAvatarRequest\"P\n" +
 	"\fLoginRequest\x12\x1f\n" +
 	"\busername\x18\x01 \x01(\tB\x03\xe0A\x02R\busername\x12\x1f\n" +
 	"\bpassword\x18\x02 \x01(\tB\x03\xe0A\x02R\bpassword\"\xfc\x01\n" +
@@ -500,10 +528,12 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\rLogoutRequest\x12!\n" +
 	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\":\n" +
 	"\x0eRefreshRequest\x12(\n" +
-	"\rrefresh_token\x18\x01 \x01(\tB\x03\xe0A\x02R\frefreshToken2\x84\x04\n" +
+	"\rrefresh_token\x18\x01 \x01(\tB\x03\xe0A\x02R\frefreshToken2\xc1\x05\n" +
 	"\vUserService\x12G\n" +
 	"\x05GetMe\x12\x15.user.v1.GetMeRequest\x1a\r.user.v1.User\"\x18\x82\xd3\xe4\x93\x02\x12\x12\x10/api/v1/users/me\x12P\n" +
-	"\bUpdateMe\x12\x18.user.v1.UpdateMeRequest\x1a\r.user.v1.User\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*2\x10/api/v1/users/me\x12R\n" +
+	"\bUpdateMe\x12\x18.user.v1.UpdateMeRequest\x1a\r.user.v1.User\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*2\x10/api/v1/users/me\x12Y\n" +
+	"\x0eUpdateMyAvatar\x12\x14.google.api.HttpBody\x1a\r.user.v1.User\"\"\x82\xd3\xe4\x93\x02\x1c:\x01*\x1a\x17/api/v1/users/me/avatar\x12`\n" +
+	"\x0eDeleteMyAvatar\x12\x1e.user.v1.DeleteMyAvatarRequest\x1a\r.user.v1.User\"\x1f\x82\xd3\xe4\x93\x02\x19*\x17/api/v1/users/me/avatar\x12R\n" +
 	"\aGetUser\x12\x17.user.v1.GetUserRequest\x1a\r.user.v1.User\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/api/v1/users/{user_id}\x12R\n" +
 	"\x05Login\x12\x15.user.v1.LoginRequest\x1a\x13.user.v1.LoginReply\"\x1d\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/api/v1/auth/login\x12X\n" +
 	"\x06Logout\x12\x16.user.v1.LogoutRequest\x1a\x16.google.protobuf.Empty\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/api/v1/auth/logout\x12X\n" +
@@ -522,40 +552,46 @@ func file_user_v1_user_proto_rawDescGZIP() []byte {
 	return file_user_v1_user_proto_rawDescData
 }
 
-var file_user_v1_user_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_user_v1_user_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_user_v1_user_proto_goTypes = []any{
 	(*User)(nil),                  // 0: user.v1.User
 	(*GetUserRequest)(nil),        // 1: user.v1.GetUserRequest
 	(*GetMeRequest)(nil),          // 2: user.v1.GetMeRequest
 	(*UpdateMeRequest)(nil),       // 3: user.v1.UpdateMeRequest
-	(*LoginRequest)(nil),          // 4: user.v1.LoginRequest
-	(*LoginReply)(nil),            // 5: user.v1.LoginReply
-	(*LogoutRequest)(nil),         // 6: user.v1.LogoutRequest
-	(*RefreshRequest)(nil),        // 7: user.v1.RefreshRequest
-	(*timestamppb.Timestamp)(nil), // 8: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),         // 9: google.protobuf.Empty
+	(*DeleteMyAvatarRequest)(nil), // 4: user.v1.DeleteMyAvatarRequest
+	(*LoginRequest)(nil),          // 5: user.v1.LoginRequest
+	(*LoginReply)(nil),            // 6: user.v1.LoginReply
+	(*LogoutRequest)(nil),         // 7: user.v1.LogoutRequest
+	(*RefreshRequest)(nil),        // 8: user.v1.RefreshRequest
+	(*timestamppb.Timestamp)(nil), // 9: google.protobuf.Timestamp
+	(*httpbody.HttpBody)(nil),     // 10: google.api.HttpBody
+	(*emptypb.Empty)(nil),         // 11: google.protobuf.Empty
 }
 var file_user_v1_user_proto_depIdxs = []int32{
-	8, // 0: user.v1.LoginReply.expires_at:type_name -> google.protobuf.Timestamp
-	0, // 1: user.v1.LoginReply.user:type_name -> user.v1.User
-	8, // 2: user.v1.LoginReply.refresh_expires_at:type_name -> google.protobuf.Timestamp
-	2, // 3: user.v1.UserService.GetMe:input_type -> user.v1.GetMeRequest
-	3, // 4: user.v1.UserService.UpdateMe:input_type -> user.v1.UpdateMeRequest
-	1, // 5: user.v1.UserService.GetUser:input_type -> user.v1.GetUserRequest
-	4, // 6: user.v1.UserService.Login:input_type -> user.v1.LoginRequest
-	6, // 7: user.v1.UserService.Logout:input_type -> user.v1.LogoutRequest
-	7, // 8: user.v1.UserService.Refresh:input_type -> user.v1.RefreshRequest
-	0, // 9: user.v1.UserService.GetMe:output_type -> user.v1.User
-	0, // 10: user.v1.UserService.UpdateMe:output_type -> user.v1.User
-	0, // 11: user.v1.UserService.GetUser:output_type -> user.v1.User
-	5, // 12: user.v1.UserService.Login:output_type -> user.v1.LoginReply
-	9, // 13: user.v1.UserService.Logout:output_type -> google.protobuf.Empty
-	5, // 14: user.v1.UserService.Refresh:output_type -> user.v1.LoginReply
-	9, // [9:15] is the sub-list for method output_type
-	3, // [3:9] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	9,  // 0: user.v1.LoginReply.expires_at:type_name -> google.protobuf.Timestamp
+	0,  // 1: user.v1.LoginReply.user:type_name -> user.v1.User
+	9,  // 2: user.v1.LoginReply.refresh_expires_at:type_name -> google.protobuf.Timestamp
+	2,  // 3: user.v1.UserService.GetMe:input_type -> user.v1.GetMeRequest
+	3,  // 4: user.v1.UserService.UpdateMe:input_type -> user.v1.UpdateMeRequest
+	10, // 5: user.v1.UserService.UpdateMyAvatar:input_type -> google.api.HttpBody
+	4,  // 6: user.v1.UserService.DeleteMyAvatar:input_type -> user.v1.DeleteMyAvatarRequest
+	1,  // 7: user.v1.UserService.GetUser:input_type -> user.v1.GetUserRequest
+	5,  // 8: user.v1.UserService.Login:input_type -> user.v1.LoginRequest
+	7,  // 9: user.v1.UserService.Logout:input_type -> user.v1.LogoutRequest
+	8,  // 10: user.v1.UserService.Refresh:input_type -> user.v1.RefreshRequest
+	0,  // 11: user.v1.UserService.GetMe:output_type -> user.v1.User
+	0,  // 12: user.v1.UserService.UpdateMe:output_type -> user.v1.User
+	0,  // 13: user.v1.UserService.UpdateMyAvatar:output_type -> user.v1.User
+	0,  // 14: user.v1.UserService.DeleteMyAvatar:output_type -> user.v1.User
+	0,  // 15: user.v1.UserService.GetUser:output_type -> user.v1.User
+	6,  // 16: user.v1.UserService.Login:output_type -> user.v1.LoginReply
+	11, // 17: user.v1.UserService.Logout:output_type -> google.protobuf.Empty
+	6,  // 18: user.v1.UserService.Refresh:output_type -> user.v1.LoginReply
+	11, // [11:19] is the sub-list for method output_type
+	3,  // [3:11] is the sub-list for method input_type
+	3,  // [3:3] is the sub-list for extension type_name
+	3,  // [3:3] is the sub-list for extension extendee
+	0,  // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_user_v1_user_proto_init() }
@@ -569,7 +605,7 @@ func file_user_v1_user_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_v1_user_proto_rawDesc), len(file_user_v1_user_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

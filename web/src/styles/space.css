@@ -3,8 +3,7 @@
 }
 
 .profile-band {
-  background:
-    linear-gradient(110deg, oklch(88% 0.08 217), oklch(93% 0.055 7) 68%, oklch(96% 0.03 152));
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
 
@@ -297,6 +296,74 @@
 .profile-editor textarea:focus {
   border-color: var(--accent);
   background: var(--surface);
+}
+
+.avatar-editor {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.avatar-editor .profile-avatar.large {
+  width: 78px;
+  height: 78px;
+  font-size: 28px;
+}
+
+.avatar-editor strong,
+.avatar-editor p {
+  display: block;
+  margin: 0;
+}
+
+.avatar-editor p {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.avatar-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.avatar-editor-actions .secondary-button {
+  min-height: 34px;
+  padding-inline: 11px;
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+.avatar-remove-button {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 11px;
+  color: var(--danger);
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+  background: transparent;
+}
+
+.avatar-remove-button:hover {
+  background: color-mix(in oklch, var(--danger) 8%, var(--surface));
+}
+
+.visually-hidden-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
 }
 
 .profile-editor footer {

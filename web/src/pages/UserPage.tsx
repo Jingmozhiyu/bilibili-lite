@@ -1,5 +1,5 @@
-import { Coins, Edit3, Film, Heart, MessageCircle, Star, UserRound, X } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { Camera, Coins, Edit3, Film, Heart, MessageCircle, Star, Trash2, UserRound, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   authorizedJson,
@@ -83,9 +83,17 @@ export function UserPage() {
 function ProfileHeader({ profile, ownPage, onUpdated }: { profile: UserProfile; ownPage: boolean; onUpdated: (profile: UserProfile) => void }) {
   const { session, setSession } = useAuth()
   const [editing, setEditing] = useState(false)
-  const [form, setForm] = useState({ displayName: profile.displayName, avatarUrl: profile.avatarUrl || '', bio: profile.bio || '' })
+  const [form, setForm] = useState({ displayName: profile.displayName, bio: profile.bio || '' })
   const [pending, setPending] = useState(false)
+  const [avatarPending, setAvatarPending] = useState(false)
   const [error, setError] = useState('')
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+
+  function openEditor() {
+    setForm({ displayName: profile.displayName, bio: profile.bio || '' })
+    setError('')
+    setEditing(true)
+  }
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -95,7 +103,7 @@ function ProfileHeader({ profile, ownPage, onUpdated }: { profile: UserProfile; 
     try {
       const result = await authorizedJson<unknown>('/api/v1/users/me', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ display_name: form.displayName, avatar_url: form.avatarUrl, bio: form.bio }),
+        body: JSON.stringify({ display_name: form.displayName, bio: form.bio }),
       }, session)
       const next = normalizeUser(result.data)
       setSession({ ...result.session, user: next })
@@ -108,6 +116,53 @@ function ProfileHeader({ profile, ownPage, onUpdated }: { profile: UserProfile; 
     }
   }
 
+  async function uploadAvatar(file: File) {
+    if (!session) return
+    const validExtension = /\.(jpe?g|png)$/i.test(file.name)
+    const validType = file.type === '' || file.type === 'image/jpeg' || file.type === 'image/png'
+    if (!validExtension || !validType) {
+      setError('头像仅支持 JPG 或 PNG 图片')
+      if (avatarInputRef.current) avatarInputRef.current.value = ''
+      return
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError('头像不能超过 10 MB')
+      if (avatarInputRef.current) avatarInputRef.current.value = ''
+      return
+    }
+    setAvatarPending(true)
+    setError('')
+    try {
+      const result = await authorizedJson<unknown>('/api/v1/users/me/avatar', {
+        method: 'PUT', headers: { 'Content-Type': file.type }, body: file,
+      }, session)
+      const next = normalizeUser(result.data)
+      setSession({ ...result.session, user: next })
+      onUpdated(next)
+    } catch (uploadError) {
+      setError(toErrorMessage(uploadError, '头像上传失败'))
+    } finally {
+      setAvatarPending(false)
+      if (avatarInputRef.current) avatarInputRef.current.value = ''
+    }
+  }
+
+  async function removeAvatar() {
+    if (!session || !profile.avatarUrl) return
+    setAvatarPending(true)
+    setError('')
+    try {
+      const result = await authorizedJson<unknown>('/api/v1/users/me/avatar', { method: 'DELETE' }, session)
+      const next = normalizeUser(result.data)
+      setSession({ ...result.session, user: next })
+      onUpdated(next)
+    } catch (removeError) {
+      setError(toErrorMessage(removeError, '头像移除失败'))
+    } finally {
+      setAvatarPending(false)
+    }
+  }
+
   return (
     <section className="profile-band">
       <div className="profile-inner">
@@ -116,14 +171,25 @@ function ProfileHeader({ profile, ownPage, onUpdated }: { profile: UserProfile; 
           <div><h1>{profile.displayName || profile.username}</h1><span>@{profile.username}</span></div>
           <p>{profile.bio || '这个人还没有写个人简介。'}</p>
         </div>
-        {ownPage && <button type="button" className="profile-edit-button" onClick={() => setEditing(true)}><Edit3 size={17} />编辑资料</button>}
+        {ownPage && <button type="button" className="profile-edit-button" onClick={openEditor}><Edit3 size={17} />编辑资料</button>}
       </div>
       {editing && (
         <div className="profile-editor-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditing(false) }}>
           <form className="profile-editor" onSubmit={save}>
             <header><div><strong>编辑资料</strong><p>这些信息会显示在个人主页和视频作者栏。</p></div><button type="button" className="icon-button" aria-label="关闭" title="关闭" onClick={() => setEditing(false)}><X size={19} /></button></header>
+            <div className="avatar-editor">
+              <Avatar profile={profile} size="large" />
+              <div>
+                <strong>个人头像</strong>
+                <p>支持 JPG、PNG，文件不超过 10 MB</p>
+                <div className="avatar-editor-actions">
+                  <label className="secondary-button" htmlFor="avatar-upload"><Camera size={16} />{avatarPending ? '处理中' : '更换头像'}</label>
+                  {profile.avatarUrl && <button type="button" className="avatar-remove-button" disabled={avatarPending} onClick={() => void removeAvatar()}><Trash2 size={16} />恢复默认</button>}
+                </div>
+                <input ref={avatarInputRef} id="avatar-upload" className="visually-hidden-input" type="file" disabled={avatarPending} accept="image/jpeg,image/png,.jpg,.jpeg,.png" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadAvatar(file) }} />
+              </div>
+            </div>
             <label><span>昵称</span><input maxLength={100} required value={form.displayName} onChange={(event) => setForm({ ...form, displayName: event.target.value })} /></label>
-            <label><span>头像地址</span><input maxLength={500} placeholder="https://..." value={form.avatarUrl} onChange={(event) => setForm({ ...form, avatarUrl: event.target.value })} /></label>
             <label><span>个人简介</span><textarea maxLength={500} rows={4} value={form.bio} onChange={(event) => setForm({ ...form, bio: event.target.value })} /></label>
             {error && <p className="form-error" role="alert">{error}</p>}
             <footer><button type="button" className="secondary-button" onClick={() => setEditing(false)}>取消</button><button type="submit" className="primary-button" disabled={pending}>{pending ? '保存中' : '保存'}</button></footer>

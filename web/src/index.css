@@ -54,6 +54,10 @@ textarea {
   font: inherit;
 }
 
+img {
+  display: block;
+}
+
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,

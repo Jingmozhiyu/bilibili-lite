@@ -86,6 +86,35 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/user.v1.User'
+    /api/v1/users/me/avatar:
+        put:
+            tags:
+                - UserService
+            operationId: UserService_UpdateMyAvatar
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            type: string
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/user.v1.User'
+        delete:
+            tags:
+                - UserService
+            operationId: UserService_DeleteMyAvatar
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/user.v1.User'
     /api/v1/users/me/video-coins:
         get:
             tags:
@@ -759,8 +788,6 @@ components:
             type: object
             properties:
                 displayName:
-                    type: string
-                avatarUrl:
                     type: string
                 bio:
                     type: string

@@ -60,7 +60,9 @@ export function AuthMenu({ open, onOpenChange, onUpload }: AuthMenuProps) {
           setError('')
         }}
       >
-        {restoring ? '…' : session ? userLabel.slice(0, 1).toUpperCase() : '登录'}
+        {restoring ? '…' : session ? (
+          session.user.avatarUrl ? <img src={session.user.avatarUrl} alt="" /> : userLabel.slice(0, 1).toUpperCase()
+        ) : '登录'}
       </button>
 
       {open && (
@@ -68,7 +70,9 @@ export function AuthMenu({ open, onOpenChange, onUpload }: AuthMenuProps) {
           {session ? (
             <div className="account-panel">
               <div className="account-profile">
-                <span className="account-avatar">{userLabel.slice(0, 1).toUpperCase()}</span>
+                <span className="account-avatar">
+                  {session.user.avatarUrl ? <img src={session.user.avatarUrl} alt="" /> : userLabel.slice(0, 1).toUpperCase()}
+                </span>
                 <div><strong>{userLabel}</strong><small>@{session.user.username}</small></div>
               </div>
               <div className="coin-balance"><Coins size={17} /><span>硬币余额</span><strong>{session.user.coinBalance}</strong></div>

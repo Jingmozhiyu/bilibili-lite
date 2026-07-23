@@ -5,8 +5,10 @@ import (
 
 	v1 "bilibili-lite/api/user/v1"
 	"bilibili-lite/internal/biz"
+	"bilibili-lite/internal/media"
 	appMiddleware "bilibili-lite/internal/middleware"
 
+	"google.golang.org/genproto/googleapis/api/httpbody"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -15,12 +17,13 @@ import (
 type UserService struct {
 	v1.UnimplementedUserServiceServer
 
-	userUsecase *biz.UserUsecase
+	userUsecase  *biz.UserUsecase
+	mediaManager *media.Manager
 }
 
-// NewUserService creates the transport adapter for authentication operations.
-func NewUserService(userUsecase *biz.UserUsecase) *UserService {
-	return &UserService{userUsecase: userUsecase}
+// NewUserService creates the transport adapter for authentication and profile operations.
+func NewUserService(userUsecase *biz.UserUsecase, mediaManager *media.Manager) *UserService {
+	return &UserService{userUsecase: userUsecase, mediaManager: mediaManager}
 }
 
 // GetUser returns one public profile without private account fields.
@@ -52,11 +55,44 @@ func (s *UserService) UpdateMe(ctx context.Context, req *v1.UpdateMeRequest) (*v
 		return nil, err
 	}
 	user, err := s.userUsecase.UpdateMe(ctx, userID, biz.UserProfileUpdate{
-		DisplayName: req.GetDisplayName(), AvatarURL: req.GetAvatarUrl(), Bio: req.GetBio(),
+		DisplayName: req.GetDisplayName(), Bio: req.GetBio(),
 	})
 	if err != nil {
 		return nil, err
 	}
+	return convertUserReply(user), nil
+}
+
+// UpdateMyAvatar validates a buffered HTTP image body and replaces the caller's managed avatar.
+func (s *UserService) UpdateMyAvatar(ctx context.Context, req *httpbody.HttpBody) (*v1.User, error) {
+	userID, err := appMiddleware.RequireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	avatarURL, err := s.mediaManager.StoreAvatar(ctx, req.GetData())
+	if err != nil {
+		return nil, biz.ErrUserAvatarInvalid
+	}
+	user, previous, err := s.userUsecase.UpdateAvatar(ctx, userID, avatarURL)
+	if err != nil {
+		_ = s.mediaManager.RemoveAvatar(avatarURL)
+		return nil, err
+	}
+	_ = s.mediaManager.RemoveAvatar(previous)
+	return convertUserReply(user), nil
+}
+
+// DeleteMyAvatar clears the caller's avatar URL and removes the previous managed file.
+func (s *UserService) DeleteMyAvatar(ctx context.Context, _ *v1.DeleteMyAvatarRequest) (*v1.User, error) {
+	userID, err := appMiddleware.RequireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	user, previous, err := s.userUsecase.UpdateAvatar(ctx, userID, "")
+	if err != nil {
+		return nil, err
+	}
+	_ = s.mediaManager.RemoveAvatar(previous)
 	return convertUserReply(user), nil
 }
 

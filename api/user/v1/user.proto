@@ -4,6 +4,7 @@ package user.v1;
 
 import "google/api/annotations.proto";
 import "google/api/field_behavior.proto";
+import "google/api/httpbody.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -22,6 +23,19 @@ service UserService {
     option (google.api.http) = {
       patch: "/api/v1/users/me"
       body: "*"
+    };
+  }
+
+  rpc UpdateMyAvatar(google.api.HttpBody) returns (User) {
+    option (google.api.http) = {
+      put: "/api/v1/users/me/avatar"
+      body: "*"
+    };
+  }
+
+  rpc DeleteMyAvatar(DeleteMyAvatarRequest) returns (User) {
+    option (google.api.http) = {
+      delete: "/api/v1/users/me/avatar"
     };
   }
 
@@ -70,9 +84,11 @@ message GetMeRequest {}
 
 message UpdateMeRequest {
   string display_name = 1 [(google.api.field_behavior) = REQUIRED];
-  string avatar_url = 2;
+  reserved 2;
   string bio = 3;
 }
+
+message DeleteMyAvatarRequest {}
 
 message LoginRequest {
   string username = 1 [(google.api.field_behavior) = REQUIRED];

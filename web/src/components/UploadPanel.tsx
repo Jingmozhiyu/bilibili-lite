@@ -26,18 +26,61 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
   const [phase, setPhase] = useState<UploadPhase>('idle')
   const [progress, setProgress] = useState(0)
   const [message, setMessage] = useState('')
+  const [fileError, setFileError] = useState('')
   const [result, setResult] = useState<UploadResult | null>(null)
+  const [inputVersion, setInputVersion] = useState(0)
   const requestRef = useRef<XMLHttpRequest | null>(null)
+  const requestVersionRef = useRef(0)
+  const redirectTimerRef = useRef<number | null>(null)
 
-  useEffect(() => () => requestRef.current?.abort(), [])
+  useEffect(() => () => {
+    requestVersionRef.current += 1
+    requestRef.current?.abort()
+    if (redirectTimerRef.current) window.clearTimeout(redirectTimerRef.current)
+  }, [])
+
+  function resetPanel() {
+    requestVersionRef.current += 1
+    requestRef.current?.abort()
+    requestRef.current = null
+    if (redirectTimerRef.current) window.clearTimeout(redirectTimerRef.current)
+    redirectTimerRef.current = null
+    setTitle('')
+    setDescription('')
+    setTags('')
+    setVideoFile(null)
+    setCoverFile(null)
+    setPhase('idle')
+    setProgress(0)
+    setMessage('')
+    setFileError('')
+    setResult(null)
+    setInputVersion((current) => current + 1)
+  }
+
+  function closePanel() {
+    resetPanel()
+    onClose()
+  }
 
   async function startUpload(file: File) {
     if (!session) return
+    const fileErrorMessage = validateMP4File(file)
+    if (fileErrorMessage) {
+      setFileError(fileErrorMessage)
+      setVideoFile(null)
+      setPhase('idle')
+      setInputVersion((current) => current + 1)
+      return
+    }
+    const requestVersion = requestVersionRef.current + 1
+    requestVersionRef.current = requestVersion
     requestRef.current?.abort()
     setVideoFile(file)
     setPhase('uploading')
     setProgress(0)
     setMessage('')
+    setFileError('')
     setResult(null)
     try {
       const activeSession = await ensureFreshAuthSession(session)
@@ -74,10 +117,12 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
         request.addEventListener('abort', () => reject(new Error('上传已取消')))
         request.send(form)
       })
+      if (requestVersion !== requestVersionRef.current) return
       setResult(uploadResult)
       setPhase('ready')
       setMessage('视频处理完成，填写信息后即可发布')
     } catch (uploadError) {
+      if (requestVersion !== requestVersionRef.current) return
       setPhase('error')
       setMessage(toErrorMessage(uploadError, '上传失败'))
     }
@@ -100,9 +145,11 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
       setSession(nextSession)
       setPhase('success')
       setMessage('发布成功')
-      window.setTimeout(() => {
+      const bvid = result.bvid
+      redirectTimerRef.current = window.setTimeout(() => {
+        resetPanel()
         onClose()
-        navigate(`/video/${result.bvid}`)
+        navigate(`/video/${bvid}`)
       }, 500)
     } catch (publishError) {
       setPhase('error')
@@ -114,25 +161,26 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
   const uploadLocked = phase === 'uploading' || phase === 'processing' || phase === 'ready' || phase === 'publishing' || phase === 'success'
 
   return (
-    <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
+    <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closePanel() }}>
       <section className="upload-dialog" role="dialog" aria-modal="true" aria-labelledby="upload-dialog-title">
         <header className="dialog-heading">
           <div><strong id="upload-dialog-title">投稿视频</strong><span>选择视频后自动上传，期间可以继续填写信息</span></div>
-          <button type="button" className="icon-button" aria-label="关闭投稿" title="关闭" onClick={onClose}><X size={20} /></button>
+          <button type="button" className="icon-button" aria-label="关闭投稿" title="关闭" onClick={closePanel}><X size={20} /></button>
         </header>
         <form className="upload-form" onSubmit={publish}>
           <div className="upload-pickers">
             <label className={uploadLocked ? 'file-picker disabled' : 'file-picker'}>
               <ImagePlus size={22} /><span>{coverFile ? coverFile.name : '自定义封面（可选）'}</span>
               <small>{coverFile ? formatFileSize(coverFile.size) : '先选封面；留空则自动截帧'}</small>
-              <input type="file" disabled={uploadLocked} accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" onChange={(event) => setCoverFile(event.target.files?.[0] ?? null)} />
+              <input key={`cover-${inputVersion}`} type="file" disabled={uploadLocked} accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" onChange={(event) => setCoverFile(event.target.files?.[0] ?? null)} />
             </label>
             <label className={uploadLocked ? 'file-picker disabled' : 'file-picker primary'}>
               <FileVideo size={22} /><span>{videoFile ? videoFile.name : '选择 MP4 视频'}</span>
-              <small>{videoFile ? formatFileSize(videoFile.size) : '选择后立即开始上传'}</small>
-              <input type="file" disabled={uploadLocked} accept="video/mp4,.mp4" onChange={(event) => { const file = event.target.files?.[0]; if (file) void startUpload(file) }} />
+              <small>{videoFile ? formatFileSize(videoFile.size) : '仅支持 .mp4，选择后立即开始上传'}</small>
+              <input key={`video-${inputVersion}`} type="file" disabled={uploadLocked} accept="video/mp4,.mp4" onChange={(event) => { const file = event.target.files?.[0]; if (file) void startUpload(file) }} />
             </label>
           </div>
+          {fileError && <p className="upload-file-error" role="alert">{fileError}</p>}
 
           {phase !== 'idle' && (
             <div className={`upload-progress-panel ${phase}`} aria-live="polite">
@@ -158,4 +206,10 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
       </section>
     </div>
   )
+}
+
+function validateMP4File(file: File) {
+  if (!/\.mp4$/i.test(file.name)) return '当前仅支持 .mp4 视频，请重新选择文件'
+  if (file.type && file.type !== 'video/mp4' && file.type !== 'application/mp4') return '文件格式与 .mp4 扩展名不匹配'
+  return ''
 }

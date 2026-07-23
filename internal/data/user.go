@@ -7,6 +7,7 @@ import (
 	"bilibili-lite/internal/biz"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type userRepo struct {
@@ -66,7 +67,6 @@ func (r *userRepo) UpdateUserProfile(ctx context.Context, id uint64, update biz.
 		}
 		if err := tx.Model(&user).Updates(map[string]any{
 			"display_name": update.DisplayName,
-			"avatar_url":   update.AvatarURL,
 			"bio":          update.Bio,
 		}).Error; err != nil {
 			return err
@@ -83,4 +83,31 @@ func (r *userRepo) UpdateUserProfile(ctx context.Context, id uint64, update biz.
 		ID: user.ID, Username: user.Username, DisplayName: user.DisplayName,
 		AvatarURL: user.AvatarURL, Bio: user.Bio, CoinBalance: user.CoinBalance,
 	}, nil
+}
+
+// UpdateUserAvatar serializes avatar replacement and returns the previous URL for file cleanup.
+func (r *userRepo) UpdateUserAvatar(ctx context.Context, id uint64, avatarURL string) (*biz.User, string, error) {
+	var user userPO
+	var previous string
+	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&user, id).Error; err != nil {
+			return err
+		}
+		previous = user.AvatarURL
+		if err := tx.Model(&user).Update("avatar_url", avatarURL).Error; err != nil {
+			return err
+		}
+		user.AvatarURL = avatarURL
+		return nil
+	})
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, "", biz.ErrUserNotFound
+	}
+	if err != nil {
+		return nil, "", biz.ErrUserStorage
+	}
+	return &biz.User{
+		ID: user.ID, Username: user.Username, DisplayName: user.DisplayName,
+		AvatarURL: user.AvatarURL, Bio: user.Bio, CoinBalance: user.CoinBalance,
+	}, previous, nil
 }
