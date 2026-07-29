@@ -36,6 +36,7 @@ go test ./...
 - Wire-based dependency injection.
 - Layered `service`, `biz`, and `data` packages.
 - PostgreSQL repositories implemented with GORM.
+- Meilisearch-backed published-video search.
 - Unit tests for the service layer.
 - Server-streaming and bidirectional-streaming examples.
 
@@ -116,10 +117,10 @@ go test ./...
 
 ## Run Locally
 
-Start PostgreSQL first:
+Start PostgreSQL and Meilisearch first:
 
 ```bash
-docker compose up -d postgres
+docker compose up -d postgres meilisearch
 ```
 
 MP4 uploads are converted into separate DASH audio and video segments by
@@ -129,8 +130,8 @@ FFmpeg. Install both `ffmpeg` and `ffprobe` before testing uploads. On macOS:
 brew install ffmpeg
 ```
 
-The service uses GORM to create the development schema and inserts three demo
-users without creating sample videos. `videos.id` is the numeric auto-increment
+The service applies embedded SQL migrations and inserts three demo users plus
+one administrator without creating sample videos. `videos.id` is the numeric auto-increment
 primary key, and the API formats it as `BV1`, `BV2`, and so on. Related tables
 store `video_id` numeric foreign keys; BVID strings are not persisted.
 
@@ -156,6 +157,11 @@ curl -X POST http://127.0.0.1:8000/api/v1/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"username":"demo","password":"demo123456"}'
 ```
+
+The local administrator seed creates `admin` / `demo123456`. If an `admin`
+username already exists, startup only repairs its role to `admin` and preserves
+the existing password and profile. Open `/admin` to log in and enter the
+moderation queue.
 
 Refresh both tokens with the Refresh JWT:
 
@@ -189,21 +195,23 @@ curl -X POST http://127.0.0.1:8000/api/v1/videos/upload \
 ```
 
 The request allocates the numeric video row and BV identifier immediately. It
-returns after DASH processing reaches `ready`; final metadata is submitted in a
-separate publication step:
+returns after DASH processing reaches `ready`; final metadata is then submitted
+for administrator review:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/api/v1/videos/BV1/publish \
+curl -X POST http://127.0.0.1:8000/api/v1/videos/BV1/submit-review \
   -H 'Authorization: Bearer <access-token>' \
   -H 'Content-Type: application/json' \
   -d '{"title":"My video","description":"Uploaded locally","tags":["local","DASH"]}'
 ```
 
-The lifecycle is `processing -> ready -> published`, with terminal `failed`
-and `deleted` states. Every inserted video consumes its auto-increment ID even
-when processing fails or it is later deleted. DASH is the only supported
-playback format; the original MP4 is retained only as a temporary transcoding
-input. Published manifests live at
+The moderation lifecycle is
+`processing -> ready -> pending_review -> published/rejected`; upload failures
+and owner deletion use `failed` and `deleted`. Every inserted video consumes
+its auto-increment ID even when processing fails or it is later deleted. Only
+`published` videos appear in public lists, search, history hydration, and
+playback APIs. DASH is the only supported playback format; the original MP4 is
+retained only as a temporary transcoding input. Published manifests live at
 `/media/dash/<BVID>/manifest.mpd`. Incomplete jobs live under
 `cmd/bilibili-lite/storage/.uploads` during local development and are removed
 after 30 seconds without upload or transcode activity.
@@ -213,7 +221,13 @@ Homepage and public submission feeds use paginated list endpoints:
 ```text
 GET /api/v1/videos?page_size=20&page_token=...
 GET /api/v1/users/{user_id}/videos?page_size=20&page_token=...
+GET /api/v1/search/videos?query=...&order=1&page_size=20&page_token=...
 ```
+
+PostgreSQL is authoritative for video visibility and metadata. Meilisearch is
+a rebuildable ranking index that is refreshed from published rows at startup;
+its `order` values cover relevance, views, publication time, danmaku, and
+favorites.
 
 A logged-in view is counted only after completing a server-timed session at
 least five seconds after it started. The same account/video pair can increment
@@ -249,11 +263,25 @@ Interaction history and public discussion endpoints are paginated:
 GET    /api/v1/users/me/video-likes
 GET    /api/v1/users/me/video-favorites
 GET    /api/v1/users/me/video-coins
+GET    /api/v1/users/me/watch-history
 POST   /api/v1/videos/{bvid}/danmakus
 DELETE /api/v1/videos/{bvid}/danmakus/{danmaku_id}
 GET    /api/v1/videos/{bvid}/comments
 POST   /api/v1/videos/{bvid}/comments
 DELETE /api/v1/videos/{bvid}/comments/{comment_id}
+```
+
+Administrator moderation endpoints are protected by both JWT identity and the
+admin middleware:
+
+```text
+GET    /api/v1/admin/videos?status=pending_review|rejected
+GET    /api/v1/admin/videos/{bvid}
+GET    /api/v1/admin/videos/{bvid}/play
+POST   /api/v1/admin/videos/{bvid}/approve
+POST   /api/v1/admin/videos/{bvid}/reject
+POST   /api/v1/admin/videos/{bvid}/take-down
+DELETE /api/v1/admin/videos/{bvid}?reason=...
 ```
 
 Embedded, versioned PostgreSQL migrations in `internal/data/migrations` are

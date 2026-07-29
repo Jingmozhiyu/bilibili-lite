@@ -138,6 +138,7 @@ type Data struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Database      *Data_Database         `protobuf:"bytes,1,opt,name=database,proto3" json:"database,omitempty"`
 	Media         *Data_Media            `protobuf:"bytes,3,opt,name=media,proto3" json:"media,omitempty"`
+	Search        *Data_Search           `protobuf:"bytes,4,opt,name=search,proto3" json:"search,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -182,6 +183,13 @@ func (x *Data) GetDatabase() *Data_Database {
 func (x *Data) GetMedia() *Data_Media {
 	if x != nil {
 		return x.Media
+	}
+	return nil
+}
+
+func (x *Data) GetSearch() *Data_Search {
+	if x != nil {
+		return x.Search
 	}
 	return nil
 }
@@ -502,6 +510,66 @@ func (x *Data_Media) GetMaxCoverBytes() int64 {
 	return 0
 }
 
+type Data_Search struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Address       string                 `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
+	ApiKey        string                 `protobuf:"bytes,2,opt,name=api_key,json=apiKey,proto3" json:"api_key,omitempty"`
+	VideoIndex    string                 `protobuf:"bytes,3,opt,name=video_index,json=videoIndex,proto3" json:"video_index,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Data_Search) Reset() {
+	*x = Data_Search{}
+	mi := &file_conf_conf_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Data_Search) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Data_Search) ProtoMessage() {}
+
+func (x *Data_Search) ProtoReflect() protoreflect.Message {
+	mi := &file_conf_conf_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Data_Search.ProtoReflect.Descriptor instead.
+func (*Data_Search) Descriptor() ([]byte, []int) {
+	return file_conf_conf_proto_rawDescGZIP(), []int{2, 2}
+}
+
+func (x *Data_Search) GetAddress() string {
+	if x != nil {
+		return x.Address
+	}
+	return ""
+}
+
+func (x *Data_Search) GetApiKey() string {
+	if x != nil {
+		return x.ApiKey
+	}
+	return ""
+}
+
+func (x *Data_Search) GetVideoIndex() string {
+	if x != nil {
+		return x.VideoIndex
+	}
+	return ""
+}
+
 var File_conf_conf_proto protoreflect.FileDescriptor
 
 const file_conf_conf_proto_rawDesc = "" +
@@ -522,10 +590,11 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\x04GRPC\x12\x18\n" +
 	"\anetwork\x18\x01 \x01(\tR\anetwork\x12\x12\n" +
 	"\x04addr\x18\x02 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xbd\x03\n" +
+	"\atimeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xcc\x04\n" +
 	"\x04Data\x125\n" +
 	"\bdatabase\x18\x01 \x01(\v2\x19.kratos.api.Data.DatabaseR\bdatabase\x12,\n" +
-	"\x05media\x18\x03 \x01(\v2\x16.kratos.api.Data.MediaR\x05media\x1a:\n" +
+	"\x05media\x18\x03 \x01(\v2\x16.kratos.api.Data.MediaR\x05media\x12/\n" +
+	"\x06search\x18\x04 \x01(\v2\x17.kratos.api.Data.SearchR\x06search\x1a:\n" +
 	"\bDatabase\x12\x16\n" +
 	"\x06driver\x18\x01 \x01(\tR\x06driver\x12\x16\n" +
 	"\x06source\x18\x02 \x01(\tR\x06source\x1a\x8d\x02\n" +
@@ -535,7 +604,12 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\x13upload_idle_timeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x11uploadIdleTimeout\x12F\n" +
 	"\x11transcode_timeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\x10transcodeTimeout\x12(\n" +
 	"\x10max_upload_bytes\x18\x04 \x01(\x03R\x0emaxUploadBytes\x12&\n" +
-	"\x0fmax_cover_bytes\x18\x05 \x01(\x03R\rmaxCoverBytesJ\x04\b\x02\x10\x03\"\xac\x01\n" +
+	"\x0fmax_cover_bytes\x18\x05 \x01(\x03R\rmaxCoverBytes\x1a\\\n" +
+	"\x06Search\x12\x18\n" +
+	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x17\n" +
+	"\aapi_key\x18\x02 \x01(\tR\x06apiKey\x12\x1f\n" +
+	"\vvideo_index\x18\x03 \x01(\tR\n" +
+	"videoIndexJ\x04\b\x02\x10\x03\"\xac\x01\n" +
 	"\x04Auth\x12\x16\n" +
 	"\x06issuer\x18\x01 \x01(\tR\x06issuer\x12\x16\n" +
 	"\x06secret\x18\x02 \x01(\tR\x06secret\x128\n" +
@@ -556,7 +630,7 @@ func file_conf_conf_proto_rawDescGZIP() []byte {
 	return file_conf_conf_proto_rawDescData
 }
 
-var file_conf_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_conf_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_conf_conf_proto_goTypes = []any{
 	(*Bootstrap)(nil),           // 0: kratos.api.Bootstrap
 	(*Server)(nil),              // 1: kratos.api.Server
@@ -566,7 +640,8 @@ var file_conf_conf_proto_goTypes = []any{
 	(*Server_GRPC)(nil),         // 5: kratos.api.Server.GRPC
 	(*Data_Database)(nil),       // 6: kratos.api.Data.Database
 	(*Data_Media)(nil),          // 7: kratos.api.Data.Media
-	(*durationpb.Duration)(nil), // 8: google.protobuf.Duration
+	(*Data_Search)(nil),         // 8: kratos.api.Data.Search
+	(*durationpb.Duration)(nil), // 9: google.protobuf.Duration
 }
 var file_conf_conf_proto_depIdxs = []int32{
 	1,  // 0: kratos.api.Bootstrap.server:type_name -> kratos.api.Server
@@ -576,17 +651,18 @@ var file_conf_conf_proto_depIdxs = []int32{
 	5,  // 4: kratos.api.Server.grpc:type_name -> kratos.api.Server.GRPC
 	6,  // 5: kratos.api.Data.database:type_name -> kratos.api.Data.Database
 	7,  // 6: kratos.api.Data.media:type_name -> kratos.api.Data.Media
-	8,  // 7: kratos.api.Auth.access_ttl:type_name -> google.protobuf.Duration
-	8,  // 8: kratos.api.Auth.refresh_ttl:type_name -> google.protobuf.Duration
-	8,  // 9: kratos.api.Server.HTTP.timeout:type_name -> google.protobuf.Duration
-	8,  // 10: kratos.api.Server.GRPC.timeout:type_name -> google.protobuf.Duration
-	8,  // 11: kratos.api.Data.Media.upload_idle_timeout:type_name -> google.protobuf.Duration
-	8,  // 12: kratos.api.Data.Media.transcode_timeout:type_name -> google.protobuf.Duration
-	13, // [13:13] is the sub-list for method output_type
-	13, // [13:13] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	8,  // 7: kratos.api.Data.search:type_name -> kratos.api.Data.Search
+	9,  // 8: kratos.api.Auth.access_ttl:type_name -> google.protobuf.Duration
+	9,  // 9: kratos.api.Auth.refresh_ttl:type_name -> google.protobuf.Duration
+	9,  // 10: kratos.api.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	9,  // 11: kratos.api.Server.GRPC.timeout:type_name -> google.protobuf.Duration
+	9,  // 12: kratos.api.Data.Media.upload_idle_timeout:type_name -> google.protobuf.Duration
+	9,  // 13: kratos.api.Data.Media.transcode_timeout:type_name -> google.protobuf.Duration
+	14, // [14:14] is the sub-list for method output_type
+	14, // [14:14] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_conf_conf_proto_init() }
@@ -600,7 +676,7 @@ func file_conf_conf_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_conf_conf_proto_rawDesc), len(file_conf_conf_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

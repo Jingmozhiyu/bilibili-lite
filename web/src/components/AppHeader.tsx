@@ -1,9 +1,9 @@
-import { Clock3, Compass, Search, Star, Upload } from 'lucide-react'
+import { Compass, Search, Upload } from 'lucide-react'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useAuth } from '../auth/useAuth'
 import { AuthMenu } from './AuthMenu'
+import { HeaderHistoryPreview } from './HeaderHistoryPreview'
 
 type AppHeaderProps = {
   authOpen: boolean
@@ -14,55 +14,96 @@ type AppHeaderProps = {
 const leftLinks = ['首页', '番剧', '直播', '游戏中心']
 
 export function AppHeader({ authOpen, onAuthOpenChange, onUpload }: AppHeaderProps) {
-  const { session } = useAuth()
-  const [query, setQuery] = useState('')
   const location = useLocation()
   const navigate = useNavigate()
   const pageTitle = resolvePageTitle(location.pathname)
-
-  function submitSearch(event: FormEvent) {
-    event.preventDefault()
-    const value = query.trim().toUpperCase()
-    if (/^BV\d+$/.test(value)) navigate(`/video/${value}`)
+  const isHome = location.pathname === '/'
+  const isSpace = location.pathname.startsWith('/space/')
+  const isSearch = location.pathname === '/search'
+  const [activePreview, setActivePreview] = useState<'favorites' | 'views' | null>(null)
+  const routeKeyword = location.pathname === '/search' ? new URLSearchParams(location.search).get('keyword') || '' : ''
+  const openAuth = () => {
+    setActivePreview(null)
+    onAuthOpenChange(true)
   }
 
   return (
-    <header className="site-header">
+    <header className={`site-header ${isHome ? 'home-header' : ''} ${isSpace ? 'space-header' : ''} ${isSearch ? 'search-header' : ''}`}>
+      <div className="header-bg-shadow" aria-hidden="true"><span className="top" />{isSpace && <span className="bottom" />}</div>
       <nav className="header-inner" aria-label="主导航">
         <div className="header-links">
+          {isSearch && <Link className="compact-header-brand" to="/"><span className="brand-mark">b</span><strong>bilibili-lite</strong></Link>}
           {leftLinks.map((label, index) => (
             <Link to="/" key={label}>{index === 0 && <Compass size={17} aria-hidden="true" />}{label}</Link>
           ))}
         </div>
-        <form className="header-search" role="search" onSubmit={submitSearch}>
-          <input aria-label="搜索 BV 号" placeholder="搜索视频或 BV 号" value={query} onChange={(event) => setQuery(event.target.value)} />
-          <button type="submit" aria-label="搜索" title="搜索"><Search size={18} /></button>
-        </form>
+        {!isSearch && <HeaderSearch key={routeKeyword} initialQuery={routeKeyword} onSearch={(value) => navigate(`/search?keyword=${encodeURIComponent(value)}`)} />}
         <div className="header-actions">
-          <AuthMenu open={authOpen} onOpenChange={onAuthOpenChange} onUpload={onUpload} />
-          <Link className="header-action-link" to={session ? '/space/me?tab=favorites' : '/'} aria-label="收藏">
-            <Star size={19} /><span>收藏</span>
-          </Link>
-          <Link className="header-action-link" to="/" aria-label="观看历史">
-            <Clock3 size={19} /><span>历史</span>
-          </Link>
+          <AuthMenu
+            open={authOpen}
+            onOpenChange={(open) => {
+              onAuthOpenChange(open)
+              if (open) setActivePreview(null)
+            }}
+            onUpload={onUpload}
+          />
+          <HeaderHistoryPreview
+            kind="favorites"
+            open={activePreview === 'favorites'}
+            onOpenChange={(open) => {
+              setActivePreview((current) => open ? 'favorites' : current === 'favorites' ? null : current)
+              if (open) onAuthOpenChange(false)
+            }}
+            onLoginRequired={openAuth}
+          />
+          <HeaderHistoryPreview
+            kind="views"
+            open={activePreview === 'views'}
+            onOpenChange={(open) => {
+              setActivePreview((current) => open ? 'views' : current === 'views' ? null : current)
+              if (open) onAuthOpenChange(false)
+            }}
+            onLoginRequired={openAuth}
+          />
           <button type="button" className="upload-button" onClick={onUpload}><Upload size={18} />投稿</button>
         </div>
       </nav>
-      <div className="hero-caption">
+      {!isSpace && !isSearch && <div className="hero-caption">
         {pageTitle ? (
           <span className="page-hero-title">{pageTitle}</span>
         ) : (
-          <Link className="hero-brand" to="/"><span className="brand-mark">b</span><strong>bilibili-lite</strong></Link>
+          <Link className="hero-logo" to="/" aria-label="返回首页">
+            <img src="/bilibili-logo.png" alt="bilibili" />
+          </Link>
         )}
-      </div>
+      </div>}
     </header>
+  )
+}
+
+function HeaderSearch({ initialQuery, onSearch }: { initialQuery: string; onSearch: (query: string) => void }) {
+  const [query, setQuery] = useState(initialQuery)
+
+  function submitSearch(event: FormEvent) {
+    event.preventDefault()
+    const value = query.trim()
+    if (value) onSearch(value)
+  }
+
+  return (
+    <form className="header-search" role="search" onSubmit={submitSearch}>
+      <input aria-label="搜索视频" placeholder="搜索视频、作者或 BV 号" value={query} onChange={(event) => setQuery(event.target.value)} />
+      <button type="submit" aria-label="搜索" title="搜索"><Search size={18} /></button>
+    </form>
   )
 }
 
 function resolvePageTitle(pathname: string) {
   if (pathname.startsWith('/video/')) return '视频播放'
   if (pathname.startsWith('/space/')) return '个人空间'
+  if (pathname.startsWith('/search')) return '搜索'
+  if (pathname.startsWith('/admin/reviews')) return '内容管理'
+  if (pathname.includes('/history/views')) return '观看历史'
   if (pathname.includes('/history/likes')) return '点赞历史'
   if (pathname.includes('/history/favorites')) return '收藏历史'
   if (pathname.includes('/history/coins')) return '投币历史'

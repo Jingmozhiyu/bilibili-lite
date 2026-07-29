@@ -19,6 +19,12 @@ service VideoService {
     };
   }
 
+  rpc SearchVideos(SearchVideosRequest) returns (SearchVideosReply) {
+    option (google.api.http) = {
+      get: "/api/v1/search/videos"
+    };
+  }
+
   rpc ListUserVideos(ListUserVideosRequest) returns (ListVideosReply) {
     option (google.api.http) = {
       get: "/api/v1/users/{user_id}/videos"
@@ -99,6 +105,12 @@ service VideoService {
     };
   }
 
+  rpc ListMyWatchHistory(ListVideoHistoryRequest) returns (ListVideoHistoryReply) {
+    option (google.api.http) = {
+      get: "/api/v1/users/me/watch-history"
+    };
+  }
+
   rpc CreateDanmaku(CreateDanmakuRequest) returns (DanmakuItem) {
     option (google.api.http) = {
       post: "/api/v1/videos/{bvid}/danmakus"
@@ -162,9 +174,9 @@ service VideoService {
     };
   }
 
-  rpc PublishVideo(PublishVideoRequest) returns (Video) {
+  rpc SubmitVideoForReview(SubmitVideoForReviewRequest) returns (Video) {
     option (google.api.http) = {
-      post: "/api/v1/videos/{bvid}/publish"
+      post: "/api/v1/videos/{bvid}/submit-review"
       body: "*"
     };
   }
@@ -188,15 +200,77 @@ service VideoService {
       body: "*"
     };
   }
+
+  rpc ListAdminVideos(ListAdminVideosRequest) returns (ListVideosReply) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/videos"
+    };
+  }
+
+  rpc ListPendingReviewVideos(ListPendingReviewVideosRequest) returns (ListVideosReply) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/videos/reviews"
+    };
+  }
+
+  rpc GetAdminVideo(GetAdminVideoRequest) returns (Video) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/videos/{bvid}"
+    };
+  }
+
+  rpc GetReviewVideoPlay(GetReviewVideoPlayRequest) returns (VideoPlay) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/videos/{bvid}/play"
+    };
+  }
+
+  rpc ApproveVideo(ApproveVideoRequest) returns (Video) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/videos/{bvid}/approve"
+      body: "*"
+    };
+  }
+
+  rpc RejectVideo(RejectVideoRequest) returns (Video) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/videos/{bvid}/reject"
+      body: "*"
+    };
+  }
+
+  rpc TakeDownVideo(TakeDownVideoRequest) returns (Video) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/videos/{bvid}/take-down"
+      body: "*"
+    };
+  }
+
+  rpc DeleteAdminVideo(DeleteAdminVideoRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/api/v1/admin/videos/{bvid}"
+    };
+  }
 }
 
 enum VideoStatus {
   VIDEO_STATUS_UNSPECIFIED = 0;
   VIDEO_STATUS_PROCESSING = 1;
   VIDEO_STATUS_READY = 2;
-  VIDEO_STATUS_PUBLISHED = 3;
-  VIDEO_STATUS_FAILED = 4;
-  VIDEO_STATUS_DELETED = 5;
+  VIDEO_STATUS_PENDING_REVIEW = 3;
+  VIDEO_STATUS_PUBLISHED = 4;
+  VIDEO_STATUS_REJECTED = 5;
+  VIDEO_STATUS_FAILED = 6;
+  VIDEO_STATUS_DELETED = 7;
+}
+
+enum VideoSearchOrder {
+  VIDEO_SEARCH_ORDER_UNSPECIFIED = 0;
+  VIDEO_SEARCH_ORDER_RELEVANCE = 1;
+  VIDEO_SEARCH_ORDER_MOST_VIEWED = 2;
+  VIDEO_SEARCH_ORDER_LATEST = 3;
+  VIDEO_SEARCH_ORDER_MOST_DANMAKU = 4;
+  VIDEO_SEARCH_ORDER_MOST_FAVORITED = 5;
 }
 
 message Video {
@@ -220,6 +294,9 @@ message Video {
   google.protobuf.Timestamp created_at = 18;
   google.protobuf.Timestamp updated_at = 19;
   int64 comment_count = 20;
+  string review_reason = 21;
+  google.protobuf.Timestamp submitted_at = 22;
+  google.protobuf.Timestamp reviewed_at = 23;
 }
 
 message ListVideosRequest {
@@ -236,6 +313,21 @@ message ListUserVideosRequest {
 message ListVideosReply {
   repeated Video videos = 1;
   string next_page_token = 2;
+}
+
+message SearchVideosRequest {
+  string query = 1 [(google.api.field_behavior) = REQUIRED];
+  VideoSearchOrder order = 2;
+  uint64 owner_id = 3;
+  int32 page_size = 4;
+  string page_token = 5;
+}
+
+message SearchVideosReply {
+  repeated Video videos = 1;
+  string next_page_token = 2;
+  int64 total_hits = 3;
+  int64 processing_time_ms = 4;
 }
 
 message VideoPlay {
@@ -446,7 +538,7 @@ message VideoUploadStatus {
   string cover_url = 5;
 }
 
-message PublishVideoRequest {
+message SubmitVideoForReviewRequest {
   string bvid = 1 [(google.api.field_behavior) = REQUIRED];
   string title = 2 [(google.api.field_behavior) = REQUIRED];
   string description = 3;
@@ -476,4 +568,42 @@ message VideoViewResult {
   int64 view_count = 2;
   int32 remaining_today = 3;
   google.protobuf.Timestamp next_eligible_at = 4;
+}
+
+message ListAdminVideosRequest {
+  string status = 1 [(google.api.field_behavior) = REQUIRED];
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListPendingReviewVideosRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message GetAdminVideoRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message GetReviewVideoPlayRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message ApproveVideoRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message RejectVideoRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+  string reason = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+message TakeDownVideoRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+  string reason = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+message DeleteAdminVideoRequest {
+  string bvid = 1 [(google.api.field_behavior) = REQUIRED];
+  string reason = 2 [(google.api.field_behavior) = REQUIRED];
 }

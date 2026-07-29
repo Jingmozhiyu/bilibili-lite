@@ -1,4 +1,4 @@
-import { Camera, Coins, Edit3, Film, Heart, MessageCircle, Star, Trash2, UserRound, X } from 'lucide-react'
+import { Camera, Coins, Edit3, Film, Heart, MessageCircle, Search, Star, Trash2, UserRound, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import {
@@ -8,6 +8,7 @@ import {
   normalizeVideoCommentHistory,
   normalizeVideoHistory,
   normalizeVideoList,
+  normalizeVideoSearch,
   toErrorMessage,
 } from '../api'
 import { useAuth } from '../auth/useAuth'
@@ -30,6 +31,7 @@ export function UserPage() {
   const { session, restoring, setSession } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedTab = searchParams.get('tab') as UserTab | null
+  const videoQuery = searchParams.get('q')?.trim() || ''
   const ownPage = userId === 'me' || (!!session && Number(userId) === session.user.id)
   const tab: UserTab = tabs.some((item) => item.id === requestedTab && (!item.private || ownPage)) ? requestedTab! : 'submissions'
   const [profile, setProfile] = useState<UserProfile | null>(null)
@@ -68,13 +70,22 @@ export function UserPage() {
       }} />
       <div className="space-body">
         <nav className="space-tabs" aria-label="用户内容">
-          {tabs.filter((item) => !item.private || ownPage).map(({ id, label, icon: Icon }) => (
-            <button type="button" key={id} className={tab === id ? 'active' : ''} onClick={() => setSearchParams(id === 'submissions' ? {} : { tab: id })}>
-              <Icon size={17} />{label}
-            </button>
-          ))}
+          <div className="space-tab-links">
+            {tabs.filter((item) => !item.private || ownPage).map(({ id, label, icon: Icon }) => (
+              <button type="button" key={id} className={tab === id ? 'active' : ''} onClick={() => setSearchParams(id === 'submissions' ? {} : { tab: id })}>
+                <Icon size={17} />{label}
+              </button>
+            ))}
+          </div>
+          {tab === 'submissions' && (
+            <UserVideoSearch
+              key={videoQuery}
+              initialValue={videoQuery}
+              onSearch={(query) => setSearchParams(query ? { q: query } : {})}
+            />
+          )}
         </nav>
-        <UserTabContent key={`${profile.id}-${tab}`} profile={profile} tab={tab} />
+        <UserTabContent key={`${profile.id}-${tab}-${videoQuery}`} profile={profile} tab={tab} videoQuery={videoQuery} />
       </div>
     </main>
   )
@@ -200,7 +211,21 @@ function ProfileHeader({ profile, ownPage, onUpdated }: { profile: UserProfile; 
   )
 }
 
-function UserTabContent({ profile, tab }: { profile: UserProfile; tab: UserTab }) {
+function UserVideoSearch({ initialValue, onSearch }: { initialValue: string; onSearch: (query: string) => void }) {
+  const [value, setValue] = useState(initialValue)
+
+  return (
+    <form className="space-video-search" role="search" onSubmit={(event) => {
+      event.preventDefault()
+      onSearch(value.trim())
+    }}>
+      <input aria-label="搜索该用户的视频" value={value} onChange={(event) => setValue(event.target.value)} placeholder="搜索 TA 的视频" />
+      <button type="submit" aria-label="搜索该用户的视频" title="搜索"><Search size={16} /></button>
+    </form>
+  )
+}
+
+function UserTabContent({ profile, tab, videoQuery }: { profile: UserProfile; tab: UserTab; videoQuery: string }) {
   const { session, setSession } = useAuth()
   const [videos, setVideos] = useState<VideoDetail[]>([])
   const [history, setHistory] = useState<VideoHistoryItem[]>([])
@@ -219,7 +244,15 @@ function UserTabContent({ profile, tab }: { profile: UserProfile; tab: UserTab }
   async function load(token: string) {
     const query = new URLSearchParams({ page_size: '12' })
     if (token) query.set('page_token', token)
-    if (tab === 'submissions') return { kind: 'videos' as const, page: normalizeVideoList(await fetchJson<unknown>(`${endpoint}?${query}`)) }
+    if (tab === 'submissions') {
+      if (videoQuery) {
+        query.set('query', videoQuery)
+        query.set('owner_id', String(profile.id))
+        query.set('order', '1')
+        return { kind: 'videos' as const, page: normalizeVideoSearch(await fetchJson<unknown>(`/api/v1/search/videos?${query}`)) }
+      }
+      return { kind: 'videos' as const, page: normalizeVideoList(await fetchJson<unknown>(`${endpoint}?${query}`)) }
+    }
     if (!session) throw new Error('请先登录')
     const result = await authorizedJson<unknown>(`${endpoint}?${query}`, {}, session)
     setSession(result.session)
@@ -269,7 +302,7 @@ function UserTabContent({ profile, tab }: { profile: UserProfile; tab: UserTab }
       {tab === 'submissions' && videos.length > 0 && <div className="space-content-grid">{videos.map((video) => <VideoCard key={video.bvid} video={video} />)}</div>}
       {tab !== 'submissions' && tab !== 'comments' && history.length > 0 && <div className="space-content-grid">{history.map((item) => <VideoCard key={`${item.video.bvid}-${item.interactedAt}`} video={item.video} historyLabel={`${tab === 'coins' ? `${item.coinAmount} 币 · ` : ''}${formatDate(item.interactedAt)}`} />)}</div>}
       {tab === 'comments' && comments.length > 0 && <div className="comment-history-list">{comments.map((item) => <Link key={item.comment.id} to={`/video/${item.video.bvid}`}><div><strong>{item.video.title}</strong><time>{formatDate(item.comment.createdAt)}</time></div><p>{item.comment.replyToUserName && <span>回复 {item.comment.replyToUserName}：</span>}{item.comment.content}</p></Link>)}</div>}
-      {empty && <div className="space-empty"><UserRound size={30} /><h2>这里还没有内容</h2><p>{tab === 'submissions' ? '发布的视频会出现在这里。' : '完成对应互动后，历史记录会出现在这里。'}</p></div>}
+      {empty && <div className="space-empty"><UserRound size={30} /><h2>{videoQuery ? `没有找到“${videoQuery}”` : '这里还没有内容'}</h2><p>{videoQuery ? '换个关键词搜索该用户的视频。' : tab === 'submissions' ? '发布的视频会出现在这里。' : '完成对应互动后，历史记录会出现在这里。'}</p></div>}
       {nextPageToken && <button type="button" className="load-more-button" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? '加载中' : '加载更多'}</button>}
     </section>
   )

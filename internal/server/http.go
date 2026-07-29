@@ -13,6 +13,7 @@ import (
 	"bilibili-lite/internal/service"
 
 	"github.com/go-kratos/kratos/v3/middleware/recovery"
+	"github.com/go-kratos/kratos/v3/middleware/selector"
 	"github.com/go-kratos/kratos/v3/middleware/validate"
 	kratosHTTP "github.com/go-kratos/kratos/v3/transport/http"
 	"go.einride.tech/aip/fieldbehavior"
@@ -26,6 +27,7 @@ func NewHTTPServer(serverConfig *conf.Server, dataConfig *conf.Data, mediaManage
 		kratosHTTP.Middleware(
 			recovery.Recovery(),
 			authenticator.Server(),
+			selector.Server(authenticator.Admin()).Match(adminOperation).Build(),
 			validate.Validator(func(req any) error {
 				if msg, ok := req.(proto.Message); ok {
 					if err := fieldbehavior.ValidateRequiredFields(msg); err != nil {

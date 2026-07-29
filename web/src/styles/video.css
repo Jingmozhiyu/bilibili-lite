@@ -690,6 +690,119 @@
   text-decoration: none;
 }
 
+.video-admin-panel {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(220px, 320px) auto;
+  gap: 12px;
+  align-items: center;
+  margin: 8px 0 22px;
+  padding: 14px;
+  border: 1px solid color-mix(in oklch, var(--danger) 22%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--danger) 4%, var(--surface));
+}
+
+.video-admin-heading,
+.admin-preview-notice {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: var(--danger);
+}
+
+.video-admin-heading span,
+.admin-preview-notice span {
+  display: grid;
+  gap: 2px;
+}
+
+.video-admin-panel small {
+  color: var(--text-muted);
+}
+
+.video-admin-panel input {
+  height: 36px;
+  padding: 0 10px;
+  color: var(--text-strong);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  outline: 0;
+  background: var(--surface);
+}
+
+.video-admin-panel input:focus {
+  border-color: var(--danger);
+}
+
+.video-admin-actions {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+}
+
+.video-admin-panel button {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 13px;
+  font-weight: 650;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.video-admin-panel .take-down-only {
+  color: var(--danger);
+  border: 1px solid color-mix(in oklch, var(--danger) 45%, var(--border));
+  background: var(--surface);
+}
+
+.video-admin-panel .delete-media {
+  color: #fff;
+  border: 1px solid var(--danger);
+  background: var(--danger);
+}
+
+.video-admin-panel button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.admin-preview-notice {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in oklch, var(--accent) 28%, var(--border));
+  border-radius: 8px;
+  color: var(--accent);
+  background: color-mix(in oklch, var(--accent) 5%, var(--surface));
+}
+
+.admin-preview-notice small {
+  color: var(--text-muted);
+}
+
+.admin-review-link {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 8px 0 22px;
+  padding: 12px 14px;
+  color: var(--text-muted);
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.admin-review-link a {
+  color: var(--accent);
+  font-weight: 650;
+  text-decoration: none;
+}
+
 @keyframes fly-danmaku {
   from { transform: translateX(0); }
   to { transform: translateX(calc(-100vw - 100%)); }
@@ -706,7 +819,10 @@
   .watch-layout { width: 100%; margin-top: 0; gap: 0; }
   .player-toolbar { overflow-x: auto; }
   .player-toolbar > span { display: none; }
-  .video-info, .interaction-section, .video-description, .comment-section { padding-inline: 14px; }
+  .video-info, .interaction-section, .video-description, .video-admin-panel, .admin-preview-notice, .admin-review-link, .comment-section { margin-inline: 14px; padding-inline: 14px; }
+  .video-admin-panel { grid-template-columns: 1fr; }
+  .video-admin-actions { flex-wrap: wrap; }
+  .admin-review-link { align-items: start; flex-direction: column; }
   .video-info h1 { font-size: 19px; }
   .interaction-actions { justify-content: space-between; gap: 8px; }
   .interaction-actions > button, .coin-action > button { grid-template-columns: 22px; justify-items: center; gap: 3px; }

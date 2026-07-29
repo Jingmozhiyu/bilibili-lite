@@ -121,6 +121,7 @@ func (r *videoRepo) SetVideoFavorite(ctx context.Context, userID uint64, videoID
 	if err != nil {
 		return nil, mapVideoInteractionError(err)
 	}
+	r.syncPublishedVideoToSearch(ctx, videoID)
 	return result, nil
 }
 

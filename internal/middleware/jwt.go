@@ -18,6 +18,7 @@ const (
 
 type claims struct {
 	TokenType string `json:"token_type"`
+	IsAdmin   bool   `json:"is_admin,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -45,15 +46,15 @@ func NewJWTManager(authConfig *conf.Auth) (biz.TokenManager, error) {
 }
 
 // Issue signs a short-lived access JWT and a long-lived refresh JWT for one user.
-func (m *jwtManager) Issue(userID uint64) (*biz.TokenPair, error) {
+func (m *jwtManager) Issue(userID uint64, isAdmin bool) (*biz.TokenPair, error) {
 	now := time.Now()
 	accessExpiresAt := now.Add(m.accessTTL)
 	refreshExpiresAt := now.Add(m.refreshTTL)
-	access, err := m.sign(userID, accessTokenType, now, accessExpiresAt)
+	access, err := m.sign(userID, isAdmin, accessTokenType, now, accessExpiresAt)
 	if err != nil {
 		return nil, err
 	}
-	refresh, err := m.sign(userID, refreshTokenType, now, refreshExpiresAt)
+	refresh, err := m.sign(userID, isAdmin, refreshTokenType, now, refreshExpiresAt)
 	if err != nil {
 		return nil, err
 	}
@@ -73,9 +74,10 @@ func (m *jwtManager) ParseRefresh(token string) (*biz.TokenClaims, error) {
 	return m.parse(token, refreshTokenType)
 }
 
-func (m *jwtManager) sign(userID uint64, tokenType string, issuedAt, expiresAt time.Time) (string, error) {
+func (m *jwtManager) sign(userID uint64, isAdmin bool, tokenType string, issuedAt, expiresAt time.Time) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims{
 		TokenType: tokenType,
+		IsAdmin:   isAdmin,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer: m.issuer, Subject: strconv.FormatUint(userID, 10),
 			IssuedAt: jwt.NewNumericDate(issuedAt), ExpiresAt: jwt.NewNumericDate(expiresAt),
@@ -102,5 +104,5 @@ func (m *jwtManager) parse(raw, expectedType string) (*biz.TokenClaims, error) {
 	if err != nil || userID == 0 {
 		return nil, biz.ErrSessionInvalid
 	}
-	return &biz.TokenClaims{UserID: userID, TokenType: tokenClaims.TokenType}, nil
+	return &biz.TokenClaims{UserID: userID, TokenType: tokenClaims.TokenType, IsAdmin: tokenClaims.IsAdmin}, nil
 }

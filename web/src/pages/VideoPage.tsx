@@ -1,7 +1,7 @@
 import type { MediaPlayerClass } from 'dashjs'
-import { AlertCircle, ChevronLeft, Radio, UserRound } from 'lucide-react'
+import { AlertCircle, ChevronLeft, Radio, ShieldAlert, Trash2, UserRound } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   authorizedFetch,
   authorizedJson,
@@ -25,7 +25,7 @@ import { formatBitrate, formatCount, formatDate } from '../utils/format'
 
 type LoadState =
   | { status: 'loading' }
-  | { status: 'ready'; detail: VideoDetail; play: VideoPlay }
+  | { status: 'ready'; detail: VideoDetail; play: VideoPlay; adminPreview: boolean }
   | { status: 'error'; message: string }
 
 export function VideoPage() {
@@ -34,8 +34,10 @@ export function VideoPage() {
 }
 
 function VideoContent({ bvid }: { bvid: string }) {
-  const { session, setSession } = useAuth()
+  const { session, restoring, setSession } = useAuth()
+  const navigate = useNavigate()
   const [state, setState] = useState<LoadState>({ status: 'loading' })
+  const adminPreviewMode = state.status === 'ready' && state.adminPreview
   const [selectedStreamId, setSelectedStreamId] = useState('')
   const [danmakuOn, setDanmakuOn] = useState(true)
   const [currentTime, setCurrentTime] = useState(0)
@@ -43,6 +45,8 @@ function VideoContent({ bvid }: { bvid: string }) {
   const [interactionPending, setInteractionPending] = useState('')
   const [interactionMessage, setInteractionMessage] = useState('')
   const [danmakuPending, setDanmakuPending] = useState(false)
+  const [takeDownReason, setTakeDownReason] = useState('')
+  const [moderationPending, setModerationPending] = useState<'take-down' | 'delete' | ''>('')
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const dashPlayerRef = useRef<MediaPlayerClass | null>(null)
   const viewSessionRef = useRef('')
@@ -53,25 +57,36 @@ function VideoContent({ bvid }: { bvid: string }) {
   const completedViewRef = useRef(false)
 
   useEffect(() => {
+    if (restoring) return
     let active = true
-    void Promise.all([
-      fetchJson<unknown>(`/api/v1/videos/${encodeURIComponent(bvid)}`),
-      fetchJson<unknown>(`/api/v1/videos/${encodeURIComponent(bvid)}/play`),
-    ]).then(([detailPayload, playPayload]) => {
+    async function loadVideo() {
+      try {
+        const [detailPayload, playPayload] = await Promise.all([
+          fetchJson<unknown>(`/api/v1/videos/${encodeURIComponent(bvid)}`),
+          fetchJson<unknown>(`/api/v1/videos/${encodeURIComponent(bvid)}/play`),
+        ])
+        return { detail: normalizeVideoDetail(detailPayload), play: normalizeVideoPlay(playPayload), adminPreview: false }
+      } catch (publicError) {
+        if (!session?.user.isAdmin) throw publicError
+        const detailResult = await authorizedJson<unknown>(`/api/v1/admin/videos/${encodeURIComponent(bvid)}`, {}, session)
+        const playResult = await authorizedJson<unknown>(`/api/v1/admin/videos/${encodeURIComponent(bvid)}/play`, {}, detailResult.session)
+        if (playResult.session.accessToken !== session.accessToken) setSession(playResult.session)
+        return { detail: normalizeVideoDetail(detailResult.data), play: normalizeVideoPlay(playResult.data), adminPreview: true }
+      }
+    }
+    void loadVideo().then((result) => {
       if (!active) return
-      const detail = normalizeVideoDetail(detailPayload)
-      const play = normalizeVideoPlay(playPayload)
-      setState({ status: 'ready', detail, play })
-      setSelectedStreamId((play.streams.find((stream) => stream.defaultStream) ?? play.streams[0])?.id ?? '')
+      setState({ status: 'ready', ...result })
+      setSelectedStreamId((result.play.streams.find((stream) => stream.defaultStream) ?? result.play.streams[0])?.id ?? '')
     }).catch((loadError) => {
       if (active) setState({ status: 'error', message: toErrorMessage(loadError, '视频加载失败') })
     })
     return () => { active = false }
-  }, [bvid])
+  }, [bvid, restoring, session, setSession])
 
   useEffect(() => {
     let active = true
-    if (!session || state.status !== 'ready') {
+    if (!session || state.status !== 'ready' || adminPreviewMode) {
       const clear = window.setTimeout(() => {
         if (active) setEngagement(null)
       }, 0)
@@ -90,7 +105,7 @@ function VideoContent({ bvid }: { bvid: string }) {
         if (active) setEngagement(null)
       })
     return () => { active = false }
-  }, [bvid, session, setSession, state.status])
+  }, [adminPreviewMode, bvid, session, setSession, state.status])
 
   const selectedStream = useMemo(() => {
     if (state.status !== 'ready') return undefined
@@ -139,7 +154,7 @@ function VideoContent({ bvid }: { bvid: string }) {
   }, [bvid, session?.user.id])
 
   async function startViewSession() {
-    if (!session || completedViewRef.current || viewSessionRef.current || startingViewRef.current) return
+    if (!session || state.status !== 'ready' || state.adminPreview || completedViewRef.current || viewSessionRef.current || startingViewRef.current) return
     startingViewRef.current = true
     try {
       const result = await authorizedJson<unknown>(
@@ -156,7 +171,7 @@ function VideoContent({ bvid }: { bvid: string }) {
   }
 
   async function completeViewSession() {
-    if (!session || !viewSessionRef.current || completingViewRef.current) return
+    if (!session || state.status !== 'ready' || state.adminPreview || !viewSessionRef.current || completingViewRef.current) return
     completingViewRef.current = true
     try {
       const result = await authorizedJson<unknown>(
@@ -175,7 +190,7 @@ function VideoContent({ bvid }: { bvid: string }) {
 
   function trackPlayback(video: HTMLVideoElement) {
     setCurrentTime(video.currentTime)
-    if (!session || video.paused) {
+    if (!session || state.status !== 'ready' || state.adminPreview || video.paused) {
       previousPlaybackTimeRef.current = video.currentTime
       return
     }
@@ -283,7 +298,7 @@ function VideoContent({ bvid }: { bvid: string }) {
   }
 
   async function createDanmaku(text: string, color: string) {
-    if (!session) return false
+    if (!session || state.status !== 'ready' || state.adminPreview) return false
     setDanmakuPending(true)
     setInteractionMessage('')
     try {
@@ -304,13 +319,55 @@ function VideoContent({ bvid }: { bvid: string }) {
   }
 
   async function deleteDanmaku(item: DanmakuItem) {
-    if (!session) return
+    if (!session || state.status !== 'ready' || state.adminPreview) return
     try {
       const result = await authorizedFetch(`/api/v1/videos/${encodeURIComponent(bvid)}/danmakus/${item.id}`, { method: 'DELETE' }, session)
       setSession(result.session)
       setState((current) => current.status === 'ready' ? { ...current, play: { ...current.play, danmaku: { enabled: true, format: current.play.danmaku?.format || 'inline', items: (current.play.danmaku?.items ?? []).filter((entry) => entry.id !== item.id) } }, detail: { ...current.detail, danmakuCount: Math.max(0, toNumber(current.detail.danmakuCount) - 1) } } : current)
     } catch (deleteError) {
       setInteractionMessage(toErrorMessage(deleteError, '弹幕删除失败'))
+    }
+  }
+
+  async function takeDownVideo() {
+    if (!session?.user.isAdmin || !takeDownReason.trim() || moderationPending) return
+    setModerationPending('take-down')
+    setInteractionMessage('')
+    try {
+      const result = await authorizedJson<unknown>(
+        `/api/v1/admin/videos/${encodeURIComponent(bvid)}/take-down`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason: takeDownReason.trim() }),
+        },
+        session,
+      )
+      setSession(result.session)
+      navigate('/admin/reviews?status=rejected', { replace: true })
+    } catch (takeDownError) {
+      setInteractionMessage(toErrorMessage(takeDownError, '下架失败'))
+      setModerationPending('')
+    }
+  }
+
+  async function deleteVideoMedia() {
+    if (!session?.user.isAdmin || !takeDownReason.trim() || moderationPending) return
+    if (!window.confirm(`永久删除 ${bvid} 的 DASH 分片和封面？此操作不可恢复。`)) return
+    setModerationPending('delete')
+    setInteractionMessage('')
+    try {
+      const query = new URLSearchParams({ reason: takeDownReason.trim() })
+      const result = await authorizedFetch(
+        `/api/v1/admin/videos/${encodeURIComponent(bvid)}?${query}`,
+        { method: 'DELETE' },
+        session,
+      )
+      setSession(result.session)
+      navigate('/admin/reviews?status=rejected', { replace: true })
+    } catch (deleteError) {
+      setInteractionMessage(toErrorMessage(deleteError, '媒体文件删除失败'))
+      setModerationPending('')
     }
   }
 
@@ -321,14 +378,15 @@ function VideoContent({ bvid }: { bvid: string }) {
   if (state.status === 'loading') return <VideoLoading />
   if (state.status === 'error') return <VideoError bvid={bvid} message={state.message} />
 
-  const { detail, play } = state
+  const { detail, play, adminPreview } = state
+  const rejectedPreview = adminPreview && (detail.status?.toLowerCase().includes('rejected') ?? false)
   return (
     <main className="video-page">
       <div className="watch-layout">
         <div className="watch-main">
           <section className="player-shell" aria-label="视频播放器">
             {play.streams.length === 0 && <div className="player-empty"><AlertCircle size={28} /><strong>暂无可播放的 DASH 流</strong><span>视频资源可能仍在处理中</span></div>}
-            <video ref={videoRef} controls playsInline poster={detail.coverUrl} onPlaying={() => void startViewSession()} onTimeUpdate={(event) => trackPlayback(event.currentTarget)} onPause={(event) => { previousPlaybackTimeRef.current = event.currentTarget.currentTime }} />
+            <video ref={videoRef} controls playsInline poster={detail.coverUrl} onPlaying={() => { if (!adminPreview) void startViewSession() }} onTimeUpdate={(event) => trackPlayback(event.currentTarget)} onPause={(event) => { previousPlaybackTimeRef.current = event.currentTarget.currentTime }} />
             <div className="danmaku-stage" aria-hidden="true">{activeDanmaku.map((item, index) => <span key={`${item.id}-${index}`} style={{ top: `${10 + (index % 7) * 11}%`, color: item.color }}>{item.text}</span>)}</div>
           </section>
           <div className="player-toolbar">
@@ -341,14 +399,38 @@ function VideoContent({ bvid }: { bvid: string }) {
             <h1 id="video-title">{detail.title}</h1>
             <div className="video-subline"><span>{formatCount(detail.viewCount)} 播放</span><span>{formatCount(detail.danmakuCount)} 弹幕</span><time>{formatDate(detail.publishTime)}</time><span>{detail.bvid}</span></div>
           </section>
-          <InteractionBar video={detail} engagement={engagement} pending={interactionPending} message={interactionMessage} onLike={() => void toggleLike()} onFavorite={() => void toggleFavorite()} onCoin={(amount) => void coinVideo(amount)} onShare={() => void shareVideo()} />
+          {adminPreview
+            ? <div className="admin-preview-notice"><ShieldAlert size={18} /><span><strong>管理员预览</strong><small>该视频当前不对公众开放，预览不会计入播放历史和互动数据。</small></span></div>
+            : <InteractionBar video={detail} engagement={engagement} pending={interactionPending} message={interactionMessage} onLike={() => void toggleLike()} onFavorite={() => void toggleFavorite()} onCoin={(amount) => void coinVideo(amount)} onShare={() => void shareVideo()} />}
           <section className="video-description"><p>{detail.description || '作者没有填写视频简介。'}</p>{detail.tags.length > 0 && <div className="tag-list">{detail.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>}</section>
-          <CommentSection key={bvid} bvid={bvid} ownerId={detail.ownerId} onCountChange={(delta) => updateDetail((video) => ({ ...video, commentCount: Math.max(0, toNumber(video.commentCount) + delta) }))} />
+          {session?.user.isAdmin && !adminPreview && (
+            <section className="video-admin-panel" aria-label="管理员操作">
+              <div className="video-admin-heading"><ShieldAlert size={18} /><span><strong>内容管理</strong><small>仅下架会保留媒体供复核；永久删除文件后不可恢复播放。</small></span></div>
+              <input value={takeDownReason} maxLength={1000} onChange={(event) => setTakeDownReason(event.target.value)} placeholder="填写下架或删除原因" />
+              <div className="video-admin-actions">
+                <button type="button" className="take-down-only" disabled={!takeDownReason.trim() || Boolean(moderationPending)} onClick={() => void takeDownVideo()}>{moderationPending === 'take-down' ? '处理中' : '仅下架'}</button>
+                <button type="button" className="delete-media" disabled={!takeDownReason.trim() || Boolean(moderationPending)} onClick={() => void deleteVideoMedia()}><Trash2 size={16} />{moderationPending === 'delete' ? '正在删除' : '下架并删除文件'}</button>
+              </div>
+            </section>
+          )}
+          {session?.user.isAdmin && rejectedPreview && (
+            <section className="video-admin-panel admin-preview-cleanup" aria-label="已下架视频清理">
+              <div className="video-admin-heading"><ShieldAlert size={18} /><span><strong>视频已下架</strong><small>{detail.reviewReason || 'DASH 分片仍保留，仅管理员可预览。'}</small></span></div>
+              <input value={takeDownReason} maxLength={1000} onChange={(event) => setTakeDownReason(event.target.value)} placeholder="填写永久删除原因" />
+              <div className="video-admin-actions">
+                <button type="button" className="delete-media" disabled={!takeDownReason.trim() || Boolean(moderationPending)} onClick={() => void deleteVideoMedia()}><Trash2 size={16} />{moderationPending === 'delete' ? '正在删除' : '永久删除文件'}</button>
+              </div>
+            </section>
+          )}
+          {adminPreview && !rejectedPreview && (
+            <div className="admin-review-link"><span>审核操作统一在内容管理页完成。</span><Link to="/admin/reviews">返回待审核队列</Link></div>
+          )}
+          {!adminPreview && <CommentSection key={bvid} bvid={bvid} ownerId={detail.ownerId} onCountChange={(delta) => updateDetail((video) => ({ ...video, commentCount: Math.max(0, toNumber(video.commentCount) + delta) }))} />}
         </div>
 
         <aside className="watch-side">
           <Link className="owner-panel" to={`/space/${detail.ownerId}`}><span className="owner-avatar">{detail.ownerAvatarUrl ? <img src={detail.ownerAvatarUrl} alt="" /> : detail.ownerName.slice(0, 1)}</span><div><strong>{detail.ownerName}</strong><p>查看作者主页</p></div><UserRound size={18} /></Link>
-          <DanmakuPanel items={play.danmaku?.items ?? []} currentTime={currentTime} session={session} videoOwnerId={detail.ownerId} pending={danmakuPending} onCreate={createDanmaku} onDelete={(item) => void deleteDanmaku(item)} onLoginRequired={() => setInteractionMessage('请先点击右上角登录')} />
+          {!adminPreview && <DanmakuPanel items={play.danmaku?.items ?? []} currentTime={currentTime} session={session} videoOwnerId={detail.ownerId} pending={danmakuPending} onCreate={createDanmaku} onDelete={(item) => void deleteDanmaku(item)} onLoginRequired={() => setInteractionMessage('请先点击右上角登录')} />}
         </aside>
       </div>
     </main>

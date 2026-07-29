@@ -146,5 +146,6 @@ func convertUserReply(in *biz.User) *v1.User {
 		AvatarUrl:   in.AvatarURL,
 		Bio:         in.Bio,
 		CoinBalance: in.CoinBalance,
+		IsAdmin:     in.IsAdmin,
 	}
 }

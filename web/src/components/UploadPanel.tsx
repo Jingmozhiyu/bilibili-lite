@@ -13,7 +13,7 @@ import { useAuth } from '../auth/useAuth'
 import type { UploadResult } from '../types'
 import { formatFileSize, splitTags } from '../utils/format'
 
-type UploadPhase = 'idle' | 'uploading' | 'processing' | 'ready' | 'publishing' | 'success' | 'error'
+type UploadPhase = 'idle' | 'uploading' | 'processing' | 'ready' | 'submitting' | 'success' | 'error'
 
 export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { session, setSession } = useAuth()
@@ -120,7 +120,7 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
       if (requestVersion !== requestVersionRef.current) return
       setResult(uploadResult)
       setPhase('ready')
-      setMessage('视频处理完成，填写信息后即可发布')
+      setMessage('视频处理完成，填写信息后即可提交审核')
     } catch (uploadError) {
       if (requestVersion !== requestVersionRef.current) return
       setPhase('error')
@@ -128,14 +128,14 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
     }
   }
 
-  async function publish(event: React.FormEvent<HTMLFormElement>) {
+  async function submitReview(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!session || !result || !title.trim()) return
-    setPhase('publishing')
+    setPhase('submitting')
     setMessage('')
     try {
       const { session: nextSession } = await authorizedFetch(
-        `/api/v1/videos/${encodeURIComponent(result.bvid)}/publish`,
+        `/api/v1/videos/${encodeURIComponent(result.bvid)}/submit-review`,
         {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title, description, tags: splitTags(tags) }),
@@ -144,21 +144,20 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
       )
       setSession(nextSession)
       setPhase('success')
-      setMessage('发布成功')
-      const bvid = result.bvid
+      setMessage('已提交审核，通过后会出现在首页和搜索结果中')
       redirectTimerRef.current = window.setTimeout(() => {
         resetPanel()
         onClose()
-        navigate(`/video/${bvid}`)
-      }, 500)
-    } catch (publishError) {
+        navigate('/space/me')
+      }, 900)
+    } catch (submitError) {
       setPhase('error')
-      setMessage(toErrorMessage(publishError, '发布失败'))
+      setMessage(toErrorMessage(submitError, '提交审核失败'))
     }
   }
 
   if (!open) return null
-  const uploadLocked = phase === 'uploading' || phase === 'processing' || phase === 'ready' || phase === 'publishing' || phase === 'success'
+  const uploadLocked = phase === 'uploading' || phase === 'processing' || phase === 'ready' || phase === 'submitting' || phase === 'success'
 
   return (
     <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closePanel() }}>
@@ -167,7 +166,7 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
           <div><strong id="upload-dialog-title">投稿视频</strong><span>选择视频后自动上传，期间可以继续填写信息</span></div>
           <button type="button" className="icon-button" aria-label="关闭投稿" title="关闭" onClick={closePanel}><X size={20} /></button>
         </header>
-        <form className="upload-form" onSubmit={publish}>
+        <form className="upload-form" onSubmit={submitReview}>
           <div className="upload-pickers">
             <label className={uploadLocked ? 'file-picker disabled' : 'file-picker'}>
               <ImagePlus size={22} /><span>{coverFile ? coverFile.name : '自定义封面（可选）'}</span>
@@ -184,7 +183,7 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
 
           {phase !== 'idle' && (
             <div className={`upload-progress-panel ${phase}`} aria-live="polite">
-              <div><span>{phase === 'uploading' ? '正在上传' : phase === 'processing' ? '正在转码和切片' : phase === 'ready' ? '等待发布' : phase === 'publishing' ? '正在发布' : phase === 'success' ? '发布完成' : '处理失败'}</span><strong>{phase === 'uploading' ? `${progress}%` : result?.bvid || ''}</strong></div>
+              <div><span>{phase === 'uploading' ? '正在上传' : phase === 'processing' ? '正在转码和切片' : phase === 'ready' ? '等待提交' : phase === 'submitting' ? '正在提交审核' : phase === 'success' ? '提交完成' : '处理失败'}</span><strong>{phase === 'uploading' ? `${progress}%` : result?.bvid || ''}</strong></div>
               <div className="progress-track"><span style={{ width: phase === 'processing' ? '72%' : phase === 'ready' || phase === 'success' ? '100%' : `${progress}%` }} /></div>
               {message && <p>{message}</p>}
               {phase === 'error' && videoFile && <button type="button" className="retry-button" onClick={() => void startUpload(videoFile)}><RotateCcw size={16} />重新上传</button>}
@@ -198,8 +197,8 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
           </div>
           <footer className="dialog-actions">
             <span>{result ? `${result.bvid} 已占用并完成处理` : '视频进入数据库后会立即获得 BV 号'}</span>
-            <button className="primary-button" type="submit" disabled={!result || !title.trim() || phase === 'publishing' || phase === 'success'}>
-              {phase === 'success' ? <CheckCircle2 size={18} /> : null}{phase === 'publishing' ? '发布中' : phase === 'success' ? '已发布' : '发布视频'}
+            <button className="primary-button" type="submit" disabled={!result || !title.trim() || phase === 'submitting' || phase === 'success'}>
+              {phase === 'success' ? <CheckCircle2 size={18} /> : null}{phase === 'submitting' ? '提交中' : phase === 'success' ? '已提交' : '提交审核'}
             </button>
           </footer>
         </form>

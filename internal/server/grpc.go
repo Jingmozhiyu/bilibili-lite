@@ -8,6 +8,7 @@ import (
 	"bilibili-lite/internal/service"
 
 	"github.com/go-kratos/kratos/v3/middleware/recovery"
+	"github.com/go-kratos/kratos/v3/middleware/selector"
 	"github.com/go-kratos/kratos/v3/transport/grpc"
 )
 
@@ -17,6 +18,7 @@ func NewGRPCServer(serverConfig *conf.Server, authenticator *appMiddleware.Authe
 		grpc.Middleware(
 			recovery.Recovery(),
 			authenticator.Server(),
+			selector.Server(authenticator.Admin()).Match(adminOperation).Build(),
 		),
 	}
 	if serverConfig.Grpc.Network != "" {

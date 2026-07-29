@@ -17,12 +17,12 @@ func TestJWTManagerIssuesTypedTokens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pair, err := manager.Issue(42)
+	pair, err := manager.Issue(42, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	access, err := manager.ParseAccess(pair.AccessToken)
-	if err != nil || access.UserID != 42 || access.TokenType != accessTokenType {
+	if err != nil || access.UserID != 42 || access.TokenType != accessTokenType || !access.IsAdmin {
 		t.Fatalf("unexpected access claims: %#v, %v", access, err)
 	}
 	refresh, err := manager.ParseRefresh(pair.RefreshToken)

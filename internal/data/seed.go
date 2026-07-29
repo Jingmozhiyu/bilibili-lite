@@ -8,9 +8,12 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-const seedPassword = "demo123456"
+const (
+	seedPassword      = "demo123456"
+	seedAdminUsername = "admin"
+)
 
-// seedInitialUsers keeps local authentication usable without creating any video records.
+// seedInitialUsers keeps local authentication usable and initializes the administrator account.
 func seedInitialUsers(db *gorm.DB) error {
 	return db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Exec("SELECT pg_advisory_xact_lock(hashtextextended('bilibili-lite-user-seed', 0))").Error; err != nil {
@@ -33,6 +36,25 @@ func seedInitialUsers(db *gorm.DB) error {
 				return fmt.Errorf("seed user %s: %w", users[index].Username, err)
 			}
 		}
-		return nil
+		return seedAdministrator(tx, string(passwordHash))
 	})
+}
+
+// seedAdministrator creates the local administrator and repairs an existing same-name account's role.
+func seedAdministrator(tx *gorm.DB, passwordHash string) error {
+	admin := userPO{
+		Username:     seedAdminUsername,
+		PasswordHash: passwordHash,
+		DisplayName:  "内容管理员",
+		Bio:          "负责本地演示内容审核",
+		CoinBalance:  1000,
+		Role:         "admin",
+	}
+	if err := tx.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "username"}},
+		DoUpdates: clause.Assignments(map[string]any{"role": "admin"}),
+	}).Create(&admin).Error; err != nil {
+		return fmt.Errorf("seed administrator %s: %w", admin.Username, err)
+	}
+	return nil
 }

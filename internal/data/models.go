@@ -10,6 +10,7 @@ type userPO struct {
 	AvatarURL    string `gorm:"size:500"`
 	Bio          string `gorm:"size:500"`
 	CoinBalance  int64  `gorm:"not null;default:1000"`
+	Role         string `gorm:"size:32;not null;default:user;index"`
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -23,8 +24,9 @@ type videoPO struct {
 	Title           string `gorm:"size:200;not null"`
 	Description     string `gorm:"type:text"`
 	CoverURL        string `gorm:"size:500"`
-	Status          string `gorm:"size:32;not null;default:published;index"`
+	Status          string `gorm:"size:32;not null;default:processing;index"`
 	FailureReason   string `gorm:"type:text;not null;default:''"`
+	ReviewReason    string `gorm:"type:text;not null;default:''"`
 	DurationSeconds int64  `gorm:"not null;default:0"`
 	ViewCount       int64  `gorm:"not null;default:0"`
 	DanmakuCount    int64  `gorm:"not null;default:0"`
@@ -34,6 +36,9 @@ type videoPO struct {
 	ShareCount      int64  `gorm:"not null;default:0"`
 	CommentCount    int64  `gorm:"not null;default:0"`
 	ReadyAt         *time.Time
+	SubmittedAt     *time.Time
+	ReviewedAt      *time.Time
+	ReviewedBy      *uint64 `gorm:"index"`
 	PublishTime     *time.Time
 	DeletedAt       *time.Time `gorm:"index"`
 	Tags            []string   `gorm:"serializer:json;type:jsonb"`
@@ -173,3 +178,16 @@ type videoViewSessionPO struct {
 }
 
 func (videoViewSessionPO) TableName() string { return "video_view_sessions" }
+
+type videoWatchHistoryPO struct {
+	ID        uint64  `gorm:"primaryKey;autoIncrement"`
+	UserID    uint64  `gorm:"not null;uniqueIndex:idx_user_video_watch_history"`
+	User      userPO  `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	VideoID   uint64  `gorm:"not null;uniqueIndex:idx_user_video_watch_history;index"`
+	Video     videoPO `gorm:"foreignKey:VideoID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	WatchedAt time.Time
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (videoWatchHistoryPO) TableName() string { return "user_video_watch_history" }

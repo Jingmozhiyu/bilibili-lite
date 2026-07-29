@@ -16,7 +16,13 @@ import (
 // ProviderSet provides JWT infrastructure and request authentication middleware.
 var ProviderSet = wire.NewSet(NewJWTManager, NewAuthenticator)
 
-type userIDContextKey struct{}
+type identityContextKey struct{}
+
+// Identity is the authenticated principal propagated to transport handlers.
+type Identity struct {
+	UserID  uint64
+	IsAdmin bool
+}
 
 // Authenticator validates optional transport JWTs and injects their user ID into request context.
 type Authenticator struct {
@@ -44,7 +50,19 @@ func (a *Authenticator) Server() kratosMiddleware.Middleware {
 			if err != nil {
 				return nil, biz.ErrSessionInvalid
 			}
-			return next(WithUserID(ctx, claims.UserID), req)
+			return next(WithIdentity(ctx, Identity{UserID: claims.UserID, IsAdmin: claims.IsAdmin}), req)
+		}
+	}
+}
+
+// Admin rejects selected transport operations unless authentication established an administrator identity.
+func (a *Authenticator) Admin() kratosMiddleware.Middleware {
+	return func(next kratosMiddleware.Handler) kratosMiddleware.Handler {
+		return func(ctx context.Context, req any) (any, error) {
+			if _, err := RequireAdmin(ctx); err != nil {
+				return nil, err
+			}
+			return next(ctx, req)
 		}
 	}
 }
@@ -58,19 +76,30 @@ func (a *Authenticator) RequireHTTP(next http.Handler) http.Handler {
 			kratosHTTP.DefaultErrorEncoder(w, r, biz.ErrSessionInvalid)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(WithUserID(r.Context(), claims.UserID)))
+		next.ServeHTTP(w, r.WithContext(WithIdentity(r.Context(), Identity{UserID: claims.UserID, IsAdmin: claims.IsAdmin})))
 	})
+}
+
+// WithIdentity stores an authenticated principal in request context.
+func WithIdentity(ctx context.Context, identity Identity) context.Context {
+	return context.WithValue(ctx, identityContextKey{}, identity)
 }
 
 // WithUserID stores an authenticated user ID in request context.
 func WithUserID(ctx context.Context, userID uint64) context.Context {
-	return context.WithValue(ctx, userIDContextKey{}, userID)
+	return WithIdentity(ctx, Identity{UserID: userID})
+}
+
+// RequestIdentity returns the authenticated principal supplied by middleware.
+func RequestIdentity(ctx context.Context) (Identity, bool) {
+	identity, ok := ctx.Value(identityContextKey{}).(Identity)
+	return identity, ok && identity.UserID != 0
 }
 
 // UserID returns the authenticated user ID when one was supplied by middleware.
 func UserID(ctx context.Context) (uint64, bool) {
-	userID, ok := ctx.Value(userIDContextKey{}).(uint64)
-	return userID, ok && userID != 0
+	identity, ok := RequestIdentity(ctx)
+	return identity.UserID, ok
 }
 
 // RequireUserID returns an authentication error when middleware did not establish an identity.
@@ -79,6 +108,18 @@ func RequireUserID(ctx context.Context) (uint64, error) {
 		return userID, nil
 	}
 	return 0, biz.ErrSessionInvalid
+}
+
+// RequireAdmin returns the authenticated administrator or a forbidden error.
+func RequireAdmin(ctx context.Context) (uint64, error) {
+	identity, ok := RequestIdentity(ctx)
+	if !ok {
+		return 0, biz.ErrSessionInvalid
+	}
+	if !identity.IsAdmin {
+		return 0, biz.ErrUserForbidden
+	}
+	return identity.UserID, nil
 }
 
 func parseBearerToken(value string) string {

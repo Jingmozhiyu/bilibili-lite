@@ -39,11 +39,27 @@ func (r *videoRepo) CreateVideoViewSession(ctx context.Context, userID uint64, v
 		return nil, biz.ErrVideoStorage
 	}
 	now := time.Now()
-	record := videoViewSessionPO{
-		ID: sessionID, VideoID: uint64(videoID), UserID: userID,
-		StartedAt: now, CreatedAt: now,
-	}
-	if err := r.data.db.WithContext(ctx).Create(&record).Error; err != nil {
+	err = r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		record := videoViewSessionPO{
+			ID: sessionID, VideoID: uint64(videoID), UserID: userID,
+			StartedAt: now, CreatedAt: now,
+		}
+		if err := tx.Create(&record).Error; err != nil {
+			return err
+		}
+		history := videoWatchHistoryPO{
+			UserID: userID, VideoID: uint64(videoID),
+			WatchedAt: now, CreatedAt: now, UpdatedAt: now,
+		}
+		return tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "user_id"}, {Name: "video_id"}},
+			DoUpdates: clause.Assignments(map[string]any{
+				"watched_at": now,
+				"updated_at": now,
+			}),
+		}).Create(&history).Error
+	})
+	if err != nil {
 		return nil, biz.ErrVideoStorage
 	}
 	return &biz.VideoViewSession{ID: sessionID, StartedAt: now}, nil
@@ -112,6 +128,9 @@ func (r *videoRepo) CompleteVideoViewSession(ctx context.Context, userID uint64,
 		default:
 			return nil, biz.ErrVideoStorage
 		}
+	}
+	if result.Counted {
+		r.syncPublishedVideoToSearch(ctx, videoID)
 	}
 	return result, nil
 }

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -8,6 +9,30 @@ import (
 	"strings"
 	"testing"
 )
+
+func TestAdminOperationMatchesOnlyAdministratorVideoRPCs(t *testing.T) {
+	t.Parallel()
+
+	for _, operation := range []string{
+		"/video.v1.VideoService/ListAdminVideos",
+		"/video.v1.VideoService/GetAdminVideo",
+		"/video.v1.VideoService/GetReviewVideoPlay",
+		"/video.v1.VideoService/DeleteAdminVideo",
+	} {
+		if !adminOperation(context.Background(), operation) {
+			t.Errorf("adminOperation(%q) = false, want true", operation)
+		}
+	}
+	for _, operation := range []string{
+		"/video.v1.VideoService/GetVideo",
+		"/user.v1.UserService/GetMe",
+		"",
+	} {
+		if adminOperation(context.Background(), operation) {
+			t.Errorf("adminOperation(%q) = true, want false", operation)
+		}
+	}
+}
 
 func TestLimitAvatarBodyRejectsOversizedRequest(t *testing.T) {
 	t.Parallel()

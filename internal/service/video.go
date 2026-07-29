@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	v1 "bilibili-lite/api/video/v1"
@@ -31,6 +32,30 @@ func (s *VideoService) ListVideos(ctx context.Context, req *v1.ListVideosRequest
 		return nil, err
 	}
 	return convertVideoListReply(list), nil
+}
+
+// SearchVideos returns published videos ranked by Meilisearch and hydrated from PostgreSQL.
+func (s *VideoService) SearchVideos(ctx context.Context, req *v1.SearchVideosRequest) (*v1.SearchVideosReply, error) {
+	result, err := s.videoUsecase.SearchVideos(
+		ctx,
+		req.GetQuery(),
+		convertVideoSearchOrder(req.GetOrder()),
+		req.GetOwnerId(),
+		req.GetPageSize(),
+		req.GetPageToken(),
+	)
+	if err != nil {
+		return nil, err
+	}
+	out := &v1.SearchVideosReply{
+		Videos:        make([]*v1.Video, 0, len(result.Videos)),
+		NextPageToken: result.NextPageToken, TotalHits: result.TotalHits,
+		ProcessingTimeMs: result.ProcessingTimeMs,
+	}
+	for index := range result.Videos {
+		out.Videos = append(out.Videos, convertVideoReply(&result.Videos[index]))
+	}
+	return out, nil
 }
 
 // ListUserVideos returns one page of published submissions owned by a user.
@@ -143,6 +168,11 @@ func (s *VideoService) ListMyFavoriteVideos(ctx context.Context, req *v1.ListVid
 // ListMyCoinedVideos returns the caller's irreversible coin history.
 func (s *VideoService) ListMyCoinedVideos(ctx context.Context, req *v1.ListVideoHistoryRequest) (*v1.ListVideoHistoryReply, error) {
 	return s.listVideoHistory(ctx, req, biz.VideoHistoryCoined)
+}
+
+// ListMyWatchHistory returns distinct videos ordered by the caller's latest playback start.
+func (s *VideoService) ListMyWatchHistory(ctx context.Context, req *v1.ListVideoHistoryRequest) (*v1.ListVideoHistoryReply, error) {
+	return s.listVideoHistory(ctx, req, biz.VideoHistoryWatched)
 }
 
 // CreateDanmaku publishes a timed comment at the supplied playback position.
@@ -273,8 +303,8 @@ func (s *VideoService) GetVideoUploadStatus(ctx context.Context, req *v1.GetVide
 	}, nil
 }
 
-// PublishVideo attaches final metadata to media that has reached the ready state.
-func (s *VideoService) PublishVideo(ctx context.Context, req *v1.PublishVideoRequest) (*v1.Video, error) {
+// SubmitVideoForReview attaches final metadata and enters the moderation queue.
+func (s *VideoService) SubmitVideoForReview(ctx context.Context, req *v1.SubmitVideoForReviewRequest) (*v1.Video, error) {
 	videoID, err := biz.ParseBVID(req.GetBvid())
 	if err != nil {
 		return nil, err
@@ -283,7 +313,7 @@ func (s *VideoService) PublishVideo(ctx context.Context, req *v1.PublishVideoReq
 	if err != nil {
 		return nil, err
 	}
-	video, err := s.videoUsecase.PublishVideo(ctx, &biz.VideoPublishInput{
+	video, err := s.videoUsecase.SubmitVideoForReview(ctx, &biz.VideoReviewSubmission{
 		OwnerID: userID, VideoID: videoID,
 		Title: req.GetTitle(), Description: req.GetDescription(), Tags: append([]string(nil), req.GetTags()...),
 	})
@@ -346,6 +376,117 @@ func (s *VideoService) CompleteVideoView(ctx context.Context, req *v1.CompleteVi
 	}, nil
 }
 
+// ListAdminVideos returns one administrator-selected lifecycle state.
+func (s *VideoService) ListAdminVideos(ctx context.Context, req *v1.ListAdminVideosRequest) (*v1.ListVideosReply, error) {
+	if _, err := appMiddleware.RequireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	status, err := parseAdminVideoStatus(req.GetStatus())
+	if err != nil {
+		return nil, err
+	}
+	list, err := s.videoUsecase.ListAdminVideos(ctx, status, req.GetPageSize(), req.GetPageToken())
+	if err != nil {
+		return nil, err
+	}
+	return convertVideoListReply(list), nil
+}
+
+// ListPendingReviewVideos returns the administrator's oldest-first moderation queue.
+func (s *VideoService) ListPendingReviewVideos(ctx context.Context, req *v1.ListPendingReviewVideosRequest) (*v1.ListVideosReply, error) {
+	if _, err := appMiddleware.RequireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	list, err := s.videoUsecase.ListPendingReviewVideos(ctx, req.GetPageSize(), req.GetPageToken())
+	if err != nil {
+		return nil, err
+	}
+	return convertVideoListReply(list), nil
+}
+
+// GetAdminVideo returns non-public video detail to an administrator.
+func (s *VideoService) GetAdminVideo(ctx context.Context, req *v1.GetAdminVideoRequest) (*v1.Video, error) {
+	if _, err := appMiddleware.RequireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	videoID, err := biz.ParseBVID(req.GetBvid())
+	if err != nil {
+		return nil, err
+	}
+	video, err := s.videoUsecase.GetAdminVideo(ctx, videoID)
+	if err != nil {
+		return nil, err
+	}
+	return convertVideoReply(video), nil
+}
+
+// GetReviewVideoPlay returns unpublished DASH metadata to an administrator.
+func (s *VideoService) GetReviewVideoPlay(ctx context.Context, req *v1.GetReviewVideoPlayRequest) (*v1.VideoPlay, error) {
+	if _, err := appMiddleware.RequireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	videoID, err := biz.ParseBVID(req.GetBvid())
+	if err != nil {
+		return nil, err
+	}
+	play, err := s.videoUsecase.GetReviewVideoPlay(ctx, videoID)
+	if err != nil {
+		return nil, err
+	}
+	return convertVideoPlayReply(play), nil
+}
+
+// ApproveVideo publishes one pending submission.
+func (s *VideoService) ApproveVideo(ctx context.Context, req *v1.ApproveVideoRequest) (*v1.Video, error) {
+	videoID, adminID, err := administratorVideoRequest(ctx, req.GetBvid())
+	if err != nil {
+		return nil, err
+	}
+	video, err := s.videoUsecase.ApproveVideo(ctx, adminID, videoID)
+	if err != nil {
+		return nil, err
+	}
+	return convertVideoReply(video), nil
+}
+
+// RejectVideo returns one pending submission with a visible owner-facing reason.
+func (s *VideoService) RejectVideo(ctx context.Context, req *v1.RejectVideoRequest) (*v1.Video, error) {
+	videoID, adminID, err := administratorVideoRequest(ctx, req.GetBvid())
+	if err != nil {
+		return nil, err
+	}
+	video, err := s.videoUsecase.RejectVideo(ctx, adminID, videoID, req.GetReason())
+	if err != nil {
+		return nil, err
+	}
+	return convertVideoReply(video), nil
+}
+
+// TakeDownVideo removes one published video from all public discovery and playback paths.
+func (s *VideoService) TakeDownVideo(ctx context.Context, req *v1.TakeDownVideoRequest) (*v1.Video, error) {
+	videoID, adminID, err := administratorVideoRequest(ctx, req.GetBvid())
+	if err != nil {
+		return nil, err
+	}
+	video, err := s.videoUsecase.TakeDownVideo(ctx, adminID, videoID, req.GetReason())
+	if err != nil {
+		return nil, err
+	}
+	return convertVideoReply(video), nil
+}
+
+// DeleteAdminVideo permanently removes media and records an administrator deletion decision.
+func (s *VideoService) DeleteAdminVideo(ctx context.Context, req *v1.DeleteAdminVideoRequest) (*emptypb.Empty, error) {
+	videoID, adminID, err := administratorVideoRequest(ctx, req.GetBvid())
+	if err != nil {
+		return nil, err
+	}
+	if err := s.videoUsecase.DeleteAdminVideo(ctx, adminID, videoID, req.GetReason()); err != nil {
+		return nil, err
+	}
+	return &emptypb.Empty{}, nil
+}
+
 // setVideoLike translates authenticated transport state into the shared like usecase operation.
 func (s *VideoService) setVideoLike(ctx context.Context, bvid string, liked bool) (*v1.VideoLike, error) {
 	videoID, err := biz.ParseBVID(bvid)
@@ -401,6 +542,9 @@ func convertVideoReply(in *biz.Video) *v1.Video {
 		Status:          convertVideoStatus(in.Status),
 		CreatedAt:       timestampOrNil(in.CreatedAt),
 		UpdatedAt:       timestampOrNil(in.UpdatedAt),
+		ReviewReason:    in.ReviewReason,
+		SubmittedAt:     timestampOrNil(in.SubmittedAt),
+		ReviewedAt:      timestampOrNil(in.ReviewedAt),
 	}
 }
 
@@ -418,8 +562,12 @@ func convertVideoStatus(status biz.VideoStatus) v1.VideoStatus {
 		return v1.VideoStatus_VIDEO_STATUS_PROCESSING
 	case biz.VideoStatusReady:
 		return v1.VideoStatus_VIDEO_STATUS_READY
+	case biz.VideoStatusPendingReview:
+		return v1.VideoStatus_VIDEO_STATUS_PENDING_REVIEW
 	case biz.VideoStatusPublished:
 		return v1.VideoStatus_VIDEO_STATUS_PUBLISHED
+	case biz.VideoStatusRejected:
+		return v1.VideoStatus_VIDEO_STATUS_REJECTED
 	case biz.VideoStatusFailed:
 		return v1.VideoStatus_VIDEO_STATUS_FAILED
 	case biz.VideoStatusDeleted:
@@ -515,6 +663,44 @@ func authenticatedVideoRequest(ctx context.Context, bvid string) (biz.VideoID, u
 		return 0, 0, err
 	}
 	return videoID, userID, nil
+}
+
+func administratorVideoRequest(ctx context.Context, bvid string) (biz.VideoID, uint64, error) {
+	videoID, err := biz.ParseBVID(bvid)
+	if err != nil {
+		return 0, 0, err
+	}
+	adminID, err := appMiddleware.RequireAdmin(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+	return videoID, adminID, nil
+}
+
+func parseAdminVideoStatus(value string) (biz.VideoStatus, error) {
+	status := biz.VideoStatus(strings.TrimSpace(value))
+	switch status {
+	case biz.VideoStatusProcessing, biz.VideoStatusReady, biz.VideoStatusPendingReview,
+		biz.VideoStatusPublished, biz.VideoStatusRejected, biz.VideoStatusFailed, biz.VideoStatusDeleted:
+		return status, nil
+	default:
+		return "", biz.ErrVideoInvalidArgument
+	}
+}
+
+func convertVideoSearchOrder(order v1.VideoSearchOrder) biz.VideoSearchOrder {
+	switch order {
+	case v1.VideoSearchOrder_VIDEO_SEARCH_ORDER_MOST_VIEWED:
+		return biz.VideoSearchMostViewed
+	case v1.VideoSearchOrder_VIDEO_SEARCH_ORDER_LATEST:
+		return biz.VideoSearchLatest
+	case v1.VideoSearchOrder_VIDEO_SEARCH_ORDER_MOST_DANMAKU:
+		return biz.VideoSearchMostDanmaku
+	case v1.VideoSearchOrder_VIDEO_SEARCH_ORDER_MOST_FAVORITED:
+		return biz.VideoSearchMostFavorited
+	default:
+		return biz.VideoSearchRelevance
+	}
 }
 
 func convertVideoEngagement(in *biz.VideoEngagement) *v1.VideoEngagement {

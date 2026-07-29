@@ -2,8 +2,11 @@ package data
 
 import (
 	"database/sql"
+	"reflect"
 	"testing"
 	"time"
+
+	"bilibili-lite/internal/biz"
 )
 
 func TestVideoPageTokenRoundTrip(t *testing.T) {
@@ -40,6 +43,46 @@ func TestVideoHistoryTokenRoundTrip(t *testing.T) {
 	for _, token := range []string{"invalid", "MTIz", "MTIzOjA"} {
 		if _, err := decodeVideoHistoryToken(token); err == nil {
 			t.Errorf("decodeVideoHistoryToken(%q) unexpectedly succeeded", token)
+		}
+	}
+}
+
+func TestSearchPageTokenRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	for _, offset := range []int64{0, 20, 1<<62 - 1} {
+		token := encodeSearchPageToken(offset)
+		got, err := decodeSearchPageToken(token)
+		if err != nil {
+			t.Fatalf("decodeSearchPageToken(%q) error = %v", token, err)
+		}
+		if got != offset {
+			t.Fatalf("decodeSearchPageToken(%q) = %d, want %d", token, got, offset)
+		}
+	}
+	for _, token := range []string{"not-a-token", "LTE"} {
+		if _, err := decodeSearchPageToken(token); err == nil {
+			t.Errorf("decodeSearchPageToken(%q) unexpectedly succeeded", token)
+		}
+	}
+}
+
+func TestSearchSort(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		order biz.VideoSearchOrder
+		want  []string
+	}{
+		{order: biz.VideoSearchRelevance, want: nil},
+		{order: biz.VideoSearchMostViewed, want: []string{"view_count:desc", "publish_timestamp:desc"}},
+		{order: biz.VideoSearchLatest, want: []string{"publish_timestamp:desc"}},
+		{order: biz.VideoSearchMostDanmaku, want: []string{"danmaku_count:desc", "publish_timestamp:desc"}},
+		{order: biz.VideoSearchMostFavorited, want: []string{"favorite_count:desc", "publish_timestamp:desc"}},
+	}
+	for _, test := range tests {
+		if got := searchSort(test.order); !reflect.DeepEqual(got, test.want) {
+			t.Errorf("searchSort(%q) = %v, want %v", test.order, got, test.want)
 		}
 	}
 }

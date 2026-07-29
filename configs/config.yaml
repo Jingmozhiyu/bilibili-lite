@@ -15,6 +15,10 @@ data:
     transcode_timeout: 1200s
     max_upload_bytes: 2147483648
     max_cover_bytes: 10485760
+  search:
+    address: http://127.0.0.1:7700
+    api_key: bilibili-lite-local-meilisearch-master-key
+    video_index: videos
 auth:
   issuer: bilibili-lite
   secret: bilibili-lite-local-development-secret-change-me

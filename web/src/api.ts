@@ -15,6 +15,7 @@ import type {
   VideoLike,
   VideoListPage,
   VideoPlay,
+  VideoSearchPage,
   VideoViewResult,
   VideoViewSession,
 } from './types'
@@ -136,7 +137,20 @@ export function normalizeVideoDetail(value: unknown): VideoDetail {
     publishTime: readTimestamp(record, 'publishTime', 'publish_time'),
     tags: readArray(record, 'tags').map(String),
     ownerId: toNumber(readMetric(record, 'ownerId', 'owner_id')),
-    status: readString(record, 'status'),
+    status: normalizeVideoStatus(record.status),
+    reviewReason: readString(record, 'reviewReason', 'review_reason'),
+    submittedAt: readTimestamp(record, 'submittedAt', 'submitted_at'),
+    reviewedAt: readTimestamp(record, 'reviewedAt', 'reviewed_at'),
+  }
+}
+
+export function normalizeVideoSearch(value: unknown): VideoSearchPage {
+  const record = asRecord(value)
+  return {
+    videos: readArray(record, 'videos').map(normalizeVideoDetail),
+    nextPageToken: readString(record, 'nextPageToken', 'next_page_token'),
+    totalHits: toNumber(readMetric(record, 'totalHits', 'total_hits')),
+    processingTimeMs: toNumber(readMetric(record, 'processingTimeMs', 'processing_time_ms')),
   }
 }
 
@@ -193,6 +207,7 @@ export function normalizeUser(value: unknown): AuthUser {
     displayName: readString(user, 'displayName', 'display_name'),
     avatarUrl: readString(user, 'avatarUrl', 'avatar_url'), bio: readString(user, 'bio'),
     coinBalance: toNumber(readMetric(user, 'coinBalance', 'coin_balance')),
+    isAdmin: readBoolean(user, 'isAdmin', 'is_admin'),
   }
 }
 
@@ -322,6 +337,20 @@ export function toNumber(value: MetricValue | undefined) {
   if (typeof value === 'number') return value
   if (!value) return 0
   return Number(value)
+}
+
+function normalizeVideoStatus(value: unknown) {
+  const status = typeof value === 'number' || typeof value === 'string' ? String(value) : ''
+  const numericStatuses: Record<string, string> = {
+    '1': 'processing',
+    '2': 'ready',
+    '3': 'pending_review',
+    '4': 'published',
+    '5': 'rejected',
+    '6': 'failed',
+    '7': 'deleted',
+  }
+  return numericStatuses[status] ?? status.replace(/^VIDEO_STATUS_/, '').toLowerCase()
 }
 
 export function toErrorMessage(error: unknown, fallback: string) {

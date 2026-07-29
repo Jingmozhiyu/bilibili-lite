@@ -31,9 +31,31 @@ func (r *videoRepo) ListVideoHistory(ctx context.Context, userID uint64, kind bi
 		return r.listFavoriteVideoHistory(ctx, userID, pageSize, cursor)
 	case biz.VideoHistoryCoined:
 		return r.listCoinedVideoHistory(ctx, userID, pageSize, cursor)
+	case biz.VideoHistoryWatched:
+		return r.listWatchedVideoHistory(ctx, userID, pageSize, cursor)
 	default:
 		return nil, biz.ErrVideoInvalidArgument
 	}
+}
+
+func (r *videoRepo) listWatchedVideoHistory(ctx context.Context, userID uint64, pageSize int, cursor videoHistoryCursor) (*biz.VideoHistoryList, error) {
+	var records []videoWatchHistoryPO
+	query := r.data.db.WithContext(ctx).
+		Where("user_id = ?", userID).
+		Where("EXISTS (SELECT 1 FROM videos WHERE videos.id = user_video_watch_history.video_id AND videos.status = ? AND videos.deleted_at IS NULL)", string(biz.VideoStatusPublished)).
+		Preload("Video.Owner").
+		Order("watched_at DESC, id DESC")
+	if cursor.ID != 0 {
+		query = query.Where("(watched_at < ?) OR (watched_at = ? AND id < ?)", cursor.UpdatedAt, cursor.UpdatedAt, cursor.ID)
+	}
+	if err := query.Limit(pageSize + 1).Find(&records).Error; err != nil {
+		return nil, biz.ErrVideoStorage
+	}
+	items := make([]biz.VideoHistoryItem, 0, min(len(records), pageSize))
+	for index := 0; index < len(records) && index < pageSize; index++ {
+		items = append(items, biz.VideoHistoryItem{Video: *toBizVideo(records[index].Video), InteractedAt: records[index].WatchedAt})
+	}
+	return buildVideoHistoryList(items, len(records) > pageSize, historyCursorFromWatched(records, pageSize)), nil
 }
 
 func (r *videoRepo) listLikedVideoHistory(ctx context.Context, userID uint64, pageSize int, cursor videoHistoryCursor) (*biz.VideoHistoryList, error) {
@@ -123,6 +145,14 @@ func historyCursorFromCoins(records []videoCoinPO, pageSize int) videoHistoryCur
 	}
 	record := records[pageSize-1]
 	return videoHistoryCursor{UpdatedAt: record.UpdatedAt, ID: record.ID}
+}
+
+func historyCursorFromWatched(records []videoWatchHistoryPO, pageSize int) videoHistoryCursor {
+	if len(records) <= pageSize || pageSize == 0 {
+		return videoHistoryCursor{}
+	}
+	record := records[pageSize-1]
+	return videoHistoryCursor{UpdatedAt: record.WatchedAt, ID: record.ID}
 }
 
 func encodeVideoHistoryToken(cursor videoHistoryCursor) string {

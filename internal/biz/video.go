@@ -40,12 +40,25 @@ var (
 type VideoStatus string
 
 const (
-	VideoStatusProcessing VideoStatus = "processing"
-	VideoStatusReady      VideoStatus = "ready"
-	VideoStatusPublished  VideoStatus = "published"
-	VideoStatusFailed     VideoStatus = "failed"
-	VideoStatusDeleted    VideoStatus = "deleted"
+	VideoStatusProcessing    VideoStatus = "processing"
+	VideoStatusReady         VideoStatus = "ready"
+	VideoStatusPendingReview VideoStatus = "pending_review"
+	VideoStatusPublished     VideoStatus = "published"
+	VideoStatusRejected      VideoStatus = "rejected"
+	VideoStatusFailed        VideoStatus = "failed"
+	VideoStatusDeleted       VideoStatus = "deleted"
 )
+
+// AllowsAdminDeletion reports whether media can be removed without racing an active upload/transcode.
+func (status VideoStatus) AllowsAdminDeletion() bool {
+	switch status {
+	case VideoStatusReady, VideoStatusPendingReview, VideoStatusPublished,
+		VideoStatusRejected, VideoStatusFailed, VideoStatusDeleted:
+		return true
+	default:
+		return false
+	}
+}
 
 // VideoID is the internal numeric identifier shared by the video domain and persistence layers.
 type VideoID uint64
@@ -91,6 +104,9 @@ type Video struct {
 	ShareCount      int64
 	CommentCount    int64
 	PublishTime     time.Time
+	SubmittedAt     time.Time
+	ReviewedAt      time.Time
+	ReviewReason    string
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 	Tags            []string
@@ -103,10 +119,45 @@ type VideoListOptions struct {
 	PageToken string
 }
 
+// AdminVideoListOptions describes an administrator query over one lifecycle state.
+type AdminVideoListOptions struct {
+	Status    VideoStatus
+	PageSize  int
+	PageToken string
+}
+
 // VideoList is one page of videos and its continuation token.
 type VideoList struct {
 	Videos        []Video
 	NextPageToken string
+}
+
+// VideoSearchOrder selects relevance or one explicit popularity/time ordering.
+type VideoSearchOrder string
+
+const (
+	VideoSearchRelevance     VideoSearchOrder = "relevance"
+	VideoSearchMostViewed    VideoSearchOrder = "most_viewed"
+	VideoSearchLatest        VideoSearchOrder = "latest"
+	VideoSearchMostDanmaku   VideoSearchOrder = "most_danmaku"
+	VideoSearchMostFavorited VideoSearchOrder = "most_favorited"
+)
+
+// VideoSearchOptions describes a paginated published-video index query.
+type VideoSearchOptions struct {
+	Query     string
+	Order     VideoSearchOrder
+	OwnerID   uint64
+	PageSize  int
+	PageToken string
+}
+
+// VideoSearchResult contains hydrated PostgreSQL videos in Meilisearch rank order.
+type VideoSearchResult struct {
+	Videos           []Video
+	NextPageToken    string
+	TotalHits        int64
+	ProcessingTimeMs int64
 }
 
 // VideoPlay describes playable media and timed danmaku metadata.
@@ -180,6 +231,7 @@ const (
 	VideoHistoryLiked     VideoHistoryKind = "liked"
 	VideoHistoryFavorited VideoHistoryKind = "favorited"
 	VideoHistoryCoined    VideoHistoryKind = "coined"
+	VideoHistoryWatched   VideoHistoryKind = "watched"
 )
 
 // VideoHistoryItem combines a published video with one viewer interaction.
@@ -263,13 +315,20 @@ type VideoUploadStatus struct {
 	CoverURL      string
 }
 
-// VideoPublishInput supplies metadata after media processing has completed.
-type VideoPublishInput struct {
+// VideoReviewSubmission supplies final metadata before owner review submission.
+type VideoReviewSubmission struct {
 	OwnerID     uint64
 	VideoID     VideoID
 	Title       string
 	Description string
 	Tags        []string
+}
+
+// VideoReviewDecision contains the administrator and optional moderation reason.
+type VideoReviewDecision struct {
+	AdminID uint64
+	VideoID VideoID
+	Reason  string
 }
 
 // VideoViewSession starts the server-side minimum-watch timer.
@@ -289,8 +348,13 @@ type VideoViewResult struct {
 // VideoRepo owns persistence and media-side implementation details for video operations.
 type VideoRepo interface {
 	ListVideos(context.Context, VideoListOptions) (*VideoList, error)
+	SearchVideos(context.Context, VideoSearchOptions) (*VideoSearchResult, error)
+	ListAdminVideos(context.Context, AdminVideoListOptions) (*VideoList, error)
+	ListPendingReviewVideos(context.Context, int, string) (*VideoList, error)
 	FindVideoByID(context.Context, VideoID) (*Video, error)
+	FindAdminVideoByID(context.Context, VideoID) (*Video, error)
 	FindVideoPlayByID(context.Context, VideoID) (*VideoPlay, error)
+	FindReviewVideoPlayByID(context.Context, VideoID) (*VideoPlay, error)
 	FindVideoEngagement(context.Context, uint64, VideoID) (*VideoEngagement, error)
 	FindVideoUploadStatus(context.Context, uint64, VideoID) (*VideoUploadStatus, error)
 	SetVideoLike(context.Context, uint64, VideoID, bool) (*VideoLike, error)
@@ -307,7 +371,11 @@ type VideoRepo interface {
 	SetVideoCommentLike(context.Context, uint64, VideoID, uint64, bool) (*VideoCommentInteraction, error)
 	ListVideoCommentHistory(context.Context, uint64, int, string) (*VideoCommentHistoryList, error)
 	ProcessVideoUpload(context.Context, *VideoUploadInput) (*VideoUploadResult, error)
-	PublishVideo(context.Context, *VideoPublishInput) (*Video, error)
+	SubmitVideoForReview(context.Context, *VideoReviewSubmission) (*Video, error)
+	ApproveVideo(context.Context, VideoReviewDecision) (*Video, error)
+	RejectVideo(context.Context, VideoReviewDecision) (*Video, error)
+	TakeDownVideo(context.Context, VideoReviewDecision) (*Video, error)
+	DeleteAdminVideo(context.Context, VideoReviewDecision) error
 	DeleteVideo(context.Context, uint64, VideoID) error
 	CreateVideoViewSession(context.Context, uint64, VideoID) (*VideoViewSession, error)
 	CompleteVideoViewSession(context.Context, uint64, VideoID, string) (*VideoViewResult, error)
@@ -403,7 +471,7 @@ func (uc *VideoUsecase) ShareVideo(ctx context.Context, userID uint64, videoID V
 
 // ListVideoHistory returns one authenticated interaction history page.
 func (uc *VideoUsecase) ListVideoHistory(ctx context.Context, userID uint64, kind VideoHistoryKind, pageSize int32, pageToken string) (*VideoHistoryList, error) {
-	if userID == 0 || (kind != VideoHistoryLiked && kind != VideoHistoryFavorited && kind != VideoHistoryCoined) {
+	if userID == 0 || (kind != VideoHistoryLiked && kind != VideoHistoryFavorited && kind != VideoHistoryCoined && kind != VideoHistoryWatched) {
 		return nil, ErrVideoInvalidArgument
 	}
 	pageSize, err := normalizeVideoPageSize(pageSize)
@@ -503,8 +571,63 @@ func (uc *VideoUsecase) UploadVideo(ctx context.Context, input *VideoUploadInput
 	return uc.repo.ProcessVideoUpload(ctx, input)
 }
 
-// PublishVideo validates final metadata and transitions a ready draft to published.
-func (uc *VideoUsecase) PublishVideo(ctx context.Context, input *VideoPublishInput) (*Video, error) {
+// SearchVideos queries only published videos through the external search index.
+func (uc *VideoUsecase) SearchVideos(ctx context.Context, query string, order VideoSearchOrder, ownerID uint64, pageSize int32, pageToken string) (*VideoSearchResult, error) {
+	query = strings.TrimSpace(query)
+	if query == "" || len([]rune(query)) > 200 || !validVideoSearchOrder(order) {
+		return nil, ErrVideoInvalidArgument
+	}
+	pageSize, err := normalizeVideoPageSize(pageSize)
+	if err != nil {
+		return nil, err
+	}
+	return uc.repo.SearchVideos(ctx, VideoSearchOptions{
+		Query: query, Order: order, OwnerID: ownerID,
+		PageSize: int(pageSize), PageToken: strings.TrimSpace(pageToken),
+	})
+}
+
+// ListPendingReviewVideos returns the administrator's oldest-first moderation queue.
+func (uc *VideoUsecase) ListPendingReviewVideos(ctx context.Context, pageSize int32, pageToken string) (*VideoList, error) {
+	pageSize, err := normalizeVideoPageSize(pageSize)
+	if err != nil {
+		return nil, err
+	}
+	return uc.repo.ListPendingReviewVideos(ctx, int(pageSize), strings.TrimSpace(pageToken))
+}
+
+// ListAdminVideos returns one lifecycle-state page for moderation and cleanup.
+func (uc *VideoUsecase) ListAdminVideos(ctx context.Context, status VideoStatus, pageSize int32, pageToken string) (*VideoList, error) {
+	if !isAdminListVideoStatus(status) {
+		return nil, ErrVideoInvalidArgument
+	}
+	pageSize, err := normalizeVideoPageSize(pageSize)
+	if err != nil {
+		return nil, err
+	}
+	return uc.repo.ListAdminVideos(ctx, AdminVideoListOptions{
+		Status: status, PageSize: int(pageSize), PageToken: strings.TrimSpace(pageToken),
+	})
+}
+
+// GetAdminVideo returns pending or rejected detail for an administrator preview.
+func (uc *VideoUsecase) GetAdminVideo(ctx context.Context, videoID VideoID) (*Video, error) {
+	if videoID == 0 {
+		return nil, ErrVideoInvalidArgument
+	}
+	return uc.repo.FindAdminVideoByID(ctx, videoID)
+}
+
+// GetReviewVideoPlay returns unpublished playback metadata for administrator review.
+func (uc *VideoUsecase) GetReviewVideoPlay(ctx context.Context, videoID VideoID) (*VideoPlay, error) {
+	if videoID == 0 {
+		return nil, ErrVideoInvalidArgument
+	}
+	return uc.repo.FindReviewVideoPlayByID(ctx, videoID)
+}
+
+// SubmitVideoForReview validates metadata and transitions a ready or rejected draft to pending review.
+func (uc *VideoUsecase) SubmitVideoForReview(ctx context.Context, input *VideoReviewSubmission) (*Video, error) {
 	if input == nil {
 		return nil, ErrVideoInvalidArgument
 	}
@@ -514,7 +637,42 @@ func (uc *VideoUsecase) PublishVideo(ctx context.Context, input *VideoPublishInp
 		return nil, ErrVideoInvalidArgument
 	}
 	input.Tags = cleanVideoTags(input.Tags)
-	return uc.repo.PublishVideo(ctx, input)
+	return uc.repo.SubmitVideoForReview(ctx, input)
+}
+
+// ApproveVideo publishes one pending submission.
+func (uc *VideoUsecase) ApproveVideo(ctx context.Context, adminID uint64, videoID VideoID) (*Video, error) {
+	if adminID == 0 || videoID == 0 {
+		return nil, ErrVideoInvalidArgument
+	}
+	return uc.repo.ApproveVideo(ctx, VideoReviewDecision{AdminID: adminID, VideoID: videoID})
+}
+
+// RejectVideo returns one pending submission to its owner with a moderation reason.
+func (uc *VideoUsecase) RejectVideo(ctx context.Context, adminID uint64, videoID VideoID, reason string) (*Video, error) {
+	reason = strings.TrimSpace(reason)
+	if adminID == 0 || videoID == 0 || reason == "" || len([]rune(reason)) > 1000 {
+		return nil, ErrVideoInvalidArgument
+	}
+	return uc.repo.RejectVideo(ctx, VideoReviewDecision{AdminID: adminID, VideoID: videoID, Reason: reason})
+}
+
+// TakeDownVideo removes a published video from all public read paths.
+func (uc *VideoUsecase) TakeDownVideo(ctx context.Context, adminID uint64, videoID VideoID, reason string) (*Video, error) {
+	reason = strings.TrimSpace(reason)
+	if adminID == 0 || videoID == 0 || reason == "" || len([]rune(reason)) > 1000 {
+		return nil, ErrVideoInvalidArgument
+	}
+	return uc.repo.TakeDownVideo(ctx, VideoReviewDecision{AdminID: adminID, VideoID: videoID, Reason: reason})
+}
+
+// DeleteAdminVideo permanently removes media while retaining the consumed BV record for audit.
+func (uc *VideoUsecase) DeleteAdminVideo(ctx context.Context, adminID uint64, videoID VideoID, reason string) error {
+	reason = strings.TrimSpace(reason)
+	if adminID == 0 || videoID == 0 || reason == "" || len([]rune(reason)) > 1000 {
+		return ErrVideoInvalidArgument
+	}
+	return uc.repo.DeleteAdminVideo(ctx, VideoReviewDecision{AdminID: adminID, VideoID: videoID, Reason: reason})
 }
 
 // DeleteVideo marks a BV identifier deleted and removes its published media.
@@ -569,10 +727,29 @@ func normalizeVideoPageSize(pageSize int32) (int32, error) {
 	return pageSize, nil
 }
 
+func isAdminListVideoStatus(status VideoStatus) bool {
+	switch status {
+	case VideoStatusProcessing, VideoStatusReady, VideoStatusPendingReview, VideoStatusPublished,
+		VideoStatusRejected, VideoStatusFailed, VideoStatusDeleted:
+		return true
+	default:
+		return false
+	}
+}
+
 func validDanmakuColor(color string) bool {
 	if len(color) != 7 || color[0] != '#' {
 		return false
 	}
 	_, err := strconv.ParseUint(color[1:], 16, 24)
 	return err == nil
+}
+
+func validVideoSearchOrder(order VideoSearchOrder) bool {
+	switch order {
+	case "", VideoSearchRelevance, VideoSearchMostViewed, VideoSearchLatest, VideoSearchMostDanmaku, VideoSearchMostFavorited:
+		return true
+	default:
+		return false
+	}
 }

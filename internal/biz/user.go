@@ -16,6 +16,7 @@ var (
 	ErrUserNotFound        = errors.NotFound(v1.ErrorReason_USER_NOT_FOUND.String(), "user not found")
 	ErrInvalidCredentials  = errors.Unauthorized(v1.ErrorReason_USER_INVALID_CREDENTIALS.String(), "invalid username or password")
 	ErrSessionInvalid      = errors.Unauthorized(v1.ErrorReason_USER_SESSION_INVALID.String(), "invalid session")
+	ErrUserForbidden       = errors.Forbidden(v1.ErrorReason_USER_FORBIDDEN.String(), "administrator access is required")
 	ErrUserStorage         = errors.InternalServer(v1.ErrorReason_USER_UNSPECIFIED.String(), "user storage unavailable")
 	ErrUserAvatarInvalid   = errors.BadRequest(v1.ErrorReason_USER_INVALID_ARGUMENT.String(), "avatar must be a JPEG or PNG image within the size limit")
 )
@@ -28,6 +29,7 @@ type User struct {
 	AvatarURL   string
 	Bio         string
 	CoinBalance int64
+	IsAdmin     bool
 }
 
 // UserProfileUpdate contains the editable public profile fields.
@@ -55,6 +57,7 @@ type UserSession struct {
 type TokenClaims struct {
 	UserID    uint64
 	TokenType string
+	IsAdmin   bool
 }
 
 // TokenPair contains the two JWTs issued for a login or refresh.
@@ -67,7 +70,7 @@ type TokenPair struct {
 
 // TokenManager signs and validates access and refresh JWTs.
 type TokenManager interface {
-	Issue(uint64) (*TokenPair, error)
+	Issue(uint64, bool) (*TokenPair, error)
 	ParseAccess(string) (*TokenClaims, error)
 	ParseRefresh(string) (*TokenClaims, error)
 }
@@ -148,7 +151,7 @@ func (uc *UserUsecase) Login(ctx context.Context, username, password string) (*U
 		return nil, ErrInvalidCredentials
 	}
 
-	tokens, err := uc.tokens.Issue(credential.ID)
+	tokens, err := uc.tokens.Issue(credential.ID, credential.IsAdmin)
 	if err != nil {
 		return nil, errors.InternalServer(v1.ErrorReason_USER_UNSPECIFIED.String(), "failed to create session")
 	}
@@ -175,7 +178,7 @@ func (uc *UserUsecase) Refresh(ctx context.Context, refreshToken string) (*UserS
 		}
 		return nil, err
 	}
-	tokens, err := uc.tokens.Issue(user.ID)
+	tokens, err := uc.tokens.Issue(user.ID, user.IsAdmin)
 	if err != nil {
 		return nil, errors.InternalServer(v1.ErrorReason_USER_UNSPECIFIED.String(), "failed to refresh session")
 	}

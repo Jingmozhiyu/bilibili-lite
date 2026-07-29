@@ -1,4 +1,4 @@
-import { Coins, Heart, Library, LogIn } from 'lucide-react'
+import { Clock3, Coins, Heart, Library, LogIn } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { authorizedJson, normalizeVideoHistory, toErrorMessage } from '../api'
@@ -11,6 +11,7 @@ const historyConfig = {
   likes: { endpoint: 'video-likes', title: '点赞历史', description: '当前仍保持点赞的视频', icon: Heart },
   favorites: { endpoint: 'video-favorites', title: '收藏历史', description: '当前仍在收藏中的视频', icon: Library },
   coins: { endpoint: 'video-coins', title: '投币历史', description: '投币不可撤销', icon: Coins },
+  views: { endpoint: 'watch-history', title: '观看历史', description: '最近观看的视频会自动移到最前面', icon: Clock3 },
 } as const
 
 export function HistoryPage() {

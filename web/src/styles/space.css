@@ -1,21 +1,25 @@
 .space-page {
+  position: relative;
   min-height: calc(100svh - 64px);
 }
 
 .profile-band {
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  position: relative;
+  z-index: calc(var(--z-sticky) + 1);
+  height: 116px;
+  margin-top: -116px;
+  background: transparent;
 }
 
 .profile-inner {
   display: grid;
   grid-template-columns: 92px minmax(0, 1fr) auto;
   gap: 22px;
-  align-items: end;
+  align-items: center;
   width: min(1500px, calc(100% - 48px));
-  min-height: 220px;
+  min-height: 116px;
   margin: 0 auto;
-  padding: 48px 0 28px;
+  padding: 12px 0 14px;
 }
 
 .profile-avatar {
@@ -62,14 +66,16 @@
 }
 
 .profile-copy h1 {
-  color: var(--text-strong);
+  color: #fff;
   font-size: 26px;
+  text-shadow: 0 1px 8px rgb(0 0 0 / 62%);
 }
 
 .profile-copy span,
 .profile-copy p {
-  color: var(--text);
+  color: rgb(255 255 255 / 88%);
   font-size: 13px;
+  text-shadow: 0 1px 6px rgb(0 0 0 / 62%);
 }
 
 .profile-copy p {
@@ -84,17 +90,19 @@
   justify-content: center;
   min-height: 38px;
   padding: 0 14px;
-  color: var(--text-strong);
+  color: #fff;
   border: 1px solid rgb(255 255 255 / 72%);
   border-radius: 7px;
   cursor: pointer;
-  background: rgb(255 255 255 / 74%);
+  background: rgb(18 31 44 / 30%);
+  backdrop-filter: blur(6px);
 }
 
 .profile-edit-button:hover,
 .secondary-button:hover {
-  color: var(--accent);
-  border-color: var(--accent);
+  color: #fff;
+  border-color: #fff;
+  background: rgb(18 31 44 / 48%);
 }
 
 .space-body {
@@ -113,7 +121,13 @@
   scrollbar-width: none;
 }
 
-.space-tabs button {
+.space-tab-links {
+  display: flex;
+  align-items: center;
+  min-width: max-content;
+}
+
+.space-tab-links button {
   position: relative;
   display: flex;
   flex: 0 0 auto;
@@ -127,7 +141,7 @@
   background: transparent;
 }
 
-.space-tabs button::after {
+.space-tab-links button::after {
   position: absolute;
   right: 13px;
   bottom: -1px;
@@ -137,13 +151,58 @@
   background: transparent;
 }
 
-.space-tabs button:hover,
-.space-tabs button.active {
+.space-tab-links button:hover,
+.space-tab-links button.active {
   color: var(--accent);
 }
 
-.space-tabs button.active::after {
+.space-tab-links button.active::after {
   background: var(--accent);
+}
+
+.space-video-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  flex: 0 0 230px;
+  align-items: center;
+  height: 34px;
+  margin-left: auto;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+.space-video-search:focus-within {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.space-video-search input {
+  min-width: 0;
+  height: 32px;
+  padding: 0 9px;
+  color: var(--text-strong);
+  border: 0;
+  outline: 0;
+  background: transparent;
+}
+
+.space-video-search button {
+  display: grid;
+  width: 34px;
+  height: 32px;
+  padding: 0;
+  place-items: center;
+  color: var(--text-muted);
+  border: 0;
+  cursor: pointer;
+  background: transparent;
+}
+
+.space-video-search button:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .space-content {
@@ -372,12 +431,14 @@
 }
 
 .secondary-button {
+  color: var(--text-strong);
   background: var(--surface-2);
   border-color: var(--border);
+  backdrop-filter: none;
 }
 
 .profile-skeleton {
-  min-height: 220px;
+  min-height: 116px;
   background: linear-gradient(90deg, var(--surface-2), var(--surface), var(--surface-2));
   background-size: 220% 100%;
   animation: shimmer 1.3s ease-in-out infinite;
@@ -389,13 +450,21 @@
 @media (max-width: 680px) {
   .space-page { min-height: calc(100svh - 58px); }
   .profile-inner, .space-body { width: calc(100% - 28px); }
-  .profile-inner { grid-template-columns: 72px minmax(0, 1fr); gap: 14px; min-height: 190px; padding-top: 38px; }
-  .profile-avatar.large { width: 72px; height: 72px; font-size: 27px; }
+  .profile-band { height: 104px; margin-top: -104px; }
+  .profile-inner { grid-template-columns: 64px minmax(0, 1fr) auto; gap: 11px; min-height: 104px; padding: 8px 0 10px; }
+  .profile-avatar.large { width: 64px; height: 64px; font-size: 25px; }
   .profile-copy h1 { font-size: 21px; }
-  .profile-edit-button { grid-column: 1 / -1; justify-self: start; min-height: 34px; }
-  .space-tabs { min-height: 54px; }
+  .profile-copy > div span { display: none; }
+  .profile-copy p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .profile-edit-button { width: 36px; min-height: 34px; padding: 0; font-size: 0; }
+  .space-tabs { position: relative; min-height: 54px; }
   .space-tabs { gap: 0; }
-  .space-tabs button { gap: 5px; height: 54px; padding-inline: 8px; font-size: 13px; }
+  .space-tab-links { overflow-x: auto; scrollbar-width: none; }
+  .space-tab-links button { gap: 5px; height: 54px; padding-inline: 8px; font-size: 13px; }
+  .space-video-search { flex-basis: 42px; grid-template-columns: 0 42px; border: 0; background: transparent; }
+  .space-video-search:focus-within { position: absolute; right: 14px; left: 14px; z-index: 2; grid-template-columns: minmax(0, 1fr) 42px; border: 1px solid var(--accent); background: var(--surface); }
+  .space-video-search input { padding: 0; }
+  .space-video-search:focus-within input { padding-inline: 10px; }
   .space-content-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 10px; }
   .profile-editor-backdrop { align-items: end; padding: 0; }
   .profile-editor { width: 100%; border-radius: 8px 8px 0 0; }

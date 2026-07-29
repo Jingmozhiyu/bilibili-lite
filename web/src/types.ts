@@ -19,11 +19,19 @@ export type VideoDetail = {
   tags: string[]
   ownerId?: number
   status?: string
+  reviewReason?: string
+  submittedAt?: string
+  reviewedAt?: string
 }
 
 export type VideoListPage = {
   videos: VideoDetail[]
   nextPageToken: string
+}
+
+export type VideoSearchPage = VideoListPage & {
+  totalHits: number
+  processingTimeMs: number
 }
 
 export type VideoStream = {
@@ -65,6 +73,7 @@ export type AuthUser = {
   avatarUrl?: string
   bio?: string
   coinBalance: number
+  isAdmin: boolean
 }
 
 export type UserProfile = AuthUser

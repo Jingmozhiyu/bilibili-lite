@@ -55,6 +55,62 @@ func (r *videoRepo) ListVideos(ctx context.Context, options biz.VideoListOptions
 	return result, nil
 }
 
+// ListPendingReviewVideos returns the oldest submitted videos first for deterministic moderation.
+func (r *videoRepo) ListPendingReviewVideos(ctx context.Context, pageSize int, pageToken string) (*biz.VideoList, error) {
+	cursor, err := decodeVideoPageToken(pageToken)
+	if err != nil {
+		return nil, biz.ErrVideoInvalidArgument
+	}
+	query := r.data.db.WithContext(ctx).Preload("Owner").
+		Where("status = ? AND deleted_at IS NULL", string(biz.VideoStatusPendingReview))
+	if cursor != 0 {
+		query = query.Where("id > ?", cursor)
+	}
+	var records []videoPO
+	if err := query.Order("id ASC").Limit(pageSize + 1).Find(&records).Error; err != nil {
+		return nil, biz.ErrVideoStorage
+	}
+	result := &biz.VideoList{Videos: make([]biz.Video, 0, min(len(records), pageSize))}
+	if len(records) > pageSize {
+		records = records[:pageSize]
+		result.NextPageToken = encodeVideoPageToken(records[len(records)-1].ID)
+	}
+	for _, record := range records {
+		result.Videos = append(result.Videos, *toBizVideo(record))
+	}
+	return result, nil
+}
+
+// ListAdminVideos returns newest-first records in one lifecycle state, including deleted audit rows.
+func (r *videoRepo) ListAdminVideos(ctx context.Context, options biz.AdminVideoListOptions) (*biz.VideoList, error) {
+	cursor, err := decodeVideoPageToken(options.PageToken)
+	if err != nil {
+		return nil, biz.ErrVideoInvalidArgument
+	}
+	query := r.data.db.WithContext(ctx).Preload("Owner").Where("status = ?", string(options.Status))
+	if options.Status == biz.VideoStatusDeleted {
+		query = query.Where("deleted_at IS NOT NULL")
+	} else {
+		query = query.Where("deleted_at IS NULL")
+	}
+	if cursor != 0 {
+		query = query.Where("id < ?", cursor)
+	}
+	var records []videoPO
+	if err := query.Order("id DESC").Limit(options.PageSize + 1).Find(&records).Error; err != nil {
+		return nil, biz.ErrVideoStorage
+	}
+	result := &biz.VideoList{Videos: make([]biz.Video, 0, min(len(records), options.PageSize))}
+	if len(records) > options.PageSize {
+		records = records[:options.PageSize]
+		result.NextPageToken = encodeVideoPageToken(records[len(records)-1].ID)
+	}
+	for _, record := range records {
+		result.Videos = append(result.Videos, *toBizVideo(record))
+	}
+	return result, nil
+}
+
 // FindVideoByID loads a published video detail with its owner.
 func (r *videoRepo) FindVideoByID(ctx context.Context, videoID biz.VideoID) (*biz.Video, error) {
 	record, err := findPublishedVideoPO(r.data.db.WithContext(ctx).Preload("Owner"), uint64(videoID), false)
@@ -62,6 +118,21 @@ func (r *videoRepo) FindVideoByID(ctx context.Context, videoID biz.VideoID) (*bi
 		return nil, mapVideoReadError(err)
 	}
 	return toBizVideo(*record), nil
+}
+
+// FindAdminVideoByID loads pending or rejected detail for an administrator preview.
+func (r *videoRepo) FindAdminVideoByID(ctx context.Context, videoID biz.VideoID) (*biz.Video, error) {
+	var record videoPO
+	err := r.data.db.WithContext(ctx).Preload("Owner").
+		Where("id = ? AND status IN ? AND deleted_at IS NULL", uint64(videoID), adminPreviewStatuses()).
+		First(&record).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, biz.ErrVideoNotFound
+	}
+	if err != nil {
+		return nil, biz.ErrVideoStorage
+	}
+	return toBizVideo(record), nil
 }
 
 // FindVideoPlayByID loads DASH streams and timed danmaku for a published video.
@@ -93,6 +164,32 @@ func (r *videoRepo) FindVideoPlayByID(ctx context.Context, videoID biz.VideoID) 
 	return toBizVideoPlay(*record, streams, danmakus), nil
 }
 
+// FindReviewVideoPlayByID loads media for a pending or rejected video visible only to administrators.
+func (r *videoRepo) FindReviewVideoPlayByID(ctx context.Context, videoID biz.VideoID) (*biz.VideoPlay, error) {
+	numericVideoID := uint64(videoID)
+	var record videoPO
+	err := r.data.db.WithContext(ctx).
+		Where("id = ? AND status IN ? AND deleted_at IS NULL", numericVideoID, adminPreviewStatuses()).
+		First(&record).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, biz.ErrVideoNotFound
+	}
+	if err != nil {
+		return nil, biz.ErrVideoStorage
+	}
+	var streams []videoStreamPO
+	if err := r.data.db.WithContext(ctx).
+		Where("video_id = ? AND mime_type = ?", numericVideoID, "application/dash+xml").
+		Order("id ASC").Find(&streams).Error; err != nil {
+		return nil, biz.ErrVideoStorage
+	}
+	return toBizVideoPlay(record, streams, nil), nil
+}
+
+func adminPreviewStatuses() []string {
+	return []string{string(biz.VideoStatusPendingReview), string(biz.VideoStatusRejected)}
+}
+
 // FindVideoUploadStatus returns processing details only when the requester owns the video.
 func (r *videoRepo) FindVideoUploadStatus(ctx context.Context, userID uint64, videoID biz.VideoID) (*biz.VideoUploadStatus, error) {
 	var record videoPO
@@ -107,7 +204,10 @@ func (r *videoRepo) FindVideoUploadStatus(ctx context.Context, userID uint64, vi
 		return nil, biz.ErrVideoForbidden
 	}
 	var stream videoStreamPO
-	if record.Status == string(biz.VideoStatusReady) || record.Status == string(biz.VideoStatusPublished) {
+	if record.Status == string(biz.VideoStatusReady) ||
+		record.Status == string(biz.VideoStatusPendingReview) ||
+		record.Status == string(biz.VideoStatusPublished) ||
+		record.Status == string(biz.VideoStatusRejected) {
 		err = r.data.db.WithContext(ctx).
 			Where("video_id = ? AND mime_type = ?", record.ID, "application/dash+xml").
 			Order("id ASC").First(&stream).Error
@@ -125,8 +225,8 @@ func (r *videoRepo) FindVideoUploadStatus(ctx context.Context, userID uint64, vi
 	}, nil
 }
 
-// PublishVideo atomically attaches final metadata and transitions a ready draft to published.
-func (r *videoRepo) PublishVideo(ctx context.Context, input *biz.VideoPublishInput) (*biz.Video, error) {
+// SubmitVideoForReview attaches final metadata and moves a ready or rejected draft into moderation.
+func (r *videoRepo) SubmitVideoForReview(ctx context.Context, input *biz.VideoReviewSubmission) (*biz.Video, error) {
 	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var record videoPO
 		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&record, uint64(input.VideoID)).Error
@@ -139,21 +239,27 @@ func (r *videoRepo) PublishVideo(ctx context.Context, input *biz.VideoPublishInp
 		if record.OwnerID != input.OwnerID {
 			return biz.ErrVideoForbidden
 		}
-		if record.Status == string(biz.VideoStatusPublished) {
+		if record.Status == string(biz.VideoStatusPendingReview) {
 			return nil
 		}
-		if record.Status != string(biz.VideoStatusReady) {
+		if record.Status != string(biz.VideoStatusReady) && record.Status != string(biz.VideoStatusRejected) {
 			return biz.ErrVideoInvalidState
 		}
 		now := time.Now()
 		record.Title = input.Title
 		record.Description = input.Description
 		record.Tags = append([]string(nil), input.Tags...)
-		record.Status = string(biz.VideoStatusPublished)
-		record.FailureReason = ""
-		record.PublishTime = &now
+		record.Status = string(biz.VideoStatusPendingReview)
+		record.ReviewReason = ""
+		record.SubmittedAt = &now
+		record.ReviewedAt = nil
+		record.ReviewedBy = nil
+		record.PublishTime = nil
 		record.UpdatedAt = now
-		return tx.Select("Title", "Description", "Tags", "Status", "FailureReason", "PublishTime", "UpdatedAt").Updates(&record).Error
+		return tx.Select(
+			"Title", "Description", "Tags", "Status", "ReviewReason", "SubmittedAt",
+			"ReviewedAt", "ReviewedBy", "PublishTime", "UpdatedAt",
+		).Updates(&record).Error
 	})
 	if err != nil {
 		switch {
@@ -163,11 +269,65 @@ func (r *videoRepo) PublishVideo(ctx context.Context, input *biz.VideoPublishInp
 			return nil, biz.ErrVideoStorage
 		}
 	}
-	return r.FindVideoByID(ctx, input.VideoID)
+	return r.findVideoByID(ctx, input.VideoID)
+}
+
+// ApproveVideo atomically publishes one pending submission and then refreshes its search document.
+func (r *videoRepo) ApproveVideo(ctx context.Context, decision biz.VideoReviewDecision) (*biz.Video, error) {
+	video, err := r.reviewVideo(ctx, decision, biz.VideoStatusPendingReview, biz.VideoStatusPublished, "")
+	if err != nil {
+		return nil, err
+	}
+	r.syncPublishedVideoToSearch(ctx, decision.VideoID)
+	return video, nil
+}
+
+// RejectVideo returns one pending submission to its owner and ensures it is absent from search.
+func (r *videoRepo) RejectVideo(ctx context.Context, decision biz.VideoReviewDecision) (*biz.Video, error) {
+	video, err := r.reviewVideo(ctx, decision, biz.VideoStatusPendingReview, biz.VideoStatusRejected, decision.Reason)
+	if err != nil {
+		return nil, err
+	}
+	r.removeVideoFromSearch(ctx, decision.VideoID)
+	return video, nil
+}
+
+// TakeDownVideo transitions a published video to rejected without deleting its media or BV record.
+func (r *videoRepo) TakeDownVideo(ctx context.Context, decision biz.VideoReviewDecision) (*biz.Video, error) {
+	video, err := r.reviewVideo(ctx, decision, biz.VideoStatusPublished, biz.VideoStatusRejected, decision.Reason)
+	if err != nil {
+		return nil, err
+	}
+	r.removeVideoFromSearch(ctx, decision.VideoID)
+	return video, nil
+}
+
+// DeleteAdminVideo removes playable media for any settled state and retains the BV audit row.
+func (r *videoRepo) DeleteAdminVideo(ctx context.Context, decision biz.VideoReviewDecision) error {
+	return r.deleteVideo(ctx, decision.VideoID, func(record *videoPO) error {
+		if !biz.VideoStatus(record.Status).AllowsAdminDeletion() {
+			return biz.ErrVideoInvalidState
+		}
+		return nil
+	}, &decision)
 }
 
 // DeleteVideo preserves the BV record as deleted and removes any publicly served media.
 func (r *videoRepo) DeleteVideo(ctx context.Context, userID uint64, videoID biz.VideoID) error {
+	return r.deleteVideo(ctx, videoID, func(record *videoPO) error {
+		if record.OwnerID != userID {
+			return biz.ErrVideoForbidden
+		}
+		return nil
+	}, nil)
+}
+
+func (r *videoRepo) deleteVideo(
+	ctx context.Context,
+	videoID biz.VideoID,
+	authorize func(*videoPO) error,
+	decision *biz.VideoReviewDecision,
+) error {
 	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var record videoPO
 		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&record, uint64(videoID)).Error
@@ -177,30 +337,94 @@ func (r *videoRepo) DeleteVideo(ctx context.Context, userID uint64, videoID biz.
 		if err != nil {
 			return err
 		}
-		if record.OwnerID != userID {
-			return biz.ErrVideoForbidden
+		if err := authorize(&record); err != nil {
+			return err
+		}
+		// Remove local media while the row lock is held so a failed cleanup leaves
+		// the record visible and retryable instead of hiding orphaned files.
+		if err := r.mediaManager.RemoveVideo(videoID.BVID()); err != nil {
+			return err
 		}
 		now := time.Now()
-		if err := tx.Model(&record).Updates(map[string]any{
+		updates := map[string]any{
 			"status": string(biz.VideoStatusDeleted), "deleted_at": &now,
 			"cover_url": "", "updated_at": now,
-		}).Error; err != nil {
+		}
+		if decision != nil {
+			updates["review_reason"] = decision.Reason
+			updates["reviewed_at"] = &now
+			updates["reviewed_by"] = decision.AdminID
+		}
+		if err := tx.Model(&record).Updates(updates).Error; err != nil {
 			return err
 		}
 		return tx.Where("video_id = ?", record.ID).Delete(&videoStreamPO{}).Error
 	})
 	if err != nil {
 		switch {
-		case errors.Is(err, biz.ErrVideoNotFound), errors.Is(err, biz.ErrVideoForbidden):
+		case errors.Is(err, biz.ErrVideoNotFound), errors.Is(err, biz.ErrVideoForbidden), errors.Is(err, biz.ErrVideoInvalidState):
 			return err
 		default:
 			return biz.ErrVideoStorage
 		}
 	}
-	if err := r.mediaManager.RemoveVideo(videoID.BVID()); err != nil {
-		return biz.ErrVideoStorage
-	}
+	r.removeVideoFromSearch(ctx, videoID)
 	return nil
+}
+
+func (r *videoRepo) reviewVideo(
+	ctx context.Context,
+	decision biz.VideoReviewDecision,
+	fromStatus biz.VideoStatus,
+	toStatus biz.VideoStatus,
+	reason string,
+) (*biz.Video, error) {
+	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var record videoPO
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&record, uint64(decision.VideoID)).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return biz.ErrVideoNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if record.Status != string(fromStatus) || record.DeletedAt != nil {
+			return biz.ErrVideoInvalidState
+		}
+		now := time.Now()
+		updates := map[string]any{
+			"status":        string(toStatus),
+			"review_reason": reason,
+			"reviewed_at":   &now,
+			"reviewed_by":   decision.AdminID,
+			"updated_at":    now,
+		}
+		if toStatus == biz.VideoStatusPublished {
+			updates["publish_time"] = &now
+		}
+		return tx.Model(&record).Updates(updates).Error
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, biz.ErrVideoNotFound), errors.Is(err, biz.ErrVideoInvalidState):
+			return nil, err
+		default:
+			return nil, biz.ErrVideoStorage
+		}
+	}
+	return r.findVideoByID(ctx, decision.VideoID)
+}
+
+func (r *videoRepo) findVideoByID(ctx context.Context, videoID biz.VideoID) (*biz.Video, error) {
+	var record videoPO
+	err := r.data.db.WithContext(ctx).Preload("Owner").First(&record, uint64(videoID)).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, biz.ErrVideoNotFound
+	}
+	if err != nil {
+		return nil, biz.ErrVideoStorage
+	}
+	return toBizVideo(record), nil
 }
 
 // findPublishedVideoPO centralizes public visibility checks and optional row locking.
@@ -237,11 +461,18 @@ func toBizVideo(v videoPO) *biz.Video {
 		DanmakuCount: v.DanmakuCount, LikeCount: v.LikeCount,
 		CoinCount: v.CoinCount, FavoriteCount: v.FavoriteCount, ShareCount: v.ShareCount,
 		CommentCount: v.CommentCount,
+		ReviewReason: v.ReviewReason,
 		CreatedAt:    v.CreatedAt, UpdatedAt: v.UpdatedAt,
 		Tags: append([]string(nil), v.Tags...),
 	}
 	if v.PublishTime != nil {
 		out.PublishTime = *v.PublishTime
+	}
+	if v.SubmittedAt != nil {
+		out.SubmittedAt = *v.SubmittedAt
+	}
+	if v.ReviewedAt != nil {
+		out.ReviewedAt = *v.ReviewedAt
 	}
 	return out
 }

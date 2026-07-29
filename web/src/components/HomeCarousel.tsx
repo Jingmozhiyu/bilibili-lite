@@ -9,18 +9,50 @@ const posters = [
   { src: '/p5.jpeg', title: '现场速报', detail: '镜头里的热闹一刻' },
 ]
 
+const carouselSlides = [posters[posters.length - 1], ...posters, posters[0]]
+
 export function HomeCarousel() {
-  const [active, setActive] = useState(0)
+  const [position, setPosition] = useState(1)
+  const [animated, setAnimated] = useState(true)
+  const [moving, setMoving] = useState(false)
   const [paused, setPaused] = useState(false)
+  const active = (position - 1 + posters.length) % posters.length
 
   useEffect(() => {
     if (paused) return
-    const timer = window.setInterval(() => setActive((current) => (current + 1) % posters.length), 4800)
+    const timer = window.setInterval(() => {
+      if (moving) return
+      setMoving(true)
+      setPosition((current) => current + 1)
+    }, 4800)
     return () => window.clearInterval(timer)
-  }, [paused])
+  }, [moving, paused])
 
   function move(offset: number) {
-    setActive((current) => (current + offset + posters.length) % posters.length)
+    if (moving) return
+    setMoving(true)
+    setPosition((current) => current + offset)
+  }
+
+  function select(index: number) {
+    if (moving || index === active) return
+    setMoving(true)
+    setPosition(index + 1)
+  }
+
+  function finishMove() {
+    if (position === 0 || position === posters.length + 1) {
+      setAnimated(false)
+      setPosition(position === 0 ? posters.length : 1)
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          setAnimated(true)
+          setMoving(false)
+        })
+      })
+      return
+    }
+    setMoving(false)
   }
 
   return (
@@ -33,10 +65,17 @@ export function HomeCarousel() {
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
     >
-      <div className="poster-track" style={{ transform: `translateX(-${active * 100}%)` }}>
-        {posters.map((poster, index) => (
-          <figure className="poster-slide" key={poster.src} aria-hidden={index !== active}>
-            <img src={poster.src} alt="" fetchPriority={index === 0 ? 'high' : 'auto'} />
+      <div
+        className="poster-track"
+        style={{
+          transform: `translateX(-${position * 100}%)`,
+          transition: animated ? undefined : 'none',
+        }}
+        onTransitionEnd={finishMove}
+      >
+        {carouselSlides.map((poster, index) => (
+          <figure className="poster-slide" key={`${poster.src}-${index}`} aria-hidden={index !== position}>
+            <img src={poster.src} alt="" width="1280" height="720" fetchPriority={index === 1 ? 'high' : 'auto'} />
           </figure>
         ))}
       </div>
@@ -58,7 +97,7 @@ export function HomeCarousel() {
             className={active === index ? 'active' : ''}
             aria-label={`第 ${index + 1} 张海报`}
             aria-current={active === index}
-            onClick={() => setActive(index)}
+            onClick={() => select(index)}
           />
         ))}
       </div>

@@ -35,6 +35,28 @@ func TestZeroVideoIDHasNoPublicIdentifier(t *testing.T) {
 	}
 }
 
+func TestVideoStatusAllowsAdminDeletion(t *testing.T) {
+	t.Parallel()
+
+	for _, status := range []VideoStatus{
+		VideoStatusReady,
+		VideoStatusPendingReview,
+		VideoStatusPublished,
+		VideoStatusRejected,
+		VideoStatusFailed,
+		VideoStatusDeleted,
+	} {
+		if !status.AllowsAdminDeletion() {
+			t.Errorf("%q should allow administrator deletion", status)
+		}
+	}
+	for _, status := range []VideoStatus{"", VideoStatusProcessing, "unknown"} {
+		if status.AllowsAdminDeletion() {
+			t.Errorf("%q should reject administrator deletion", status)
+		}
+	}
+}
+
 func TestNormalizeVideoPageSize(t *testing.T) {
 	t.Parallel()
 

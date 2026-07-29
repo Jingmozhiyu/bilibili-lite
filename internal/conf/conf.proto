@@ -35,6 +35,7 @@ message Data {
 	}
 	Database database = 1;
 	Media media = 3;
+	Search search = 4;
 
   message Media {
     string storage_dir = 1;
@@ -42,6 +43,12 @@ message Data {
     google.protobuf.Duration transcode_timeout = 3;
     int64 max_upload_bytes = 4;
     int64 max_cover_bytes = 5;
+  }
+
+  message Search {
+    string address = 1;
+    string api_key = 2;
+    string video_index = 3;
   }
 }
 
