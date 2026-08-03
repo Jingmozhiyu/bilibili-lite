@@ -10,12 +10,26 @@ type userPO struct {
 	AvatarURL    string `gorm:"size:500"`
 	Bio          string `gorm:"size:500"`
 	CoinBalance  int64  `gorm:"not null;default:1000"`
+	Experience   int64  `gorm:"not null;default:0"`
 	Role         string `gorm:"size:32;not null;default:user;index"`
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
 
 func (userPO) TableName() string { return "users" }
+
+type userDailyExperiencePO struct {
+	ID             uint64 `gorm:"primaryKey;autoIncrement"`
+	UserID         uint64 `gorm:"not null;uniqueIndex:idx_user_daily_experience"`
+	User           userPO `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	ExperienceDate string `gorm:"type:date;not null;uniqueIndex:idx_user_daily_experience"`
+	Source         string `gorm:"size:32;not null;uniqueIndex:idx_user_daily_experience"`
+	Amount         int32  `gorm:"not null;default:0"`
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+func (userDailyExperiencePO) TableName() string { return "user_daily_experience" }
 
 type videoPO struct {
 	ID              uint64 `gorm:"primaryKey;autoIncrement"`

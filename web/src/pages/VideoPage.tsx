@@ -1,5 +1,5 @@
 import type { MediaPlayerClass } from 'dashjs'
-import { AlertCircle, ChevronLeft, Radio, ShieldAlert, Trash2, UserRound } from 'lucide-react'
+import { AlertCircle, ChevronLeft, ShieldAlert, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
@@ -10,6 +10,7 @@ import {
   normalizeVideoDetail,
   normalizeVideoEngagement,
   normalizeVideoLike,
+  normalizeVideoList,
   normalizeVideoPlay,
   normalizeVideoViewResult,
   normalizeVideoViewSession,
@@ -18,10 +19,14 @@ import {
 } from '../api'
 import { useAuth } from '../auth/useAuth'
 import { CommentSection } from '../components/CommentSection'
+import { DanmakuComposer } from '../components/DanmakuComposer'
 import { DanmakuPanel } from '../components/DanmakuPanel'
 import { InteractionBar } from '../components/InteractionBar'
+import { RelatedVideos } from '../components/RelatedVideos'
+import { BiliDanmakuIcon, BiliViewIcon } from '../components/BiliIcons'
+import { BiliVideoPlayer } from '../components/BiliVideoPlayer'
 import type { DanmakuItem, VideoDetail, VideoEngagement, VideoPlay } from '../types'
-import { formatBitrate, formatCount, formatDate } from '../utils/format'
+import { formatCount, formatDate } from '../utils/format'
 
 type LoadState =
   | { status: 'loading' }
@@ -47,6 +52,7 @@ function VideoContent({ bvid }: { bvid: string }) {
   const [danmakuPending, setDanmakuPending] = useState(false)
   const [takeDownReason, setTakeDownReason] = useState('')
   const [moderationPending, setModerationPending] = useState<'take-down' | 'delete' | ''>('')
+  const [relatedVideos, setRelatedVideos] = useState<VideoDetail[]>([])
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const dashPlayerRef = useRef<MediaPlayerClass | null>(null)
   const viewSessionRef = useRef('')
@@ -83,6 +89,19 @@ function VideoContent({ bvid }: { bvid: string }) {
     })
     return () => { active = false }
   }, [bvid, restoring, session, setSession])
+
+  useEffect(() => {
+    let active = true
+    void fetchJson<unknown>('/api/v1/videos?page_size=9')
+      .then(normalizeVideoList)
+      .then((page) => {
+        if (active) setRelatedVideos(page.videos.filter((video) => video.bvid !== bvid).slice(0, 8))
+      })
+      .catch(() => {
+        if (active) setRelatedVideos([])
+      })
+    return () => { active = false }
+  }, [bvid])
 
   useEffect(() => {
     let active = true
@@ -384,21 +403,29 @@ function VideoContent({ bvid }: { bvid: string }) {
     <main className="video-page">
       <div className="watch-layout">
         <div className="watch-main">
-          <section className="player-shell" aria-label="视频播放器">
-            {play.streams.length === 0 && <div className="player-empty"><AlertCircle size={28} /><strong>暂无可播放的 DASH 流</strong><span>视频资源可能仍在处理中</span></div>}
-            <video ref={videoRef} controls playsInline poster={detail.coverUrl} onPlaying={() => { if (!adminPreview) void startViewSession() }} onTimeUpdate={(event) => trackPlayback(event.currentTarget)} onPause={(event) => { previousPlaybackTimeRef.current = event.currentTarget.currentTime }} />
-            <div className="danmaku-stage" aria-hidden="true">{activeDanmaku.map((item, index) => <span key={`${item.id}-${index}`} style={{ top: `${10 + (index % 7) * 11}%`, color: item.color }}>{item.text}</span>)}</div>
-          </section>
-          <div className="player-toolbar">
-            <div className="quality-options" aria-label="清晰度">{play.streams.map((stream) => <button type="button" className={selectedStream?.id === stream.id ? 'active' : ''} key={stream.id} onClick={() => setSelectedStreamId(stream.id)}>{stream.label}</button>)}</div>
-            <button type="button" className={danmakuOn ? 'active' : ''} onClick={() => setDanmakuOn((value) => !value)}><Radio size={16} />弹幕 {danmakuOn ? '开' : '关'}</button>
-            <span>{selectedStream ? `${selectedStream.codec} · ${formatBitrate(selectedStream.bandwidth)}` : '暂无播放流'}</span>
-          </div>
-
           <section className="video-info" aria-labelledby="video-title">
             <h1 id="video-title">{detail.title}</h1>
-            <div className="video-subline"><span>{formatCount(detail.viewCount)} 播放</span><span>{formatCount(detail.danmakuCount)} 弹幕</span><time>{formatDate(detail.publishTime)}</time><span>{detail.bvid}</span></div>
+            <div className="video-subline">
+              <span><BiliViewIcon size={17} />{formatCount(detail.viewCount)}</span>
+              <span><BiliDanmakuIcon size={17} />{formatCount(detail.danmakuCount)}</span>
+              <time>{formatDate(detail.publishTime)}</time>
+              <span>{detail.bvid}</span>
+            </div>
           </section>
+          <BiliVideoPlayer
+            ref={videoRef}
+            poster={detail.coverUrl}
+            streams={play.streams}
+            selectedStreamId={selectedStream?.id ?? ''}
+            danmaku={activeDanmaku}
+            danmakuOn={danmakuOn}
+            onStreamChange={setSelectedStreamId}
+            onDanmakuToggle={() => setDanmakuOn((value) => !value)}
+            onPlaying={() => { if (!adminPreview) void startViewSession() }}
+            onTimeUpdate={trackPlayback}
+            onPause={(video) => { previousPlaybackTimeRef.current = video.currentTime }}
+          />
+          {!adminPreview && <DanmakuComposer currentTime={currentTime} session={session} pending={danmakuPending} onCreate={createDanmaku} onLoginRequired={() => setInteractionMessage('请先点击右上角登录')} />}
           {adminPreview
             ? <div className="admin-preview-notice"><ShieldAlert size={18} /><span><strong>管理员预览</strong><small>该视频当前不对公众开放，预览不会计入播放历史和互动数据。</small></span></div>
             : <InteractionBar video={detail} engagement={engagement} pending={interactionPending} message={interactionMessage} onLike={() => void toggleLike()} onFavorite={() => void toggleFavorite()} onCoin={(amount) => void coinVideo(amount)} onShare={() => void shareVideo()} />}
@@ -429,8 +456,9 @@ function VideoContent({ bvid }: { bvid: string }) {
         </div>
 
         <aside className="watch-side">
-          <Link className="owner-panel" to={`/space/${detail.ownerId}`}><span className="owner-avatar">{detail.ownerAvatarUrl ? <img src={detail.ownerAvatarUrl} alt="" /> : detail.ownerName.slice(0, 1)}</span><div><strong>{detail.ownerName}</strong><p>查看作者主页</p></div><UserRound size={18} /></Link>
-          {!adminPreview && <DanmakuPanel items={play.danmaku?.items ?? []} currentTime={currentTime} session={session} videoOwnerId={detail.ownerId} pending={danmakuPending} onCreate={createDanmaku} onDelete={(item) => void deleteDanmaku(item)} onLoginRequired={() => setInteractionMessage('请先点击右上角登录')} />}
+          <Link className="owner-panel" to={`/space/${detail.ownerId}`}><span className="owner-avatar">{detail.ownerAvatarUrl ? <img src={detail.ownerAvatarUrl} alt="" /> : detail.ownerName.slice(0, 1)}</span><div><strong>{detail.ownerName}</strong><p>查看作者主页</p></div></Link>
+          {!adminPreview && <DanmakuPanel items={play.danmaku?.items ?? []} session={session} videoOwnerId={detail.ownerId} onDelete={(item) => void deleteDanmaku(item)} />}
+          {relatedVideos.length > 0 && <RelatedVideos videos={relatedVideos} />}
         </aside>
       </div>
     </main>

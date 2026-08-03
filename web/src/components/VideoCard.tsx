@@ -1,7 +1,7 @@
-import { MessageCircle, Play } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { VideoDetail } from '../types'
 import { formatCount, formatDuration, formatShortDate } from '../utils/format'
+import { BiliDanmakuIcon, BiliOwnerIcon, BiliViewIcon } from './BiliIcons'
 
 export function VideoCard({ video, historyLabel }: { video: VideoDetail; historyLabel?: string }) {
   return (
@@ -13,14 +13,21 @@ export function VideoCard({ video, historyLabel }: { video: VideoDetail; history
           <span className="cover-placeholder"><strong>b</strong><small>暂无封面</small></span>
         )}
         <span className="cover-metrics">
-          <span><Play size={14} fill="currentColor" />{formatCount(video.viewCount)}</span>
-          <span><MessageCircle size={14} />{formatCount(video.danmakuCount)}</span>
+          <span><BiliViewIcon size={15} />{formatCount(video.viewCount)}</span>
+          <span><BiliDanmakuIcon size={15} />{formatCount(video.danmakuCount)}</span>
           <time>{formatDuration(video.durationSeconds)}</time>
         </span>
       </Link>
       <div className="video-card-body">
-        <Link className="video-title" to={`/video/${video.bvid}`}>{video.title}</Link>
-        <p>{video.ownerName}<span>·</span>{historyLabel || formatShortDate(video.publishTime)}</p>
+        <h3 className="video-title">
+          <Link to={`/video/${video.bvid}`}>{video.title}</Link>
+        </h3>
+        <div className="video-card-meta">
+          <BiliOwnerIcon className="video-owner-icon" />
+          <span>{video.ownerName}</span>
+          <i>·</i>
+          <span>{historyLabel || formatShortDate(video.publishTime)}</span>
+        </div>
       </div>
     </article>
   )

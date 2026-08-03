@@ -1,8 +1,9 @@
-import { Compass, Search, Upload } from 'lucide-react'
+import { Download, Search, Upload } from 'lucide-react'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AuthMenu } from './AuthMenu'
+import { BiliHomeIcon } from './BiliIcons'
 import { HeaderHistoryPreview } from './HeaderHistoryPreview'
 
 type AppHeaderProps = {
@@ -11,15 +12,16 @@ type AppHeaderProps = {
   onUpload: () => void
 }
 
-const leftLinks = ['首页', '番剧', '直播', '游戏中心']
+const leftLinks = ['首页', '番剧', '直播', '游戏中心', '会员购', '漫画', '赛事']
 
 export function AppHeader({ authOpen, onAuthOpenChange, onUpload }: AppHeaderProps) {
   const location = useLocation()
   const navigate = useNavigate()
-  const pageTitle = resolvePageTitle(location.pathname)
   const isHome = location.pathname === '/'
   const isSpace = location.pathname.startsWith('/space/')
   const isSearch = location.pathname === '/search'
+  const isVideo = location.pathname.startsWith('/video/')
+  const isSolid = !isHome && !isSpace
   const [activePreview, setActivePreview] = useState<'favorites' | 'views' | null>(null)
   const routeKeyword = location.pathname === '/search' ? new URLSearchParams(location.search).get('keyword') || '' : ''
   const openAuth = () => {
@@ -28,14 +30,15 @@ export function AppHeader({ authOpen, onAuthOpenChange, onUpload }: AppHeaderPro
   }
 
   return (
-    <header className={`site-header ${isHome ? 'home-header' : ''} ${isSpace ? 'space-header' : ''} ${isSearch ? 'search-header' : ''}`}>
+    <header className={`site-header ${isHome ? 'home-header' : ''} ${isSpace ? 'space-header' : ''} ${isSolid ? 'solid-header' : ''} ${isSearch ? 'search-header' : ''} ${isVideo ? 'video-header' : ''}`}>
       <div className="header-bg-shadow" aria-hidden="true"><span className="top" />{isSpace && <span className="bottom" />}</div>
       <nav className="header-inner" aria-label="主导航">
         <div className="header-links">
-          {isSearch && <Link className="compact-header-brand" to="/"><span className="brand-mark">b</span><strong>bilibili-lite</strong></Link>}
+          {!isHome && <Link className="compact-header-brand" to="/" aria-label="返回首页"><span className="bilibili-blue-logo" aria-hidden="true" /></Link>}
           {leftLinks.map((label, index) => (
-            <Link to="/" key={label}>{index === 0 && <Compass size={17} aria-hidden="true" />}{label}</Link>
+            <Link to="/" key={label}>{index === 0 && <BiliHomeIcon size={18} />}{label}</Link>
           ))}
+          <Link to="/"><Download size={17} aria-hidden="true" />下载客户端</Link>
         </div>
         {!isSearch && <HeaderSearch key={routeKeyword} initialQuery={routeKeyword} onSearch={(value) => navigate(`/search?keyword=${encodeURIComponent(value)}`)} />}
         <div className="header-actions">
@@ -68,15 +71,7 @@ export function AppHeader({ authOpen, onAuthOpenChange, onUpload }: AppHeaderPro
           <button type="button" className="upload-button" onClick={onUpload}><Upload size={18} />投稿</button>
         </div>
       </nav>
-      {!isSpace && !isSearch && <div className="hero-caption">
-        {pageTitle ? (
-          <span className="page-hero-title">{pageTitle}</span>
-        ) : (
-          <Link className="hero-logo" to="/" aria-label="返回首页">
-            <img src="/bilibili-logo.png" alt="bilibili" />
-          </Link>
-        )}
-      </div>}
+      {isHome && <div className="hero-caption"><Link className="hero-logo" to="/" aria-label="返回首页"><img src="/bilibili-logo.png" alt="bilibili" /></Link></div>}
     </header>
   )
 }
@@ -96,16 +91,4 @@ function HeaderSearch({ initialQuery, onSearch }: { initialQuery: string; onSear
       <button type="submit" aria-label="搜索" title="搜索"><Search size={18} /></button>
     </form>
   )
-}
-
-function resolvePageTitle(pathname: string) {
-  if (pathname.startsWith('/video/')) return '视频播放'
-  if (pathname.startsWith('/space/')) return '个人空间'
-  if (pathname.startsWith('/search')) return '搜索'
-  if (pathname.startsWith('/admin/reviews')) return '内容管理'
-  if (pathname.includes('/history/views')) return '观看历史'
-  if (pathname.includes('/history/likes')) return '点赞历史'
-  if (pathname.includes('/history/favorites')) return '收藏历史'
-  if (pathname.includes('/history/coins')) return '投币历史'
-  return ''
 }

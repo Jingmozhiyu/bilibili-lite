@@ -359,8 +359,8 @@ type VideoRepo interface {
 	FindVideoUploadStatus(context.Context, uint64, VideoID) (*VideoUploadStatus, error)
 	SetVideoLike(context.Context, uint64, VideoID, bool) (*VideoLike, error)
 	SetVideoFavorite(context.Context, uint64, VideoID, bool) (*VideoEngagement, error)
-	SetVideoCoinAmount(context.Context, uint64, VideoID, int32) (*VideoEngagement, error)
-	CreateVideoShare(context.Context, uint64, VideoID, string) (*VideoShare, error)
+	SetVideoCoinAmount(context.Context, uint64, VideoID, int32, int32, int32) (*VideoEngagement, error)
+	CreateVideoShare(context.Context, uint64, VideoID, string, int32) (*VideoShare, error)
 	ListVideoHistory(context.Context, uint64, VideoHistoryKind, int, string) (*VideoHistoryList, error)
 	CreateDanmaku(context.Context, uint64, VideoID, float64, string, string) (*DanmakuItem, error)
 	DeleteDanmaku(context.Context, uint64, VideoID, uint64) error
@@ -378,7 +378,7 @@ type VideoRepo interface {
 	DeleteAdminVideo(context.Context, VideoReviewDecision) error
 	DeleteVideo(context.Context, uint64, VideoID) error
 	CreateVideoViewSession(context.Context, uint64, VideoID) (*VideoViewSession, error)
-	CompleteVideoViewSession(context.Context, uint64, VideoID, string) (*VideoViewResult, error)
+	CompleteVideoViewSession(context.Context, uint64, VideoID, string, int32) (*VideoViewResult, error)
 }
 
 // VideoUsecase coordinates video domain operations through VideoRepo.
@@ -457,7 +457,7 @@ func (uc *VideoUsecase) SetVideoCoinAmount(ctx context.Context, userID uint64, v
 	if userID == 0 || videoID == 0 || targetAmount < 1 || targetAmount > 2 {
 		return nil, ErrVideoInvalidArgument
 	}
-	return uc.repo.SetVideoCoinAmount(ctx, userID, videoID, targetAmount)
+	return uc.repo.SetVideoCoinAmount(ctx, userID, videoID, targetAmount, CoinExperience, DailyCoinExperience)
 }
 
 // ShareVideo records one share event, deduplicated by a client-generated request ID.
@@ -466,7 +466,7 @@ func (uc *VideoUsecase) ShareVideo(ctx context.Context, userID uint64, videoID V
 	if userID == 0 || videoID == 0 || requestID == "" || len(requestID) > 64 {
 		return nil, ErrVideoInvalidArgument
 	}
-	return uc.repo.CreateVideoShare(ctx, userID, videoID, requestID)
+	return uc.repo.CreateVideoShare(ctx, userID, videoID, requestID, DailyShareExperience)
 }
 
 // ListVideoHistory returns one authenticated interaction history page.
@@ -697,7 +697,7 @@ func (uc *VideoUsecase) CompleteVideoView(ctx context.Context, userID uint64, vi
 	if userID == 0 || videoID == 0 || sessionID == "" || len(sessionID) > 64 {
 		return nil, ErrVideoInvalidArgument
 	}
-	return uc.repo.CompleteVideoViewSession(ctx, userID, videoID, sessionID)
+	return uc.repo.CompleteVideoViewSession(ctx, userID, videoID, sessionID, DailyWatchExperience)
 }
 
 func cleanVideoTags(tags []string) []string {

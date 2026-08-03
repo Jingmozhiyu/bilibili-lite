@@ -1,7 +1,7 @@
-import { Coins, Heart, Share2, Star } from 'lucide-react'
 import { useState } from 'react'
 import type { VideoDetail, VideoEngagement } from '../types'
 import { formatCount } from '../utils/format'
+import { BiliCoinIcon, BiliFavoriteIcon, BiliLikeIcon, BiliShareIcon } from './BiliIcons'
 
 type InteractionBarProps = {
   video: VideoDetail
@@ -23,12 +23,12 @@ export function InteractionBar({ video, engagement, pending, message, onLike, on
   return (
     <section className="interaction-section" aria-label="视频互动">
       <div className="interaction-actions">
-        <button type="button" className={liked ? 'active' : ''} disabled={pending === 'like'} onClick={onLike}>
-          <Heart size={22} fill={liked ? 'currentColor' : 'none'} /><span>点赞</span><strong>{formatCount(engagement?.likeCount ?? video.likeCount)}</strong>
+        <button type="button" aria-label="点赞" className={liked ? 'active' : ''} disabled={pending === 'like'} onClick={onLike}>
+          <BiliLikeIcon /><strong>{formatCount(engagement?.likeCount ?? video.likeCount)}</strong>
         </button>
         <div className="coin-action">
-          <button type="button" className={coinAmount > 0 ? 'active' : ''} disabled={pending === 'coin'} onClick={() => setCoinOpen((value) => !value)}>
-            <Coins size={22} /><span>投币</span><strong>{formatCount(engagement?.coinCount ?? video.coinCount)}</strong>
+          <button type="button" aria-label="投币" className={coinAmount > 0 ? 'active' : ''} disabled={pending === 'coin'} onClick={() => setCoinOpen((value) => !value)}>
+            <BiliCoinIcon /><strong>{formatCount(engagement?.coinCount ?? video.coinCount)}</strong>
           </button>
           {coinOpen && (
             <div className="coin-popover" role="dialog" aria-label="选择投币数量">
@@ -41,11 +41,11 @@ export function InteractionBar({ video, engagement, pending, message, onLike, on
             </div>
           )}
         </div>
-        <button type="button" className={favorited ? 'active' : ''} disabled={pending === 'favorite'} onClick={onFavorite}>
-          <Star size={22} fill={favorited ? 'currentColor' : 'none'} /><span>收藏</span><strong>{formatCount(engagement?.favoriteCount ?? video.favoriteCount)}</strong>
+        <button type="button" aria-label="收藏" className={favorited ? 'active' : ''} disabled={pending === 'favorite'} onClick={onFavorite}>
+          <BiliFavoriteIcon /><strong>{formatCount(engagement?.favoriteCount ?? video.favoriteCount)}</strong>
         </button>
-        <button type="button" disabled={pending === 'share'} onClick={onShare}>
-          <Share2 size={22} /><span>分享</span><strong>{formatCount(engagement?.shareCount ?? video.shareCount)}</strong>
+        <button type="button" aria-label="分享" disabled={pending === 'share'} onClick={onShare}>
+          <BiliShareIcon /><strong>{formatCount(engagement?.shareCount ?? video.shareCount)}</strong>
         </button>
       </div>
       {message && <p className="interaction-message" role="status">{message}</p>}

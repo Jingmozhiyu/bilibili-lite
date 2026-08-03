@@ -75,6 +75,8 @@ message User {
   string bio = 5;
   int64 coin_balance = 6;
   bool is_admin = 7;
+  int64 experience = 8;
+  int32 level = 9;
 }
 
 message GetUserRequest {

@@ -208,6 +208,8 @@ export function normalizeUser(value: unknown): AuthUser {
     avatarUrl: readString(user, 'avatarUrl', 'avatar_url'), bio: readString(user, 'bio'),
     coinBalance: toNumber(readMetric(user, 'coinBalance', 'coin_balance')),
     isAdmin: readBoolean(user, 'isAdmin', 'is_admin'),
+    experience: Math.max(0, toNumber(readMetric(user, 'experience'))),
+    level: Math.min(6, Math.max(0, toNumber(readMetric(user, 'level')))),
   }
 }
 

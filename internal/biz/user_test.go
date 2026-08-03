@@ -10,6 +10,11 @@ type userRepoStub struct {
 	update UserProfileUpdate
 }
 
+func (r *userRepoStub) GrantDailyExperience(_ context.Context, _ uint64, _ string, amount, _ int32) (int64, error) {
+	r.user.Experience += int64(amount)
+	return r.user.Experience, nil
+}
+
 func (r *userRepoStub) FindCredentialByUsername(context.Context, string) (*UserCredential, error) {
 	return nil, ErrInvalidCredentials
 }
@@ -83,5 +88,18 @@ func TestUpdateAvatarAcceptsOnlyManagedURLs(t *testing.T) {
 	}
 	if _, _, err := NewUserUsecase(repo, nil).UpdateAvatar(context.Background(), 1, "https://example.com/avatar.png"); err == nil {
 		t.Fatal("UpdateAvatar() unexpectedly accepted an external URL")
+	}
+}
+
+func TestUserLevelThresholds(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		experience int64
+		level      int32
+	}{{0, 0}, {9, 0}, {10, 1}, {49, 1}, {50, 2}, {149, 2}, {150, 3}, {450, 4}, {1080, 5}, {2880, 6}, {999999, 6}}
+	for _, test := range tests {
+		if got := UserLevel(test.experience); got != test.level {
+			t.Errorf("UserLevel(%d) = %d, want %d", test.experience, got, test.level)
+		}
 	}
 }

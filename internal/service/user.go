@@ -147,5 +147,7 @@ func convertUserReply(in *biz.User) *v1.User {
 		Bio:         in.Bio,
 		CoinBalance: in.CoinBalance,
 		IsAdmin:     in.IsAdmin,
+		Experience:  in.Experience,
+		Level:       biz.UserLevel(in.Experience),
 	}
 }

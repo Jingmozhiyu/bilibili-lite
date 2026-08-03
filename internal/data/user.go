@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 	"errors"
+	"time"
 
 	"bilibili-lite/internal/biz"
 
@@ -37,6 +38,7 @@ func (r *userRepo) FindCredentialByUsername(ctx context.Context, username string
 			AvatarURL:   user.AvatarURL,
 			Bio:         user.Bio,
 			CoinBalance: user.CoinBalance,
+			Experience:  user.Experience,
 			IsAdmin:     user.Role == "admin",
 		},
 		PasswordHash: user.PasswordHash,
@@ -56,7 +58,8 @@ func (r *userRepo) FindUserByID(ctx context.Context, id uint64) (*biz.User, erro
 	return &biz.User{
 		ID: user.ID, Username: user.Username, DisplayName: user.DisplayName,
 		AvatarURL: user.AvatarURL, Bio: user.Bio, CoinBalance: user.CoinBalance,
-		IsAdmin: user.Role == "admin",
+		Experience: user.Experience,
+		IsAdmin:    user.Role == "admin",
 	}, nil
 }
 
@@ -84,7 +87,8 @@ func (r *userRepo) UpdateUserProfile(ctx context.Context, id uint64, update biz.
 	return &biz.User{
 		ID: user.ID, Username: user.Username, DisplayName: user.DisplayName,
 		AvatarURL: user.AvatarURL, Bio: user.Bio, CoinBalance: user.CoinBalance,
-		IsAdmin: user.Role == "admin",
+		Experience: user.Experience,
+		IsAdmin:    user.Role == "admin",
 	}, nil
 }
 
@@ -112,6 +116,24 @@ func (r *userRepo) UpdateUserAvatar(ctx context.Context, id uint64, avatarURL st
 	return &biz.User{
 		ID: user.ID, Username: user.Username, DisplayName: user.DisplayName,
 		AvatarURL: user.AvatarURL, Bio: user.Bio, CoinBalance: user.CoinBalance,
-		IsAdmin: user.Role == "admin",
+		Experience: user.Experience,
+		IsAdmin:    user.Role == "admin",
 	}, previous, nil
+}
+
+// GrantDailyExperience awards one capped experience source using the Shanghai calendar day.
+func (r *userRepo) GrantDailyExperience(ctx context.Context, userID uint64, source string, amount, dailyLimit int32) (int64, error) {
+	var experience int64
+	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		experience, err = grantDailyExperience(tx, userID, source, amount, dailyLimit, time.Now())
+		return err
+	})
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return 0, biz.ErrUserNotFound
+	}
+	if err != nil {
+		return 0, biz.ErrUserStorage
+	}
+	return experience, nil
 }

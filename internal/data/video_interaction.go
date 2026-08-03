@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 	"errors"
+	"time"
 
 	"bilibili-lite/internal/biz"
 
@@ -126,7 +127,7 @@ func (r *videoRepo) SetVideoFavorite(ctx context.Context, userID uint64, videoID
 }
 
 // SetVideoCoinAmount irreversibly raises a viewer's cumulative contribution to one or two coins.
-func (r *videoRepo) SetVideoCoinAmount(ctx context.Context, userID uint64, videoID biz.VideoID, targetAmount int32) (*biz.VideoEngagement, error) {
+func (r *videoRepo) SetVideoCoinAmount(ctx context.Context, userID uint64, videoID biz.VideoID, targetAmount, experiencePerCoin, dailyExperienceLimit int32) (*biz.VideoEngagement, error) {
 	var result *biz.VideoEngagement
 	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		video, err := findPublishedVideoPO(tx, uint64(videoID), true)
@@ -170,6 +171,9 @@ func (r *videoRepo) SetVideoCoinAmount(ctx context.Context, userID uint64, video
 			if err := tx.Model(video).UpdateColumn("coin_count", gorm.Expr("coin_count + ?", delta)).Error; err != nil {
 				return err
 			}
+			if _, err := grantDailyExperience(tx, userID, biz.ExperienceSourceCoin, delta*experiencePerCoin, dailyExperienceLimit, time.Now()); err != nil {
+				return err
+			}
 		}
 		result, err = loadVideoEngagement(tx, userID, video.ID)
 		return err
@@ -181,7 +185,7 @@ func (r *videoRepo) SetVideoCoinAmount(ctx context.Context, userID uint64, video
 }
 
 // CreateVideoShare records one share event and ignores retries with the same request ID.
-func (r *videoRepo) CreateVideoShare(ctx context.Context, userID uint64, videoID biz.VideoID, requestID string) (*biz.VideoShare, error) {
+func (r *videoRepo) CreateVideoShare(ctx context.Context, userID uint64, videoID biz.VideoID, requestID string, dailyExperience int32) (*biz.VideoShare, error) {
 	result := &biz.VideoShare{VideoID: videoID}
 	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		video, err := findPublishedVideoPO(tx, uint64(videoID), true)
@@ -195,6 +199,9 @@ func (r *videoRepo) CreateVideoShare(ctx context.Context, userID uint64, videoID
 		}
 		if created.RowsAffected > 0 {
 			if err := tx.Model(video).UpdateColumn("share_count", gorm.Expr("share_count + 1")).Error; err != nil {
+				return err
+			}
+			if _, err := grantDailyExperience(tx, userID, biz.ExperienceSourceShare, dailyExperience, dailyExperience, time.Now()); err != nil {
 				return err
 			}
 			video.ShareCount++

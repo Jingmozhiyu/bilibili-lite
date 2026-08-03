@@ -1,8 +1,22 @@
 .search-page {
+  position: relative;
+  isolation: isolate;
   width: min(1800px, calc(100% - 48px));
   min-height: calc(100svh - 64px);
   margin: 0 auto;
   padding: 26px 0 64px;
+}
+
+.search-page::before {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 100vw;
+  content: '';
+  background: var(--surface);
+  transform: translateX(-50%);
 }
 
 .search-page-form {

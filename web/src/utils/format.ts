@@ -8,11 +8,6 @@ export function formatCount(value: MetricValue | undefined) {
   return new Intl.NumberFormat('zh-CN').format(count)
 }
 
-export function formatBitrate(value: number) {
-  if (!value) return '-'
-  return `${(value / 1_000_000).toFixed(1)} Mbps`
-}
-
 export function formatDuration(value: MetricValue | undefined) {
   const seconds = Math.max(0, Math.floor(toNumber(value)))
   const hours = Math.floor(seconds / 3600)
@@ -20,6 +15,11 @@ export function formatDuration(value: MetricValue | undefined) {
   const remainder = seconds % 60
   if (hours > 0) return `${hours}:${minutes.toString().padStart(2, '0')}:${remainder.toString().padStart(2, '0')}`
   return `${minutes}:${remainder.toString().padStart(2, '0')}`
+}
+
+export function formatPlaybackTime(value: number) {
+  const seconds = Math.max(0, Math.floor(value))
+  return `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`
 }
 
 export function formatDate(value?: string) {

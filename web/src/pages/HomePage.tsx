@@ -2,6 +2,7 @@ import { Clapperboard, RefreshCw, Upload } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { fetchJson, normalizeVideoList, toErrorMessage } from '../api'
 import { HomeCarousel } from '../components/HomeCarousel'
+import { HomeChannelNav } from '../components/HomeChannelNav'
 import { VideoCard } from '../components/VideoCard'
 import { useUploadPanel } from '../context/UploadContext'
 import type { VideoDetail } from '../types'
@@ -46,6 +47,7 @@ export function HomePage() {
   return (
     <main className="home-page">
       <h1 className="sr-only">bilibili-lite 首页</h1>
+      <HomeChannelNav />
       <section className="home-showcase" aria-label="推荐内容">
         <HomeCarousel />
         {loading ? (
@@ -67,11 +69,7 @@ export function HomePage() {
       </section>
 
       {videos.length > 0 && (
-        <section className="feed-section" aria-labelledby="feed-title">
-          <header className="feed-heading">
-            <div><h2 id="feed-title">最新投稿</h2><p>看看最近发布了什么</p></div>
-            <span>{videos.length} 个视频</span>
-          </header>
+        <section className="feed-section" aria-label="视频列表">
           <div className="home-feed-grid">{videos.map((video) => <VideoCard video={video} key={video.bvid} />)}</div>
           {nextPageToken && <button className="load-more-button" type="button" disabled={loadingMore} onClick={() => void loadMore()}><RefreshCw size={17} />{loadingMore ? '加载中' : '加载更多'}</button>}
           {error && <p className="inline-error" role="status">{error}</p>}

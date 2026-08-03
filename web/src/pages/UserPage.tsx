@@ -1,11 +1,10 @@
-import { Camera, Coins, Edit3, Film, Heart, MessageCircle, Search, Star, Trash2, UserRound, X } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Camera, Edit3, Film, House, Search, Sparkles, Trash2, UserRound, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   authorizedJson,
   fetchJson,
   normalizeUser,
-  normalizeVideoCommentHistory,
   normalizeVideoHistory,
   normalizeVideoList,
   normalizeVideoSearch,
@@ -13,18 +12,26 @@ import {
 } from '../api'
 import { useAuth } from '../auth/useAuth'
 import { VideoCard } from '../components/VideoCard'
-import type { UserProfile, VideoCommentHistoryItem, VideoHistoryItem, VideoDetail } from '../types'
+import type { AuthSession, UserProfile, VideoDetail } from '../types'
 import { formatDate } from '../utils/format'
 
-type UserTab = 'submissions' | 'likes' | 'favorites' | 'coins' | 'comments'
+type UserTab = 'home' | 'dynamic' | 'submissions'
+type HomeSectionKey = 'submissions' | 'favorites' | 'coins' | 'likes'
+type HomeVideoItem = { video: VideoDetail; historyLabel?: string }
+type HomeSectionData = { items: HomeVideoItem[]; hasMore: boolean; error: string; private: boolean }
 
-const tabs: Array<{ id: UserTab; label: string; icon: typeof Film; private?: boolean }> = [
+const tabs: Array<{ id: UserTab; label: string; icon: typeof Film }> = [
+  { id: 'home', label: '主页', icon: House },
+  { id: 'dynamic', label: '动态', icon: Sparkles },
   { id: 'submissions', label: '投稿', icon: Film },
-  { id: 'likes', label: '点赞', icon: Heart, private: true },
-  { id: 'favorites', label: '收藏', icon: Star, private: true },
-  { id: 'coins', label: '投币', icon: Coins, private: true },
-  { id: 'comments', label: '评论', icon: MessageCircle, private: true },
 ]
+
+const homeSectionLabels: Record<HomeSectionKey, string> = {
+  submissions: '视频',
+  favorites: '收藏',
+  coins: '最近投币',
+  likes: '最近点赞',
+}
 
 export function UserPage() {
   const { userId = '' } = useParams()
@@ -33,7 +40,7 @@ export function UserPage() {
   const requestedTab = searchParams.get('tab') as UserTab | null
   const videoQuery = searchParams.get('q')?.trim() || ''
   const ownPage = userId === 'me' || (!!session && Number(userId) === session.user.id)
-  const tab: UserTab = tabs.some((item) => item.id === requestedTab && (!item.private || ownPage)) ? requestedTab! : 'submissions'
+  const tab: UserTab = tabs.some((item) => item.id === requestedTab) ? requestedTab! : 'home'
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [profileLoading, setProfileLoading] = useState(true)
   const [profileError, setProfileError] = useState('')
@@ -71,8 +78,8 @@ export function UserPage() {
       <div className="space-body">
         <nav className="space-tabs" aria-label="用户内容">
           <div className="space-tab-links">
-            {tabs.filter((item) => !item.private || ownPage).map(({ id, label, icon: Icon }) => (
-              <button type="button" key={id} className={tab === id ? 'active' : ''} onClick={() => setSearchParams(id === 'submissions' ? {} : { tab: id })}>
+            {tabs.map(({ id, label, icon: Icon }) => (
+              <button type="button" key={id} className={tab === id ? 'active' : ''} onClick={() => setSearchParams(id === 'home' ? {} : { tab: id })}>
                 <Icon size={17} />{label}
               </button>
             ))}
@@ -81,11 +88,13 @@ export function UserPage() {
             <UserVideoSearch
               key={videoQuery}
               initialValue={videoQuery}
-              onSearch={(query) => setSearchParams(query ? { q: query } : {})}
+              onSearch={(query) => setSearchParams(query ? { tab: 'submissions', q: query } : { tab: 'submissions' })}
             />
           )}
         </nav>
-        <UserTabContent key={`${profile.id}-${tab}-${videoQuery}`} profile={profile} tab={tab} videoQuery={videoQuery} />
+        {tab === 'home' && <UserHomeContent key={`${profile.id}-${ownPage}`} profile={profile} ownPage={ownPage} />}
+        {tab === 'dynamic' && <UserDynamicContent />}
+        {tab === 'submissions' && <UserSubmissions key={`${profile.id}-${videoQuery}`} profile={profile} videoQuery={videoQuery} />}
       </div>
     </main>
   )
@@ -179,7 +188,10 @@ function ProfileHeader({ profile, ownPage, onUpdated }: { profile: UserProfile; 
       <div className="profile-inner">
         <Avatar profile={profile} size="large" />
         <div className="profile-copy">
-          <div><h1>{profile.displayName || profile.username}</h1><span>@{profile.username}</span></div>
+          <div>
+            <h1>{profile.displayName || profile.username}</h1>
+            <img className="profile-level" src={`/levels/level_${profile.level}.svg`} alt={`Lv${profile.level}`} title={`Lv${profile.level} · ${profile.experience} 经验`} />
+          </div>
           <p>{profile.bio || '这个人还没有写个人简介。'}</p>
         </div>
         {ownPage && <button type="button" className="profile-edit-button" onClick={openEditor}><Edit3 size={17} />编辑资料</button>}
@@ -225,68 +237,137 @@ function UserVideoSearch({ initialValue, onSearch }: { initialValue: string; onS
   )
 }
 
-function UserTabContent({ profile, tab, videoQuery }: { profile: UserProfile; tab: UserTab; videoQuery: string }) {
+function UserHomeContent({ profile, ownPage }: { profile: UserProfile; ownPage: boolean }) {
   const { session, setSession } = useAuth()
+  const [sections, setSections] = useState<Record<HomeSectionKey, HomeSectionData>>(() => emptyHomeSections(!ownPage))
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let active = true
+    let refreshedSession: AuthSession | null = null
+    const pageQuery = new URLSearchParams({ page_size: '50' })
+
+    async function loadSubmissions(): Promise<HomeSectionData> {
+      try {
+        const page = normalizeVideoList(await fetchJson<unknown>(`/api/v1/users/${profile.id}/videos?${pageQuery}`))
+        return { items: page.videos.map((video) => ({ video })), hasMore: !!page.nextPageToken, error: '', private: false }
+      } catch (loadError) {
+        return { items: [], hasMore: false, error: toErrorMessage(loadError, '投稿加载失败'), private: false }
+      }
+    }
+
+    async function loadPrivateHistory(key: Exclude<HomeSectionKey, 'submissions'>): Promise<HomeSectionData> {
+      if (!ownPage || !session) return { items: [], hasMore: false, error: '', private: true }
+      try {
+        const result = await authorizedJson<unknown>(`/api/v1/users/me/video-${key}?${pageQuery}`, {}, session)
+        if (result.session.accessToken !== session.accessToken) refreshedSession = result.session
+        const page = normalizeVideoHistory(result.data)
+        return {
+          items: page.items.map((item) => ({
+            video: item.video,
+            historyLabel: `${key === 'coins' ? `${item.coinAmount} 币 · ` : ''}${formatDate(item.interactedAt)}`,
+          })),
+          hasMore: !!page.nextPageToken,
+          error: '',
+          private: false,
+        }
+      } catch (loadError) {
+        return { items: [], hasMore: false, error: toErrorMessage(loadError, '互动记录加载失败'), private: false }
+      }
+    }
+
+    void Promise.all([
+      loadSubmissions(),
+      loadPrivateHistory('favorites'),
+      loadPrivateHistory('coins'),
+      loadPrivateHistory('likes'),
+    ]).then(([submissions, favorites, coins, likes]) => {
+      if (!active) return
+      setSections({ submissions, favorites, coins, likes })
+      if (refreshedSession) setSession(refreshedSession)
+    }).finally(() => {
+      if (active) setLoading(false)
+    })
+    return () => { active = false }
+  }, [ownPage, profile.id, session, setSession])
+
+  if (loading) {
+    return <div className="space-home-sections">{Object.keys(homeSectionLabels).map((key) => <HomeSectionSkeleton key={key} label={homeSectionLabels[key as HomeSectionKey]} />)}</div>
+  }
+
+  return (
+    <div className="space-home-sections" aria-live="polite">
+      {(Object.keys(homeSectionLabels) as HomeSectionKey[]).map((key) => <HomeVideoSection key={key} sectionKey={key} data={sections[key]} />)}
+    </div>
+  )
+}
+
+function HomeVideoSection({ sectionKey, data }: { sectionKey: HomeSectionKey; data: HomeSectionData }) {
+  const count = data.private ? '仅本人可见' : `${data.items.length}${data.hasMore ? '+' : ''}`
+  return <section className="space-home-section">
+    <header><h2>{homeSectionLabels[sectionKey]}<span>·</span><b>{count}</b></h2></header>
+    {data.private ? <p className="space-section-empty">该分区仅对用户本人显示。</p>
+      : data.error ? <p className="inline-error" role="status">{data.error}</p>
+        : data.items.length > 0 ? <div className="space-content-grid">{data.items.slice(0, 5).map((item) => <VideoCard key={`${sectionKey}-${item.video.bvid}`} video={item.video} historyLabel={item.historyLabel} />)}</div>
+          : <p className="space-section-empty">这里还没有视频。</p>}
+  </section>
+}
+
+function HomeSectionSkeleton({ label }: { label: string }) {
+  return <section className="space-home-section"><header><h2>{label}<span>·</span><b>--</b></h2></header><div className="space-content-grid">{Array.from({ length: 5 }, (_, index) => <div className="video-skeleton" key={index} />)}</div></section>
+}
+
+function emptyHomeSections(privateSections: boolean): Record<HomeSectionKey, HomeSectionData> {
+  const empty = (privateSection: boolean): HomeSectionData => ({ items: [], hasMore: false, error: '', private: privateSection })
+  return { submissions: empty(false), favorites: empty(privateSections), coins: empty(privateSections), likes: empty(privateSections) }
+}
+
+function UserDynamicContent() {
+  return <section className="space-empty"><Sparkles size={30} /><h2>还没有动态</h2><p>发布动态后会显示在这里。</p></section>
+}
+
+function UserSubmissions({ profile, videoQuery }: { profile: UserProfile; videoQuery: string }) {
   const [videos, setVideos] = useState<VideoDetail[]>([])
-  const [history, setHistory] = useState<VideoHistoryItem[]>([])
-  const [comments, setComments] = useState<VideoCommentHistoryItem[]>([])
   const [nextPageToken, setNextPageToken] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState('')
 
-  const endpoint = useMemo(() => {
-    if (tab === 'submissions') return `/api/v1/users/${profile.id}/videos`
-    if (tab === 'comments') return '/api/v1/users/me/video-comments'
-    return `/api/v1/users/me/video-${tab}`
-  }, [profile.id, tab])
-
   async function load(token: string) {
-    const query = new URLSearchParams({ page_size: '12' })
+    const query = new URLSearchParams({ page_size: '20' })
     if (token) query.set('page_token', token)
-    if (tab === 'submissions') {
-      if (videoQuery) {
-        query.set('query', videoQuery)
-        query.set('owner_id', String(profile.id))
-        query.set('order', '1')
-        return { kind: 'videos' as const, page: normalizeVideoSearch(await fetchJson<unknown>(`/api/v1/search/videos?${query}`)) }
-      }
-      return { kind: 'videos' as const, page: normalizeVideoList(await fetchJson<unknown>(`${endpoint}?${query}`)) }
+    if (videoQuery) {
+      query.set('query', videoQuery)
+      query.set('owner_id', String(profile.id))
+      query.set('order', '1')
+      return normalizeVideoSearch(await fetchJson<unknown>(`/api/v1/search/videos?${query}`))
     }
-    if (!session) throw new Error('请先登录')
-    const result = await authorizedJson<unknown>(`${endpoint}?${query}`, {}, session)
-    setSession(result.session)
-    if (tab === 'comments') return { kind: 'comments' as const, page: normalizeVideoCommentHistory(result.data) }
-    return { kind: 'history' as const, page: normalizeVideoHistory(result.data) }
+    return normalizeVideoList(await fetchJson<unknown>(`/api/v1/users/${profile.id}/videos?${query}`))
   }
 
   useEffect(() => {
     let active = true
-    void load('').then((result) => {
+    void load('').then((page) => {
       if (!active) return
-      if (result.kind === 'videos') setVideos(result.page.videos)
-      if (result.kind === 'history') setHistory(result.page.items)
-      if (result.kind === 'comments') setComments(result.page.items)
-      setNextPageToken(result.page.nextPageToken)
+      setVideos(page.videos)
+      setNextPageToken(page.nextPageToken)
     }).catch((loadError) => {
-      if (active) setError(toErrorMessage(loadError, '内容加载失败'))
+      if (active) setError(toErrorMessage(loadError, '投稿加载失败'))
     }).finally(() => {
       if (active) setLoading(false)
     })
     return () => { active = false }
-    // The tab component is keyed by profile and tab; avoid reloading after token rotation.
+    // The component is keyed by profile and query.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [endpoint, tab])
+  }, [])
 
   async function loadMore() {
     if (!nextPageToken || loadingMore) return
     setLoadingMore(true)
     try {
-      const result = await load(nextPageToken)
-      if (result.kind === 'videos') setVideos((current) => [...current, ...result.page.videos])
-      if (result.kind === 'history') setHistory((current) => [...current, ...result.page.items])
-      if (result.kind === 'comments') setComments((current) => [...current, ...result.page.items])
-      setNextPageToken(result.page.nextPageToken)
+      const page = await load(nextPageToken)
+      setVideos((current) => [...current, ...page.videos])
+      setNextPageToken(page.nextPageToken)
     } catch (loadError) {
       setError(toErrorMessage(loadError, '下一页加载失败'))
     } finally {
@@ -294,18 +375,13 @@ function UserTabContent({ profile, tab, videoQuery }: { profile: UserProfile; ta
     }
   }
 
-  if (loading) return <div className="space-content-grid">{Array.from({ length: 8 }, (_, index) => <div className="video-skeleton" key={index} />)}</div>
-  const empty = tab === 'submissions' ? videos.length === 0 : tab === 'comments' ? comments.length === 0 : history.length === 0
-  return (
-    <section className="space-content" aria-live="polite">
-      {error && <p className="inline-error" role="status">{error}</p>}
-      {tab === 'submissions' && videos.length > 0 && <div className="space-content-grid">{videos.map((video) => <VideoCard key={video.bvid} video={video} />)}</div>}
-      {tab !== 'submissions' && tab !== 'comments' && history.length > 0 && <div className="space-content-grid">{history.map((item) => <VideoCard key={`${item.video.bvid}-${item.interactedAt}`} video={item.video} historyLabel={`${tab === 'coins' ? `${item.coinAmount} 币 · ` : ''}${formatDate(item.interactedAt)}`} />)}</div>}
-      {tab === 'comments' && comments.length > 0 && <div className="comment-history-list">{comments.map((item) => <Link key={item.comment.id} to={`/video/${item.video.bvid}`}><div><strong>{item.video.title}</strong><time>{formatDate(item.comment.createdAt)}</time></div><p>{item.comment.replyToUserName && <span>回复 {item.comment.replyToUserName}：</span>}{item.comment.content}</p></Link>)}</div>}
-      {empty && <div className="space-empty"><UserRound size={30} /><h2>{videoQuery ? `没有找到“${videoQuery}”` : '这里还没有内容'}</h2><p>{videoQuery ? '换个关键词搜索该用户的视频。' : tab === 'submissions' ? '发布的视频会出现在这里。' : '完成对应互动后，历史记录会出现在这里。'}</p></div>}
-      {nextPageToken && <button type="button" className="load-more-button" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? '加载中' : '加载更多'}</button>}
-    </section>
-  )
+  if (loading) return <div className="space-content-grid">{Array.from({ length: 10 }, (_, index) => <div className="video-skeleton" key={index} />)}</div>
+  return <section className="space-content" aria-live="polite">
+    {error && <p className="inline-error" role="status">{error}</p>}
+    {videos.length > 0 ? <div className="space-content-grid">{videos.map((video) => <VideoCard key={video.bvid} video={video} />)}</div>
+      : <div className="space-empty"><UserRound size={30} /><h2>{videoQuery ? `没有找到“${videoQuery}”` : '这里还没有投稿'}</h2><p>{videoQuery ? '换个关键词搜索该用户的视频。' : '发布的视频会出现在这里。'}</p></div>}
+    {nextPageToken && <button type="button" className="load-more-button" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? '加载中' : '加载更多'}</button>}
+  </section>
 }
 
 function Avatar({ profile, size }: { profile: UserProfile; size?: 'large' }) {

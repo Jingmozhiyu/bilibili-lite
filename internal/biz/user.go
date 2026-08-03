@@ -21,6 +21,19 @@ var (
 	ErrUserAvatarInvalid   = errors.BadRequest(v1.ErrorReason_USER_INVALID_ARGUMENT.String(), "avatar must be a JPEG or PNG image within the size limit")
 )
 
+const (
+	ExperienceSourceLogin = "login"
+	ExperienceSourceWatch = "watch"
+	ExperienceSourceShare = "share"
+	ExperienceSourceCoin  = "coin"
+
+	DailyLoginExperience = int32(5)
+	DailyWatchExperience = int32(5)
+	DailyShareExperience = int32(5)
+	CoinExperience       = int32(10)
+	DailyCoinExperience  = int32(50)
+)
+
 // User is the public user domain model.
 type User struct {
 	ID          uint64
@@ -29,6 +42,7 @@ type User struct {
 	AvatarURL   string
 	Bio         string
 	CoinBalance int64
+	Experience  int64
 	IsAdmin     bool
 }
 
@@ -81,6 +95,7 @@ type UserRepo interface {
 	FindUserByID(context.Context, uint64) (*User, error)
 	UpdateUserProfile(context.Context, uint64, UserProfileUpdate) (*User, error)
 	UpdateUserAvatar(context.Context, uint64, string) (*User, string, error)
+	GrantDailyExperience(context.Context, uint64, string, int32, int32) (int64, error)
 }
 
 // UserUsecase handles authentication.
@@ -150,6 +165,11 @@ func (uc *UserUsecase) Login(ctx context.Context, username, password string) (*U
 	if bcrypt.CompareHashAndPassword([]byte(credential.PasswordHash), []byte(password)) != nil {
 		return nil, ErrInvalidCredentials
 	}
+	experience, err := uc.repo.GrantDailyExperience(ctx, credential.ID, ExperienceSourceLogin, DailyLoginExperience, DailyLoginExperience)
+	if err != nil {
+		return nil, err
+	}
+	credential.Experience = experience
 
 	tokens, err := uc.tokens.Issue(credential.ID, credential.IsAdmin)
 	if err != nil {
@@ -163,6 +183,19 @@ func (uc *UserUsecase) Login(ctx context.Context, username, password string) (*U
 		RefreshExpiresAt: tokens.RefreshExpiresAt,
 		User:             credential.User,
 	}, nil
+}
+
+// UserLevel derives the public level from cumulative experience without storing duplicate state.
+func UserLevel(experience int64) int32 {
+	thresholds := [...]int64{0, 10, 50, 150, 450, 1080, 2880}
+	level := int32(0)
+	for index, threshold := range thresholds {
+		if experience < threshold {
+			break
+		}
+		level = int32(index)
+	}
+	return level
 }
 
 // Refresh validates a refresh JWT and rotates both JWTs.

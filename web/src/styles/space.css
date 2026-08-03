@@ -19,7 +19,7 @@
   width: min(1500px, calc(100% - 48px));
   min-height: 116px;
   margin: 0 auto;
-  padding: 12px 0 14px;
+  padding: 12px 0;
 }
 
 .profile-avatar {
@@ -57,7 +57,14 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px 12px;
-  align-items: baseline;
+  align-items: center;
+}
+
+.profile-level {
+  display: block;
+  width: auto;
+  height: 30px;
+  filter: drop-shadow(0 1px 3px rgb(0 0 0 / 28%));
 }
 
 .profile-copy h1,
@@ -71,7 +78,6 @@
   text-shadow: 0 1px 8px rgb(0 0 0 / 62%);
 }
 
-.profile-copy span,
 .profile-copy p {
   color: rgb(255 255 255 / 88%);
   font-size: 13px;
@@ -209,6 +215,55 @@
   padding-top: 24px;
 }
 
+.space-home-sections {
+  display: grid;
+}
+
+.space-home-section {
+  padding: 24px 0 30px;
+  border-bottom: 1px solid var(--border);
+}
+
+.space-home-section:last-child {
+  border-bottom: 0;
+}
+
+.space-home-section > header {
+  display: flex;
+  align-items: baseline;
+  min-height: 28px;
+  margin-bottom: 14px;
+}
+
+.space-home-section h2 {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 20px;
+  line-height: 28px;
+}
+
+.space-home-section h2 span,
+.space-home-section h2 b {
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.space-home-section .space-content-grid {
+  padding-top: 0;
+}
+
+.space-section-empty {
+  min-height: 88px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 88px;
+}
+
 .space-content-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -243,53 +298,6 @@
 .space-empty p {
   margin-top: 5px;
   font-size: 13px;
-}
-
-.comment-history-list {
-  display: grid;
-}
-
-.comment-history-list a {
-  display: grid;
-  gap: 7px;
-  padding: 17px 4px;
-  text-decoration: none;
-  border-bottom: 1px solid var(--border);
-}
-
-.comment-history-list a:hover strong {
-  color: var(--accent);
-}
-
-.comment-history-list div {
-  display: flex;
-  gap: 16px;
-  align-items: baseline;
-  justify-content: space-between;
-}
-
-.comment-history-list strong {
-  overflow: hidden;
-  color: var(--text-strong);
-  font-size: 14px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.comment-history-list time,
-.comment-history-list p {
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
-.comment-history-list p {
-  margin: 0;
-  color: var(--text);
-  font-size: 14px;
-}
-
-.comment-history-list p span {
-  color: var(--accent);
 }
 
 .profile-editor-backdrop {

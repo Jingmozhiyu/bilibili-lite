@@ -20,8 +20,6 @@ const (
 	maxDailyVideoViews    = int64(10)
 )
 
-var shanghaiTime = time.FixedZone("Asia/Shanghai", 8*60*60)
-
 // CreateVideoViewSession records when an authenticated viewer starts a published video.
 func (r *videoRepo) CreateVideoViewSession(ctx context.Context, userID uint64, videoID biz.VideoID) (*biz.VideoViewSession, error) {
 	var exists int64
@@ -66,7 +64,7 @@ func (r *videoRepo) CreateVideoViewSession(ctx context.Context, userID uint64, v
 }
 
 // CompleteVideoViewSession qualifies five seconds of watching and enforces hourly and daily limits atomically.
-func (r *videoRepo) CompleteVideoViewSession(ctx context.Context, userID uint64, videoID biz.VideoID, sessionID string) (*biz.VideoViewResult, error) {
+func (r *videoRepo) CompleteVideoViewSession(ctx context.Context, userID uint64, videoID biz.VideoID, sessionID string, dailyExperience int32) (*biz.VideoViewResult, error) {
 	var result *biz.VideoViewResult
 	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var video videoPO
@@ -112,6 +110,9 @@ func (r *videoRepo) CompleteVideoViewSession(ctx context.Context, userID uint64,
 		}
 		if counted {
 			if err := tx.Model(&video).UpdateColumn("view_count", gorm.Expr("view_count + 1")).Error; err != nil {
+				return err
+			}
+			if _, err := grantDailyExperience(tx, userID, biz.ExperienceSourceWatch, dailyExperience, dailyExperience, now); err != nil {
 				return err
 			}
 			video.ViewCount++

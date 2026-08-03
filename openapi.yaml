@@ -1039,6 +1039,11 @@ components:
                     type: string
                 isAdmin:
                     type: boolean
+                experience:
+                    type: string
+                level:
+                    type: integer
+                    format: int32
         video.v1.ApproveVideoRequest:
             required:
                 - bvid

@@ -21,7 +21,7 @@ const previewConfig = {
     label: '收藏',
     title: '我的收藏',
     endpoint: 'video-favorites',
-    target: '/space/me?tab=favorites',
+    target: '/history/favorites',
     icon: Star,
   },
   views: {

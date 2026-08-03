@@ -74,6 +74,8 @@ export type AuthUser = {
   bio?: string
   coinBalance: number
   isAdmin: boolean
+  experience: number
+  level: number
 }
 
 export type UserProfile = AuthUser
