@@ -24,6 +24,12 @@ type Metadata struct {
 	Bandwidth       int32
 }
 
+// Rendition describes one encoded DASH video representation.
+type Rendition struct {
+	Height    int32
+	Bandwidth int32
+}
+
 type probeOutput struct {
 	Format struct {
 		Duration string `json:"duration"`
@@ -90,36 +96,60 @@ func (m *Manager) GenerateCover(ctx context.Context, job *UploadJob, metadata *M
 	return job.touchHeartbeat()
 }
 
-// TranscodeDASH runs FFmpeg to produce four-second video/audio segments and an MPD manifest.
-func (m *Manager) TranscodeDASH(ctx context.Context, job *UploadJob) error {
-	if job == nil {
-		return fmt.Errorf("upload job is required")
+// TranscodeDASH creates a no-upscale bitrate ladder and one adaptive DASH manifest.
+func (m *Manager) TranscodeDASH(ctx context.Context, job *UploadJob, metadata *Metadata) ([]Rendition, error) {
+	if job == nil || metadata == nil {
+		return nil, fmt.Errorf("upload job and metadata are required")
 	}
 	ffmpegPath, err := exec.LookPath("ffmpeg")
 	if err != nil {
-		return fmt.Errorf("ffmpeg is not installed: %w", err)
+		return nil, fmt.Errorf("ffmpeg is not installed: %w", err)
 	}
+	renditions := buildRenditions(metadata.Height)
 	transcodeCtx, cancel := context.WithTimeout(ctx, m.transcodeTimeout)
 	defer cancel()
 	manifestPath := filepath.Join(job.outputDir, "manifest.mpd")
-	cmd := exec.CommandContext(transcodeCtx, ffmpegPath,
-		"-hide_banner", "-y", "-i", job.sourcePath,
-		"-map", "0:v:0", "-map", "0:a:0",
-		"-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+	args := []string{"-hide_banner", "-y", "-i", job.sourcePath}
+	filterOutputs := make([]string, len(renditions))
+	if len(renditions) == 1 {
+		filterOutputs[0] = fmt.Sprintf("[0:v]scale=-2:%d:force_original_aspect_ratio=decrease[vout0]", renditions[0].Height)
+	} else {
+		filterInputs := make([]string, len(renditions))
+		for index, rendition := range renditions {
+			filterInputs[index] = fmt.Sprintf("[v%d]", index)
+			filterOutputs[index] = fmt.Sprintf("[v%d]scale=-2:%d:force_original_aspect_ratio=decrease[vout%d]", index, rendition.Height, index)
+		}
+		filterOutputs[0] = fmt.Sprintf("[0:v]split=%d%s;%s", len(renditions), strings.Join(filterInputs, ""), filterOutputs[0])
+	}
+	filter := strings.Join(filterOutputs, ";")
+	args = append(args, "-filter_complex", filter)
+	for index, rendition := range renditions {
+		args = append(args,
+			"-map", fmt.Sprintf("[vout%d]", index),
+			fmt.Sprintf("-b:v:%d", index), strconv.FormatInt(int64(rendition.Bandwidth), 10),
+			fmt.Sprintf("-maxrate:v:%d", index), strconv.FormatInt(int64(rendition.Bandwidth*12/10), 10),
+			fmt.Sprintf("-bufsize:v:%d", index), strconv.FormatInt(int64(rendition.Bandwidth*2), 10),
+		)
+	}
+	args = append(args,
+		"-map", "0:a:0", "-c:v", "libx264", "-preset", "veryfast",
 		"-g", "48", "-keyint_min", "48", "-sc_threshold", "0",
 		"-c:a", "aac", "-b:a", "128k",
 		"-use_template", "1", "-use_timeline", "1", "-seg_duration", "4",
 		"-adaptation_sets", "id=0,streams=v id=1,streams=a",
+		"-init_seg_name", "init-$RepresentationID$.m4s",
+		"-media_seg_name", "chunk-$RepresentationID$-$Number%05d$.m4s",
 		"-progress", "pipe:1", "-nostats", "-f", "dash", manifestPath,
 	)
+	cmd := exec.CommandContext(transcodeCtx, ffmpegPath, args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Start(); err != nil {
-		return err
+		return nil, err
 	}
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
@@ -128,12 +158,33 @@ func (m *Manager) TranscodeDASH(ctx context.Context, job *UploadJob) error {
 	if err := scanner.Err(); err != nil {
 		cancel()
 		_ = cmd.Wait()
-		return err
+		return nil, err
 	}
 	if err := cmd.Wait(); err != nil {
-		return fmt.Errorf("ffmpeg: %w: %s", err, tail(stderr.String(), 1200))
+		return nil, fmt.Errorf("ffmpeg: %w: %s", err, tail(stderr.String(), 1200))
 	}
-	return nil
+	return renditions, nil
+}
+
+func buildRenditions(sourceHeight int32) []Rendition {
+	profiles := []Rendition{
+		{Height: 360, Bandwidth: 800_000},
+		{Height: 480, Bandwidth: 1_400_000},
+		{Height: 720, Bandwidth: 2_800_000},
+		{Height: 1080, Bandwidth: 5_000_000},
+		{Height: 1440, Bandwidth: 9_000_000},
+		{Height: 2160, Bandwidth: 16_000_000},
+	}
+	result := make([]Rendition, 0, len(profiles))
+	for _, profile := range profiles {
+		if profile.Height <= sourceHeight {
+			result = append(result, profile)
+		}
+	}
+	if len(result) == 0 {
+		return []Rendition{{Height: max(sourceHeight, 2), Bandwidth: 600_000}}
+	}
+	return result
 }
 
 func metadataFromProbe(probe *probeOutput) (*Metadata, error) {

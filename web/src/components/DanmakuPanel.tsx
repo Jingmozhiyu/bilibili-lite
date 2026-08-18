@@ -39,5 +39,15 @@ export function DanmakuPanel({ items, session, videoOwnerId, onDelete }: Danmaku
 
 function formatSendTime(value?: string) {
   if (!value) return '--:--'
-  return new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(value))
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '--:--'
+  const now = new Date()
+  const sameYear = date.getFullYear() === now.getFullYear()
+  const datePart = `${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+  const timePart = `${pad(date.getHours())}:${pad(date.getMinutes())}`
+  return `${sameYear ? datePart : `${date.getFullYear()}-${datePart}`} ${timePart}`
+}
+
+function pad(value: number) {
+  return String(value).padStart(2, '0')
 }

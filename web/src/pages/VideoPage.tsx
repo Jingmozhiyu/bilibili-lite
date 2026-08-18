@@ -44,7 +44,10 @@ function VideoContent({ bvid }: { bvid: string }) {
   const [state, setState] = useState<LoadState>({ status: 'loading' })
   const adminPreviewMode = state.status === 'ready' && state.adminPreview
   const [selectedStreamId, setSelectedStreamId] = useState('')
+  const [qualityOptions, setQualityOptions] = useState<Array<{ id: string; label: string }>>([{ id: 'auto', label: '自动' }])
+  const [selectedQualityId, setSelectedQualityId] = useState('auto')
   const [danmakuOn, setDanmakuOn] = useState(true)
+  const [danmakuSpeed, setDanmakuSpeed] = useState(1.25)
   const [currentTime, setCurrentTime] = useState(0)
   const [engagement, setEngagement] = useState<VideoEngagement | null>(null)
   const [interactionPending, setInteractionPending] = useState('')
@@ -131,14 +134,6 @@ function VideoContent({ bvid }: { bvid: string }) {
     return state.play.streams.find((stream) => stream.id === selectedStreamId) ?? state.play.streams[0]
   }, [selectedStreamId, state])
 
-  const activeDanmaku = useMemo(() => {
-    if (state.status !== 'ready' || !danmakuOn) return []
-    return (state.play.danmaku?.items ?? []).filter((item) => {
-      const age = currentTime - item.timeSeconds
-      return age >= 0 && age <= 5
-    })
-  }, [currentTime, danmakuOn, state])
-
   useEffect(() => {
     const video = videoRef.current
     if (!video || !selectedStream) return
@@ -151,6 +146,15 @@ function VideoContent({ bvid }: { bvid: string }) {
       const player = MediaPlayer().create()
       dashPlayerRef.current = player
       player.updateSettings({ debug: { logLevel: Debug.LOG_LEVEL_FATAL }, streaming: { cmcd: { enabled: false, applyParametersFromMpd: false, eventTargets: [] } } })
+      player.on(MediaPlayer.events.STREAM_INITIALIZED, () => {
+        if (cancelled) return
+        const representations = player.getRepresentationsByType('video').slice().sort((left, right) => right.height - left.height)
+        setQualityOptions([
+          { id: 'auto', label: '自动' },
+          ...representations.map((representation) => ({ id: representation.id, label: `${representation.height}P` })),
+        ])
+        setSelectedQualityId('auto')
+      })
       player.initialize(video, selectedStream.url, shouldPlay)
       if (resumeAt > 0) player.seek(resumeAt)
     })
@@ -162,6 +166,15 @@ function VideoContent({ bvid }: { bvid: string }) {
       video.load()
     }
   }, [selectedStream])
+
+  function changeQuality(qualityID: string) {
+    const player = dashPlayerRef.current
+    if (!player) return
+    setSelectedQualityId(qualityID)
+    const automatic = qualityID === 'auto'
+    player.updateSettings({ streaming: { abr: { autoSwitchBitrate: { video: automatic } } } })
+    if (!automatic) player.setRepresentationForTypeById('video', qualityID, true)
+  }
 
   useEffect(() => {
     viewSessionRef.current = ''
@@ -323,7 +336,7 @@ function VideoContent({ bvid }: { bvid: string }) {
     try {
       const result = await authorizedJson<unknown>(
         `/api/v1/videos/${encodeURIComponent(bvid)}/danmakus`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ time_seconds: currentTime, text, color }) }, session,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ time_seconds: videoRef.current?.currentTime ?? currentTime, text, color }) }, session,
       )
       setSession(result.session)
       const item = normalizeDanmaku(result.data)
@@ -416,16 +429,18 @@ function VideoContent({ bvid }: { bvid: string }) {
             ref={videoRef}
             poster={detail.coverUrl}
             streams={play.streams}
-            selectedStreamId={selectedStream?.id ?? ''}
-            danmaku={activeDanmaku}
+            qualityOptions={qualityOptions}
+            selectedQualityId={selectedQualityId}
+            danmaku={play.danmaku?.items ?? []}
             danmakuOn={danmakuOn}
-            onStreamChange={setSelectedStreamId}
+            danmakuSpeed={danmakuSpeed}
+            onQualityChange={changeQuality}
             onDanmakuToggle={() => setDanmakuOn((value) => !value)}
             onPlaying={() => { if (!adminPreview) void startViewSession() }}
             onTimeUpdate={trackPlayback}
             onPause={(video) => { previousPlaybackTimeRef.current = video.currentTime }}
           />
-          {!adminPreview && <DanmakuComposer currentTime={currentTime} session={session} pending={danmakuPending} onCreate={createDanmaku} onLoginRequired={() => setInteractionMessage('请先点击右上角登录')} />}
+          {!adminPreview && <DanmakuComposer session={session} pending={danmakuPending} speed={danmakuSpeed} onCreate={createDanmaku} onLoginRequired={() => setInteractionMessage('请先点击右上角登录')} onSpeedChange={setDanmakuSpeed} />}
           {adminPreview
             ? <div className="admin-preview-notice"><ShieldAlert size={18} /><span><strong>管理员预览</strong><small>该视频当前不对公众开放，预览不会计入播放历史和互动数据。</small></span></div>
             : <InteractionBar video={detail} engagement={engagement} pending={interactionPending} message={interactionMessage} onLike={() => void toggleLike()} onFavorite={() => void toggleFavorite()} onCoin={(amount) => void coinVideo(amount)} onShare={() => void shareVideo()} />}

@@ -32,32 +32,36 @@ type userDailyExperiencePO struct {
 func (userDailyExperiencePO) TableName() string { return "user_daily_experience" }
 
 type videoPO struct {
-	ID              uint64 `gorm:"primaryKey;autoIncrement"`
-	OwnerID         uint64 `gorm:"not null;index"`
-	Owner           userPO `gorm:"foreignKey:OwnerID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
-	Title           string `gorm:"size:200;not null"`
-	Description     string `gorm:"type:text"`
-	CoverURL        string `gorm:"size:500"`
-	Status          string `gorm:"size:32;not null;default:processing;index"`
-	FailureReason   string `gorm:"type:text;not null;default:''"`
-	ReviewReason    string `gorm:"type:text;not null;default:''"`
-	DurationSeconds int64  `gorm:"not null;default:0"`
-	ViewCount       int64  `gorm:"not null;default:0"`
-	DanmakuCount    int64  `gorm:"not null;default:0"`
-	LikeCount       int64  `gorm:"not null;default:0"`
-	CoinCount       int64  `gorm:"not null;default:0"`
-	FavoriteCount   int64  `gorm:"not null;default:0"`
-	ShareCount      int64  `gorm:"not null;default:0"`
-	CommentCount    int64  `gorm:"not null;default:0"`
-	ReadyAt         *time.Time
-	SubmittedAt     *time.Time
-	ReviewedAt      *time.Time
-	ReviewedBy      *uint64 `gorm:"index"`
-	PublishTime     *time.Time
-	DeletedAt       *time.Time `gorm:"index"`
-	Tags            []string   `gorm:"serializer:json;type:jsonb"`
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID                  uint64     `gorm:"primaryKey;autoIncrement"`
+	OwnerID             uint64     `gorm:"not null;index"`
+	Owner               userPO     `gorm:"foreignKey:OwnerID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
+	Title               string     `gorm:"size:200;not null"`
+	Description         string     `gorm:"type:text"`
+	CoverURL            string     `gorm:"size:500"`
+	Status              string     `gorm:"size:32;not null;default:processing;index"`
+	FailureReason       string     `gorm:"type:text;not null;default:''"`
+	ReviewReason        string     `gorm:"type:text;not null;default:''"`
+	DurationSeconds     int64      `gorm:"not null;default:0"`
+	ViewCount           int64      `gorm:"not null;default:0"`
+	DanmakuCount        int64      `gorm:"not null;default:0"`
+	LikeCount           int64      `gorm:"not null;default:0"`
+	CoinCount           int64      `gorm:"not null;default:0"`
+	FavoriteCount       int64      `gorm:"not null;default:0"`
+	ShareCount          int64      `gorm:"not null;default:0"`
+	CommentCount        int64      `gorm:"not null;default:0"`
+	UploadJobID         string     `gorm:"size:64;not null;default:''"`
+	UploadBytes         int64      `gorm:"not null;default:0"`
+	ProcessingStartedAt *time.Time `gorm:"index"`
+	ProcessingAttempts  int32      `gorm:"not null;default:0"`
+	ReadyAt             *time.Time
+	SubmittedAt         *time.Time
+	ReviewedAt          *time.Time
+	ReviewedBy          *uint64 `gorm:"index"`
+	PublishTime         *time.Time
+	DeletedAt           *time.Time `gorm:"index"`
+	Tags                []string   `gorm:"serializer:json;type:jsonb"`
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 func (videoPO) TableName() string { return "videos" }
@@ -205,3 +209,15 @@ type videoWatchHistoryPO struct {
 }
 
 func (videoWatchHistoryPO) TableName() string { return "user_video_watch_history" }
+
+type videoSearchOutboxPO struct {
+	VideoID     uint64 `gorm:"primaryKey"`
+	Attempts    int32  `gorm:"not null;default:0"`
+	AvailableAt time.Time
+	LockedAt    *time.Time
+	LastError   string `gorm:"type:text;not null;default:''"`
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+func (videoSearchOutboxPO) TableName() string { return "video_search_outbox" }

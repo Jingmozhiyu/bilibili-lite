@@ -9,10 +9,13 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"time"
 )
 
 const uploadHeartbeatName = ".heartbeat"
+
+var uploadJobIDPattern = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
 // ErrUploadTooLarge reports that an upload exceeded the configured byte limit.
 var ErrUploadTooLarge = errors.New("upload too large")
@@ -22,6 +25,7 @@ var ErrCoverTooLarge = errors.New("cover too large")
 
 // UploadJob identifies the private files used by one in-progress upload.
 type UploadJob struct {
+	id         string
 	directory  string
 	sourcePath string
 	coverPath  string
@@ -35,6 +39,7 @@ func (m *Manager) CreateUploadJob() (*UploadJob, error) {
 		return nil, err
 	}
 	job := &UploadJob{
+		id:        jobID,
 		directory: filepath.Join(m.uploadRoot(), jobID),
 	}
 	job.sourcePath = filepath.Join(job.directory, "source.mp4.part")
@@ -49,10 +54,51 @@ func (m *Manager) CreateUploadJob() (*UploadJob, error) {
 	return job, nil
 }
 
+// OpenUploadJob restores a persisted upload job for background processing.
+func (m *Manager) OpenUploadJob(jobID string) (*UploadJob, error) {
+	if !uploadJobIDPattern.MatchString(jobID) {
+		return nil, fmt.Errorf("invalid upload job id")
+	}
+	directory := filepath.Join(m.uploadRoot(), jobID)
+	job := &UploadJob{
+		id: jobID, directory: directory,
+		sourcePath: filepath.Join(directory, "source.mp4.part"),
+		coverPath:  filepath.Join(directory, "cover.part"),
+		outputDir:  filepath.Join(directory, "output"),
+	}
+	if _, err := os.Stat(job.sourcePath); err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(job.outputDir, 0o755); err != nil {
+		return nil, err
+	}
+	if err := job.touchHeartbeat(); err != nil {
+		return nil, err
+	}
+	return job, nil
+}
+
+// ID returns the opaque identifier persisted with a queued upload.
+func (j *UploadJob) ID() string {
+	if j == nil {
+		return ""
+	}
+	return j.id
+}
+
+// HasCover reports whether the upload includes a custom cover file.
+func (j *UploadJob) HasCover() bool {
+	if j == nil {
+		return false
+	}
+	_, err := os.Stat(j.coverPath)
+	return err == nil
+}
+
 // StoreUpload streams the HTTP-backed reader into the job while enforcing context and size limits.
-func (m *Manager) StoreUpload(ctx context.Context, job *UploadJob, source io.Reader) error {
+func (m *Manager) StoreUpload(ctx context.Context, job *UploadJob, source io.Reader) (int64, error) {
 	if job == nil || source == nil {
-		return fmt.Errorf("upload job and source are required")
+		return 0, fmt.Errorf("upload job and source are required")
 	}
 	return storeReader(ctx, job, job.sourcePath, source, m.maxUploadBytes, ErrUploadTooLarge)
 }
@@ -62,7 +108,8 @@ func (m *Manager) StoreCover(ctx context.Context, job *UploadJob, source io.Read
 	if job == nil || source == nil {
 		return fmt.Errorf("upload job and cover source are required")
 	}
-	return storeReader(ctx, job, job.coverPath, source, m.maxCoverBytes, ErrCoverTooLarge)
+	_, err := storeReader(ctx, job, job.coverPath, source, m.maxCoverBytes, ErrCoverTooLarge)
+	return err
 }
 
 // RemoveVideo deletes all publicly served media belonging to a BV identifier.
@@ -73,10 +120,10 @@ func (m *Manager) RemoveVideo(bvid string) error {
 	return os.RemoveAll(filepath.Join(m.DASHRoot(), bvid))
 }
 
-func storeReader(ctx context.Context, job *UploadJob, path string, source io.Reader, limit int64, limitError error) error {
+func storeReader(ctx context.Context, job *UploadJob, path string, source io.Reader, limit int64, limitError error) (int64, error) {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer file.Close()
 
@@ -84,26 +131,26 @@ func storeReader(ctx context.Context, job *UploadJob, path string, source io.Rea
 	var written int64
 	for {
 		if err := ctx.Err(); err != nil {
-			return err
+			return written, err
 		}
 		n, readErr := source.Read(buffer)
 		if n > 0 {
 			written += int64(n)
 			if written > limit {
-				return limitError
+				return written, limitError
 			}
 			if _, err := file.Write(buffer[:n]); err != nil {
-				return err
+				return written, err
 			}
 			if err := job.touchHeartbeat(); err != nil {
-				return err
+				return written, err
 			}
 		}
 		if readErr != nil {
 			if errors.Is(readErr, io.EOF) {
-				return file.Sync()
+				return written, file.Sync()
 			}
-			return readErr
+			return written, readErr
 		}
 	}
 }
@@ -114,6 +161,12 @@ func (m *Manager) PublishDASH(job *UploadJob, bvid string) (manifestURL string, 
 		return "", "", fmt.Errorf("upload job and BV id are required")
 	}
 	finalDir := filepath.Join(m.DASHRoot(), bvid)
+	// A process can stop after moving a complete manifest but before marking its
+	// database row ready. The next claim owns the same processing-only BVID, so
+	// replacing that unpublished directory makes publication crash-retryable.
+	if err := os.RemoveAll(finalDir); err != nil {
+		return "", "", fmt.Errorf("replace previous DASH directory for %s: %w", bvid, err)
+	}
 	if err := os.Rename(job.outputDir, finalDir); err != nil {
 		return "", "", fmt.Errorf("publish DASH directory for %s: %w", bvid, err)
 	}
@@ -137,7 +190,7 @@ func (m *Manager) RemovePublished(path string) error {
 }
 
 // CleanupStaleUploads removes jobs whose heartbeat is older than the configured idle timeout.
-func (m *Manager) CleanupStaleUploads() (int, error) {
+func (m *Manager) CleanupStaleUploads(activeJobIDs map[string]struct{}) (int, error) {
 	entries, err := os.ReadDir(m.uploadRoot())
 	if err != nil {
 		return 0, err
@@ -147,6 +200,9 @@ func (m *Manager) CleanupStaleUploads() (int, error) {
 	var cleanupErrors []error
 	for _, entry := range entries {
 		if !entry.IsDir() {
+			continue
+		}
+		if _, active := activeJobIDs[entry.Name()]; active {
 			continue
 		}
 		jobDir := filepath.Join(m.uploadRoot(), entry.Name())

@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	VideoService_ListVideos_FullMethodName              = "/video.v1.VideoService/ListVideos"
+	VideoService_ListRecommendedVideos_FullMethodName   = "/video.v1.VideoService/ListRecommendedVideos"
 	VideoService_SearchVideos_FullMethodName            = "/video.v1.VideoService/SearchVideos"
 	VideoService_ListUserVideos_FullMethodName          = "/video.v1.VideoService/ListUserVideos"
 	VideoService_GetVideo_FullMethodName                = "/video.v1.VideoService/GetVideo"
@@ -65,6 +66,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type VideoServiceClient interface {
 	ListVideos(ctx context.Context, in *ListVideosRequest, opts ...grpc.CallOption) (*ListVideosReply, error)
+	ListRecommendedVideos(ctx context.Context, in *ListRecommendedVideosRequest, opts ...grpc.CallOption) (*ListVideosReply, error)
 	SearchVideos(ctx context.Context, in *SearchVideosRequest, opts ...grpc.CallOption) (*SearchVideosReply, error)
 	ListUserVideos(ctx context.Context, in *ListUserVideosRequest, opts ...grpc.CallOption) (*ListVideosReply, error)
 	GetVideo(ctx context.Context, in *GetVideoRequest, opts ...grpc.CallOption) (*Video, error)
@@ -116,6 +118,16 @@ func (c *videoServiceClient) ListVideos(ctx context.Context, in *ListVideosReque
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListVideosReply)
 	err := c.cc.Invoke(ctx, VideoService_ListVideos_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *videoServiceClient) ListRecommendedVideos(ctx context.Context, in *ListRecommendedVideosRequest, opts ...grpc.CallOption) (*ListVideosReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListVideosReply)
+	err := c.cc.Invoke(ctx, VideoService_ListRecommendedVideos_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -497,6 +509,7 @@ func (c *videoServiceClient) DeleteAdminVideo(ctx context.Context, in *DeleteAdm
 // for forward compatibility.
 type VideoServiceServer interface {
 	ListVideos(context.Context, *ListVideosRequest) (*ListVideosReply, error)
+	ListRecommendedVideos(context.Context, *ListRecommendedVideosRequest) (*ListVideosReply, error)
 	SearchVideos(context.Context, *SearchVideosRequest) (*SearchVideosReply, error)
 	ListUserVideos(context.Context, *ListUserVideosRequest) (*ListVideosReply, error)
 	GetVideo(context.Context, *GetVideoRequest) (*Video, error)
@@ -546,6 +559,9 @@ type UnimplementedVideoServiceServer struct{}
 
 func (UnimplementedVideoServiceServer) ListVideos(context.Context, *ListVideosRequest) (*ListVideosReply, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListVideos not implemented")
+}
+func (UnimplementedVideoServiceServer) ListRecommendedVideos(context.Context, *ListRecommendedVideosRequest) (*ListVideosReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListRecommendedVideos not implemented")
 }
 func (UnimplementedVideoServiceServer) SearchVideos(context.Context, *SearchVideosRequest) (*SearchVideosReply, error) {
 	return nil, status.Error(codes.Unimplemented, "method SearchVideos not implemented")
@@ -693,6 +709,24 @@ func _VideoService_ListVideos_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(VideoServiceServer).ListVideos(ctx, req.(*ListVideosRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _VideoService_ListRecommendedVideos_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRecommendedVideosRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VideoServiceServer).ListRecommendedVideos(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VideoService_ListRecommendedVideos_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VideoServiceServer).ListRecommendedVideos(ctx, req.(*ListRecommendedVideosRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1373,6 +1407,10 @@ var VideoService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListVideos",
 			Handler:    _VideoService_ListVideos_Handler,
+		},
+		{
+			MethodName: "ListRecommendedVideos",
+			Handler:    _VideoService_ListRecommendedVideos_Handler,
 		},
 		{
 			MethodName: "SearchVideos",

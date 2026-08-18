@@ -1,32 +1,8 @@
-# Kratos Project Template
+# bilibili-lite
 
-A project template for creating new Kratos services with HTTP and gRPC
-transports, protobuf-first APIs, Wire dependency injection, OpenAPI generation,
-and a small CRUD example.
-
-Use this repository as a starting point for a new service. The included sample
-resource is only reference code for API shape, layering, code generation, and
-testing. Replace it with your own domain model when creating a real project.
-
-## Create a New Project
-
-1. Copy or generate a repository from this template.
-2. Update the Go module path:
-
-```bash
-go mod edit -module github.com/your-org/your-service
-```
-
-3. Replace existing import paths that reference this template module.
-4. Rename the command, service metadata, and sample API package to match your
-   service.
-5. Replace the sample CRUD resource with your own resource.
-6. Regenerate code and verify the project:
-
-```bash
-make all
-go test ./...
-```
+A Kratos-based video service with PostgreSQL persistence, Meilisearch search,
+Redis recommendations, bounded FFmpeg workers, adaptive DASH playback, and a
+React frontend.
 
 ## What Is Included
 
@@ -36,7 +12,9 @@ go test ./...
 - Wire-based dependency injection.
 - Layered `service`, `biz`, and `data` packages.
 - PostgreSQL repositories implemented with GORM.
-- Meilisearch-backed published-video search.
+- Meilisearch-backed published-video search with PostgreSQL degradation.
+- Redis-backed time-decayed homepage ranking with PostgreSQL fallback.
+- Bounded asynchronous FFmpeg workers and adaptive multi-bitrate DASH.
 - Unit tests for the service layer.
 - Server-streaming and bidirectional-streaming examples.
 
@@ -75,7 +53,7 @@ The data layer stores users, videos, playback metadata, and user video
 interactions in PostgreSQL. Repository implementations keep GORM models inside
 `internal/data/models.go` and expose domain objects to `internal/biz`. Media
 processing is isolated in `internal/media`; `internal/worker` owns the
-application lifecycle of periodic stale-upload cleanup.
+application lifecycle of bounded transcode, search-outbox, ranking, and stale-upload workers.
 
 ## Development Commands
 
@@ -117,10 +95,12 @@ go test ./...
 
 ## Run Locally
 
-Start PostgreSQL and Meilisearch first:
+The committed `.env.example` contains local development values. Real deployment
+configuration belongs in the ignored `.env` file. Start only the dependencies
+when running the Go process directly:
 
 ```bash
-docker compose up -d postgres meilisearch
+docker compose --env-file .env.example up -d postgres meilisearch redis
 ```
 
 MP4 uploads are converted into separate DASH audio and video segments by
@@ -130,26 +110,37 @@ FFmpeg. Install both `ffmpeg` and `ffprobe` before testing uploads. On macOS:
 brew install ffmpeg
 ```
 
-The service applies embedded SQL migrations and inserts three demo users plus
-one administrator without creating sample videos. `videos.id` is the numeric auto-increment
+The service applies embedded SQL migrations and, when `BILI_SEED_ENABLED=true`,
+inserts three demo users plus one administrator without creating sample videos.
+`videos.id` is the numeric auto-increment
 primary key, and the API formats it as `BV1`, `BV2`, and so on. Related tables
 store `video_id` numeric foreign keys; BVID strings are not persisted.
 
-The media path is relative to the process working directory. Use the same
-application directory as `kratos run` so local uploads continue to resolve from
-`cmd/bilibili-lite/storage`:
+Load `.env.example` into the shell before starting Kratos. The local media path
+remains relative to `cmd/bilibili-lite`:
 
 ```bash
 cd cmd/bilibili-lite
+set -a
+source ../../.env.example
+set +a
 go run . -conf ../../configs
 ```
 
-Default local ports are configured in `configs/config.yaml`:
+Alternatively, run the complete backend stack in containers. The bind-mounted
+`data/media` directory is intentionally not committed:
+
+```bash
+mkdir -p data/media
+docker compose --env-file .env.example up -d --build
+```
+
+Default local ports are configured in `.env.example`:
 
 - HTTP: `0.0.0.0:8000`
 - gRPC: `0.0.0.0:9000`
 
-The seeded login is `demo` / `demo123456`. Login returns a two-hour Access JWT
+With `.env.example`, the seeded login is `demo` / `demo123456`. Login returns a two-hour Access JWT
 and a 30-day Refresh JWT:
 
 ```bash
@@ -158,7 +149,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/auth/login \
   -d '{"username":"demo","password":"demo123456"}'
 ```
 
-The local administrator seed creates `admin` / `demo123456`. If an `admin`
+The local administrator seed creates `admin` with `BILI_SEED_PASSWORD`. If an `admin`
 username already exists, startup only repairs its role to `admin` and preserves
 the existing password and profile. Open `/admin` to log in and enter the
 moderation queue.
@@ -180,7 +171,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/auth/logout \
   -d '{}'
 ```
 
-JWTs are stateless in this local version and no Redis or session table is used.
+JWTs remain stateless: Redis is used for the homepage ranking, not sessions.
 Logout discards both browser tokens; an Access JWT already issued remains valid
 until its two-hour expiry.
 
@@ -194,8 +185,11 @@ curl -X POST http://127.0.0.1:8000/api/v1/videos/upload \
   -F 'file=@/absolute/path/video.mp4;type=video/mp4'
 ```
 
-The request allocates the numeric video row and BV identifier immediately. It
-returns after DASH processing reaches `ready`; final metadata is then submitted
+The request allocates the numeric video row and BV identifier immediately and
+returns `processing` after the source is safely queued. One bounded worker by
+default produces an adaptive DASH manifest with a no-upscale 360p/480p/720p/1080p/
+1440p/2160p ladder; 4K is emitted only when the source reaches 2160p. Poll
+`GET /api/v1/videos/{bvid}/upload-status` until `ready`, then submit metadata
 for administrator review:
 
 ```bash
@@ -205,7 +199,10 @@ curl -X POST http://127.0.0.1:8000/api/v1/videos/BV1/submit-review \
   -d '{"title":"My video","description":"Uploaded locally","tags":["local","DASH"]}'
 ```
 
-The moderation lifecycle is
+The source MP4 limit is 2 GiB. Active videos consume their original upload
+size against a 10 GiB per-user quota; administrators are exempt. Failed and
+deleted jobs release quota, remove temporary input, and abandoned worker claims
+are recovered after restart. The moderation lifecycle is
 `processing -> ready -> pending_review -> published/rejected`; upload failures
 and owner deletion use `failed` and `deleted`. Every inserted video consumes
 its auto-increment ID even when processing fails or it is later deleted. Only
@@ -216,18 +213,26 @@ retained only as a temporary transcoding input. Published manifests live at
 `cmd/bilibili-lite/storage/.uploads` during local development and are removed
 after 30 seconds without upload or transcode activity.
 
-Homepage and public submission feeds use paginated list endpoints:
+Homepage recommendations and public submission feeds use paginated endpoints:
 
 ```text
 GET /api/v1/videos?page_size=20&page_token=...
+GET /api/v1/videos/recommended?page_size=20&page_token=...
 GET /api/v1/users/{user_id}/videos?page_size=20&page_token=...
 GET /api/v1/search/videos?query=...&order=1&page_size=20&page_token=...
 ```
 
 PostgreSQL is authoritative for video visibility and metadata. Meilisearch is
-a rebuildable ranking index that is refreshed from published rows at startup;
-its `order` values cover relevance, views, publication time, danmaku, and
-favorites.
+a replaceable projection behind the repository search interface. Startup and
+queries fall back to PostgreSQL when it is unavailable. A PostgreSQL-triggered
+outbox records index mutations atomically and the background consumer retries
+them with exponential backoff. Search `order` values cover relevance, views,
+publication time, danmaku, and favorites.
+
+The recommendation endpoint reads a Redis sorted set rebuilt every 30 seconds
+from logarithmic engagement signals plus a seven-day freshness decay. If Redis
+is unavailable, the same score is calculated from PostgreSQL so the homepage
+continues to load.
 
 A logged-in view is counted only after completing a server-timed session at
 least five seconds after it started. The same account/video pair can increment
@@ -249,8 +254,8 @@ Favorites use the same desired-state semantics as likes: repeating `POST` or
 target of one or two coins, atomically debit `users.coin_balance`, and reject a
 lower target. Shares are append-only events deduplicated by a client-generated
 `request_id`. PostgreSQL is the source of truth for every interaction and its
-counter; the semantic repository methods are the boundary for a future Redis
-cache, so Redis does not leak into handlers or usecases.
+counter. Redis ranking remains an infrastructure detail and does not leak into
+handlers or domain models.
 
 The browser applies like and favorite changes optimistically but rolls them
 back when the server rejects or cannot receive the request. It deliberately
@@ -288,11 +293,56 @@ Embedded, versioned PostgreSQL migrations in `internal/data/migrations` are
 applied once at service startup and recorded in `schema_migrations`. Add a new
 numbered SQL file for every schema change; do not rewrite an applied migration.
 
-## Docker
+## Deploy the backend on a VM
+
+`make build` produces one native executable at `bin/bilibili-lite`. The binary
+contains the Go runtime, Kratos, and Go module code, so a deployment host and the
+Compose runtime do not need Go, Kratos, a compiler, or source dependencies. The
+runtime image only adds CA certificates and the external `ffmpeg`/`ffprobe`
+programs used by media workers.
+
+This is the backend image. Build `web/dist` separately and serve it through a
+static host or reverse proxy; Node.js is not needed by the Kratos container.
+
+For a repository checked out at `/home/opc/bili`, prepare configuration and a
+host-owned media directory before the first start:
 
 ```bash
-docker build -t <your-image-name> .
-docker run --rm -p 8000:8000 -p 9000:9000 \
-  -v </path/to/your/configs>:/data/conf \
-  <your-image-name>
+cd /home/opc/bili
+cp .env.example .env
+mkdir -p /home/opc/bili/data/media
+id -u
+id -g
 ```
+
+Edit `.env` and set `BILI_RUNTIME_UID`/`BILI_RUNTIME_GID` to the two `id`
+outputs, and set `BILI_MEDIA_HOST_DIR=/home/opc/bili/data/media`. Do not use `~`
+inside `.env`. Replace the PostgreSQL, Redis, Meilisearch, JWT, and seed
+passwords before starting:
+
+```bash
+docker compose up -d --build
+docker compose ps
+```
+
+On an OCI block volume, mount the filesystem at a stable host path such as
+`/mnt/bili-data`, create `/mnt/bili-data/media`, and set
+`BILI_MEDIA_HOST_DIR=/mnt/bili-data/media`. The application creates these
+subdirectories inside it:
+
+```text
+media/
+├── .uploads/   # temporary source files and in-flight jobs
+├── avatars/    # user avatars
+└── dash/       # published manifests, covers, and media segments
+```
+
+PostgreSQL, Meilisearch, and Redis use Docker named volumes and require a
+separate backup policy. The media bind mount is independent from container
+replacement, so rebuilding or recreating `app` does not remove video files.
+
+`BILI_SEED_ENABLED=true` creates the demo users and administrator with
+`BILI_SEED_PASSWORD`. Use a strong unique value for the first production boot;
+after the accounts exist, it can be changed to `false`. Services bind to
+`127.0.0.1` by default; place a TLS reverse proxy in front of HTTP instead of
+publishing PostgreSQL, Redis, Meilisearch, or gRPC directly.

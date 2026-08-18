@@ -1,9 +1,9 @@
 syntax = "proto3";
 package kratos.api;
 
-option go_package = "bilibili-lite/internal/conf;conf";
-
 import "google/protobuf/duration.proto";
+
+option go_package = "bilibili-lite/internal/conf;conf";
 
 message Bootstrap {
   Server server = 1;
@@ -27,15 +27,15 @@ message Server {
 }
 
 message Data {
-	reserved 2;
+  reserved 2;
 
-	message Database {
-	  string driver = 1;
-	  string source = 2;
-	}
-	Database database = 1;
-	Media media = 3;
-	Search search = 4;
+  message Database {
+    string driver = 1;
+    string source = 2;
+  }
+  Database database = 1;
+  Media media = 3;
+  Search search = 4;
 
   message Media {
     string storage_dir = 1;
@@ -43,13 +43,31 @@ message Data {
     google.protobuf.Duration transcode_timeout = 3;
     int64 max_upload_bytes = 4;
     int64 max_cover_bytes = 5;
+    int64 max_user_storage_bytes = 6;
+    int32 transcode_workers = 7;
+    google.protobuf.Duration transcode_poll_interval = 8;
   }
 
   message Search {
     string address = 1;
     string api_key = 2;
     string video_index = 3;
+    google.protobuf.Duration retry_interval = 4;
   }
+
+  message Redis {
+    string address = 1;
+    string password = 2;
+    int32 database = 3;
+    string video_ranking_key = 4;
+  }
+  Redis redis = 5;
+
+  message Seed {
+    bool enabled = 1;
+    string password = 2;
+  }
+  Seed seed = 6;
 }
 
 message Auth {

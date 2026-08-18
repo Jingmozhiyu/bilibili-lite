@@ -31,6 +31,10 @@ Thumbs.db
 *.key
 *.log
 bin/
+.env
+.env.*
+!.env.example
+/data/
 
 # Develop tools
 .vscode/

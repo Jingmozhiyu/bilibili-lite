@@ -7,24 +7,23 @@ import (
 	"bilibili-lite/internal/biz"
 )
 
-func TestUserIDContext(t *testing.T) {
-	ctx := WithUserID(context.Background(), 42)
-	userID, err := RequireUserID(ctx)
-	if err != nil || userID != 42 {
-		t.Fatalf("RequireUserID() = %d, %v, want 42", userID, err)
+func TestRequireAdminEnforcesAuthenticatedRole(t *testing.T) {
+	tests := []struct {
+		name   string
+		ctx    context.Context
+		wantID uint64
+		want   error
+	}{
+		{name: "administrator", ctx: WithIdentity(context.Background(), Identity{UserID: 7, IsAdmin: true}), wantID: 7},
+		{name: "ordinary user", ctx: WithUserID(context.Background(), 7), want: biz.ErrUserForbidden},
+		{name: "missing identity", ctx: context.Background(), want: biz.ErrSessionInvalid},
 	}
-	if _, err := RequireUserID(context.Background()); err != biz.ErrSessionInvalid {
-		t.Fatalf("missing identity error = %v, want ErrSessionInvalid", err)
-	}
-}
-
-func TestAdminIdentityContext(t *testing.T) {
-	ctx := WithIdentity(context.Background(), Identity{UserID: 7, IsAdmin: true})
-	userID, err := RequireAdmin(ctx)
-	if err != nil || userID != 7 {
-		t.Fatalf("RequireAdmin() = %d, %v, want 7", userID, err)
-	}
-	if _, err := RequireAdmin(WithUserID(context.Background(), 7)); err != biz.ErrUserForbidden {
-		t.Fatalf("non-admin error = %v, want ErrUserForbidden", err)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			userID, err := RequireAdmin(test.ctx)
+			if err != test.want || userID != test.wantID {
+				t.Fatalf("RequireAdmin() = %d, %v, want %d, %v", userID, err, test.wantID, test.want)
+			}
+		})
 	}
 }

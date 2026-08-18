@@ -501,6 +501,28 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/video.v1.ListVideosReply'
+    /api/v1/videos/recommended:
+        get:
+            tags:
+                - VideoService
+            operationId: VideoService_ListRecommendedVideos
+            parameters:
+                - name: pageSize
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/video.v1.ListVideosReply'
     /api/v1/videos/{bvid}:
         get:
             tags:

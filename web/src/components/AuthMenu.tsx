@@ -1,9 +1,10 @@
 import { Coins, History, LogOut, ShieldCheck, Upload, UserRound } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FocusEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { authorizedFetch, normalizeAuthSession, postJson, toErrorMessage } from '../api'
+import { authorizedFetch, authorizedJson, normalizeAuthSession, normalizeUser, postJson, toErrorMessage } from '../api'
 import { useAuth } from '../auth/useAuth'
+import type { AuthUser } from '../types'
 
 type AuthMenuProps = {
   open: boolean
@@ -13,6 +14,7 @@ type AuthMenuProps = {
 
 const hoverOpenDelay = 240
 const hoverCloseDelay = 280
+const levelThresholds = [0, 10, 50, 150, 450, 1080, 2880] as const
 
 export function AuthMenu({ open, onOpenChange, onUpload }: AuthMenuProps) {
   const { session, restoring, setSession } = useAuth()
@@ -23,6 +25,28 @@ export function AuthMenu({ open, onOpenChange, onUpload }: AuthMenuProps) {
   const openTimer = useRef<number | null>(null)
   const closeTimer = useRef<number | null>(null)
   const userLabel = session?.user.displayName || session?.user.username || '用户'
+  const level = Math.min(6, Math.max(0, session?.user.level || 0))
+  const experience = Math.max(0, session?.user.experience || 0)
+  const nextLevelExperience = levelThresholds[Math.min(level + 1, 6)]
+  const levelStartExperience = levelThresholds[level]
+  const levelProgress = level === 6
+    ? 100
+    : Math.min(100, Math.max(0, ((experience - levelStartExperience) / (nextLevelExperience - levelStartExperience)) * 100))
+
+  useEffect(() => {
+    if (!open || !session) return
+    let active = true
+    void authorizedJson<unknown>('/api/v1/users/me', {}, session).then((result) => {
+      if (!active) return
+      const user = normalizeUser(result.data)
+      if (result.session.accessToken !== session.accessToken || !sameUser(user, session.user)) {
+        setSession({ ...result.session, user })
+      }
+    }).catch(() => {
+      // Keep the cached account summary usable when refreshing it fails.
+    })
+    return () => { active = false }
+  }, [open, session, setSession])
 
   function cancelOpen() {
     if (openTimer.current !== null) {
@@ -135,8 +159,15 @@ export function AuthMenu({ open, onOpenChange, onUpload }: AuthMenuProps) {
                   {session.user.avatarUrl ? <img src={session.user.avatarUrl} alt="" /> : userLabel.slice(0, 1).toUpperCase()}
                 </span>
                 <div>
-                  <span className="account-name-row"><strong>{userLabel}</strong>{session.user.isAdmin && <em>管理员</em>}</span>
-                  <small>@{session.user.username}</small>
+                  <span className="account-name-row">
+                    <strong>{userLabel}</strong>
+                    <img className="account-level" src={`/levels/level_${level}.svg`} alt={`Lv${level}`} />
+                    {session.user.isAdmin && <em>管理员</em>}
+                  </span>
+                  <span className="account-experience">
+                    {level === 6 ? `${experience} 经验 · 已满级` : `${experience} / ${nextLevelExperience} 经验`}
+                  </span>
+                  <span className="account-experience-track" aria-hidden="true"><i style={{ width: `${levelProgress}%` }} /></span>
                 </div>
               </div>
               <div className="coin-balance"><Coins size={17} /><span>硬币余额</span><strong>{session.user.coinBalance}</strong></div>
@@ -168,4 +199,16 @@ export function AuthMenu({ open, onOpenChange, onUpload }: AuthMenuProps) {
       )}
     </div>
   )
+}
+
+function sameUser(left: AuthUser, right: AuthUser) {
+  return left.id === right.id &&
+    left.username === right.username &&
+    left.displayName === right.displayName &&
+    left.avatarUrl === right.avatarUrl &&
+    left.bio === right.bio &&
+    left.coinBalance === right.coinBalance &&
+    left.isAdmin === right.isAdmin &&
+    left.experience === right.experience &&
+    left.level === right.level
 }

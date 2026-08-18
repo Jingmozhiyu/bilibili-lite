@@ -15,11 +15,16 @@
 }
 
 .site-header.space-header {
+  z-index: auto;
   height: max(160px, 9.375vw);
   border-bottom: 0;
   background: url('/homepage-bg.png') center / cover no-repeat;
   background-position: center;
   box-shadow: none;
+}
+
+.space-header .header-inner {
+  z-index: var(--z-popover);
 }
 
 .site-header.home-header {
@@ -503,6 +508,11 @@
   align-items: center;
 }
 
+.account-profile > div {
+  flex: 1;
+  min-width: 0;
+}
+
 .account-avatar,
 .comment-avatar,
 .owner-avatar {
@@ -533,6 +543,35 @@
   display: flex;
   gap: 7px;
   align-items: center;
+}
+
+.account-level {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+}
+
+.account-experience {
+  display: block;
+  margin-top: -3px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.account-experience-track {
+  display: block;
+  height: 4px;
+  margin-top: 5px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--surface-2);
+}
+
+.account-experience-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
 }
 
 .account-name-row em {

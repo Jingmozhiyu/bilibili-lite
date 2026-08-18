@@ -41,7 +41,7 @@ func wireApp(confServer *conf.Server, confData *conf.Data, auth *conf.Auth, logg
 		cleanup()
 		return nil, nil, err
 	}
-	videoRepo := data.NewVideoRepo(dataData, manager)
+	videoRepo := data.NewVideoRepo(dataData, manager, confData)
 	videoUsecase := biz.NewVideoUsecase(videoRepo)
 	videoService := service.NewVideoService(videoUsecase)
 	userRepo := data.NewUserRepo(dataData)
@@ -50,8 +50,11 @@ func wireApp(confServer *conf.Server, confData *conf.Data, auth *conf.Auth, logg
 	grpcServer := server.NewGRPCServer(confServer, authenticator, videoService, userService)
 	videoUploadHTTPHandler := service.NewVideoUploadHTTPHandler(videoUsecase, confData)
 	httpServer := server.NewHTTPServer(confServer, confData, manager, authenticator, videoService, videoUploadHTTPHandler, userService)
-	uploadJanitor := worker.NewUploadJanitor(manager)
-	app := newApp(logger, grpcServer, httpServer, uploadJanitor)
+	uploadJanitor := worker.NewUploadJanitor(manager, videoUsecase)
+	videoTranscoder := worker.NewVideoTranscoder(videoUsecase, confData)
+	searchIndexer := worker.NewSearchIndexer(videoUsecase, confData)
+	recommendationRefresher := worker.NewRecommendationRefresher(videoUsecase)
+	app := newApp(logger, grpcServer, httpServer, uploadJanitor, videoTranscoder, searchIndexer, recommendationRefresher)
 	return app, func() {
 		cleanup()
 	}, nil

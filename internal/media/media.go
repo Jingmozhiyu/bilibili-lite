@@ -30,7 +30,10 @@ func NewManager(dataConfig *conf.Data) (*Manager, error) {
 	}
 	uploadIdleTimeout := dataConfig.Media.UploadIdleTimeout.AsDuration()
 	transcodeTimeout := dataConfig.Media.TranscodeTimeout.AsDuration()
-	if uploadIdleTimeout <= 0 || transcodeTimeout <= 0 || dataConfig.Media.MaxUploadBytes <= 0 || dataConfig.Media.MaxCoverBytes <= 0 {
+	transcodePollInterval := dataConfig.Media.TranscodePollInterval.AsDuration()
+	if uploadIdleTimeout <= 0 || transcodeTimeout <= 0 || transcodePollInterval <= 0 ||
+		dataConfig.Media.MaxUploadBytes <= 0 || dataConfig.Media.MaxCoverBytes <= 0 ||
+		dataConfig.Media.MaxUserStorageBytes <= 0 || dataConfig.Media.TranscodeWorkers <= 0 {
 		return nil, fmt.Errorf("media timeout and size limits must be positive")
 	}
 	root, err := filepath.Abs(dataConfig.Media.StorageDir)

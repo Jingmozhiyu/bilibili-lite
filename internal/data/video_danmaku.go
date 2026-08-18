@@ -44,7 +44,6 @@ func (r *videoRepo) CreateDanmaku(ctx context.Context, userID uint64, videoID bi
 			return nil, biz.ErrVideoStorage
 		}
 	}
-	r.syncPublishedVideoToSearch(ctx, videoID)
 	return result, nil
 }
 
@@ -79,7 +78,6 @@ func (r *videoRepo) DeleteDanmaku(ctx context.Context, userID uint64, videoID bi
 			return biz.ErrVideoStorage
 		}
 	}
-	r.syncPublishedVideoToSearch(ctx, videoID)
 	return nil
 }
 

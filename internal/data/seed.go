@@ -9,17 +9,19 @@ import (
 )
 
 const (
-	seedPassword      = "demo123456"
 	seedAdminUsername = "admin"
 )
 
-// seedInitialUsers keeps local authentication usable and initializes the administrator account.
-func seedInitialUsers(db *gorm.DB) error {
+// seedInitialUsers keeps configured demo authentication usable and initializes the administrator account.
+func seedInitialUsers(db *gorm.DB, password string) error {
+	if len(password) < 10 || len(password) > 72 {
+		return fmt.Errorf("seed password must contain between 10 and 72 bytes")
+	}
 	return db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Exec("SELECT pg_advisory_xact_lock(hashtextextended('bilibili-lite-user-seed', 0))").Error; err != nil {
 			return fmt.Errorf("lock user seed initialization: %w", err)
 		}
-		passwordHash, err := bcrypt.GenerateFromPassword([]byte(seedPassword), bcrypt.DefaultCost)
+		passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 		if err != nil {
 			return fmt.Errorf("hash seed password: %w", err)
 		}

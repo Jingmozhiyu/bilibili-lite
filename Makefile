@@ -21,7 +21,7 @@ api:
 .PHONY: build
 # build
 build:
-	mkdir -p bin/ && go build -ldflags "-X main.Version=$(VERSION)" -o ./bin/ ./...
+	mkdir -p bin/ && go build -trimpath -ldflags "-X main.Name=bilibili-lite -X main.Version=$(VERSION)" -o ./bin/bilibili-lite ./cmd/bilibili-lite
 
 .PHONY: generate
 # generate

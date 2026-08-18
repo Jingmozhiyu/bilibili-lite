@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"bilibili-lite/internal/biz"
 	"bilibili-lite/internal/media"
 
 	"github.com/go-kratos/kratos/v3/log"
@@ -18,6 +19,7 @@ var _ transport.Server = (*UploadJanitor)(nil)
 // UploadJanitor runs stale-upload cleanup as a Kratos-managed background server.
 type UploadJanitor struct {
 	mediaManager *media.Manager
+	videoUsecase *biz.VideoUsecase
 	interval     time.Duration
 
 	mu     sync.Mutex
@@ -26,8 +28,10 @@ type UploadJanitor struct {
 }
 
 // NewUploadJanitor creates the lifecycle-managed stale-upload worker.
-func NewUploadJanitor(mediaManager *media.Manager) *UploadJanitor {
-	return newUploadJanitor(mediaManager, uploadCleanupInterval)
+func NewUploadJanitor(mediaManager *media.Manager, videoUsecase *biz.VideoUsecase) *UploadJanitor {
+	worker := newUploadJanitor(mediaManager, uploadCleanupInterval)
+	worker.videoUsecase = videoUsecase
+	return worker
 }
 
 // Start blocks while periodically removing upload jobs with expired heartbeats.
@@ -76,7 +80,18 @@ func newUploadJanitor(mediaManager *media.Manager, interval time.Duration) *Uplo
 }
 
 func (w *UploadJanitor) cleanup() {
-	removed, err := w.mediaManager.CleanupStaleUploads()
+	active := make(map[string]struct{})
+	if w.videoUsecase != nil {
+		jobIDs, err := w.videoUsecase.ActiveUploadJobIDs(context.Background())
+		if err != nil {
+			log.Error("list active upload jobs", "error", err)
+			return
+		}
+		for _, jobID := range jobIDs {
+			active[jobID] = struct{}{}
+		}
+	}
+	removed, err := w.mediaManager.CleanupStaleUploads(active)
 	if err != nil {
 		log.Error("clean stale uploads", "error", err)
 	}

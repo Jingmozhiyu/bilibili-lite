@@ -28,12 +28,15 @@ func TestStoreUpload(t *testing.T) {
 			if err != nil {
 				t.Fatalf("CreateUploadJob() error = %v", err)
 			}
-			err = manager.StoreUpload(context.Background(), job, bytes.NewReader(tt.content))
+			written, err := manager.StoreUpload(context.Background(), job, bytes.NewReader(tt.content))
 			if !errors.Is(err, tt.wantError) {
 				t.Fatalf("StoreUpload() error = %v, want %v", err, tt.wantError)
 			}
 			if tt.wantError != nil {
 				return
+			}
+			if written != int64(len(tt.content)) {
+				t.Fatalf("StoreUpload() written = %d, want %d", written, len(tt.content))
 			}
 			got, err := os.ReadFile(job.sourcePath)
 			if err != nil {
@@ -61,7 +64,7 @@ func TestCleanupStaleUploads(t *testing.T) {
 		t.Fatalf("age stale heartbeat: %v", err)
 	}
 
-	removed, err := manager.CleanupStaleUploads()
+	removed, err := manager.CleanupStaleUploads(map[string]struct{}{activeJob.ID(): {}})
 	if err != nil {
 		t.Fatalf("CleanupStaleUploads() error = %v", err)
 	}

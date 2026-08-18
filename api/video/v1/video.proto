@@ -9,68 +9,52 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "bilibili-lite/api/video/v1;v1";
 option java_multiple_files = true;
-option java_package = "video.v1";
 option java_outer_classname = "VideoProto";
+option java_package = "video.v1";
 
 service VideoService {
   rpc ListVideos(ListVideosRequest) returns (ListVideosReply) {
-    option (google.api.http) = {
-      get: "/api/v1/videos"
-    };
+    option (google.api.http) = {get: "/api/v1/videos"};
+  }
+
+  rpc ListRecommendedVideos(ListRecommendedVideosRequest) returns (ListVideosReply) {
+    option (google.api.http) = {get: "/api/v1/videos/recommended"};
   }
 
   rpc SearchVideos(SearchVideosRequest) returns (SearchVideosReply) {
-    option (google.api.http) = {
-      get: "/api/v1/search/videos"
-    };
+    option (google.api.http) = {get: "/api/v1/search/videos"};
   }
 
   rpc ListUserVideos(ListUserVideosRequest) returns (ListVideosReply) {
-    option (google.api.http) = {
-      get: "/api/v1/users/{user_id}/videos"
-    };
+    option (google.api.http) = {get: "/api/v1/users/{user_id}/videos"};
   }
 
   rpc GetVideo(GetVideoRequest) returns (Video) {
-    option (google.api.http) = {
-      get: "/api/v1/videos/{bvid}"
-    };
+    option (google.api.http) = {get: "/api/v1/videos/{bvid}"};
   }
 
   rpc GetVideoPlay(GetVideoPlayRequest) returns (VideoPlay) {
-    option (google.api.http) = {
-      get: "/api/v1/videos/{bvid}/play"
-    };
+    option (google.api.http) = {get: "/api/v1/videos/{bvid}/play"};
   }
 
   rpc LikeVideo(LikeVideoRequest) returns (VideoLike) {
-    option (google.api.http) = {
-      post: "/api/v1/videos/{bvid}/like"
-    };
+    option (google.api.http) = {post: "/api/v1/videos/{bvid}/like"};
   }
 
   rpc UnlikeVideo(UnlikeVideoRequest) returns (VideoLike) {
-    option (google.api.http) = {
-      delete: "/api/v1/videos/{bvid}/like"
-    };
+    option (google.api.http) = {delete: "/api/v1/videos/{bvid}/like"};
   }
 
   rpc GetVideoEngagement(GetVideoEngagementRequest) returns (VideoEngagement) {
-    option (google.api.http) = {
-      get: "/api/v1/videos/{bvid}/engagement"
-    };
+    option (google.api.http) = {get: "/api/v1/videos/{bvid}/engagement"};
   }
 
   rpc FavoriteVideo(FavoriteVideoRequest) returns (VideoEngagement) {
-    option (google.api.http) = {
-      post: "/api/v1/videos/{bvid}/favorite"
-    };
+    option (google.api.http) = {post: "/api/v1/videos/{bvid}/favorite"};
   }
 
   rpc UnfavoriteVideo(UnfavoriteVideoRequest) returns (VideoEngagement) {
-    option (google.api.http) = {
-      delete: "/api/v1/videos/{bvid}/favorite"
-    };
+    option (google.api.http) = {delete: "/api/v1/videos/{bvid}/favorite"};
   }
 
   rpc CoinVideo(CoinVideoRequest) returns (VideoEngagement) {
@@ -88,27 +72,19 @@ service VideoService {
   }
 
   rpc ListMyLikedVideos(ListVideoHistoryRequest) returns (ListVideoHistoryReply) {
-    option (google.api.http) = {
-      get: "/api/v1/users/me/video-likes"
-    };
+    option (google.api.http) = {get: "/api/v1/users/me/video-likes"};
   }
 
   rpc ListMyFavoriteVideos(ListVideoHistoryRequest) returns (ListVideoHistoryReply) {
-    option (google.api.http) = {
-      get: "/api/v1/users/me/video-favorites"
-    };
+    option (google.api.http) = {get: "/api/v1/users/me/video-favorites"};
   }
 
   rpc ListMyCoinedVideos(ListVideoHistoryRequest) returns (ListVideoHistoryReply) {
-    option (google.api.http) = {
-      get: "/api/v1/users/me/video-coins"
-    };
+    option (google.api.http) = {get: "/api/v1/users/me/video-coins"};
   }
 
   rpc ListMyWatchHistory(ListVideoHistoryRequest) returns (ListVideoHistoryReply) {
-    option (google.api.http) = {
-      get: "/api/v1/users/me/watch-history"
-    };
+    option (google.api.http) = {get: "/api/v1/users/me/watch-history"};
   }
 
   rpc CreateDanmaku(CreateDanmakuRequest) returns (DanmakuItem) {
@@ -119,21 +95,15 @@ service VideoService {
   }
 
   rpc DeleteDanmaku(DeleteDanmakuRequest) returns (google.protobuf.Empty) {
-    option (google.api.http) = {
-      delete: "/api/v1/videos/{bvid}/danmakus/{danmaku_id}"
-    };
+    option (google.api.http) = {delete: "/api/v1/videos/{bvid}/danmakus/{danmaku_id}"};
   }
 
   rpc ListVideoComments(ListVideoCommentsRequest) returns (ListVideoCommentsReply) {
-    option (google.api.http) = {
-      get: "/api/v1/videos/{bvid}/comments"
-    };
+    option (google.api.http) = {get: "/api/v1/videos/{bvid}/comments"};
   }
 
   rpc ListVideoCommentReplies(ListVideoCommentRepliesRequest) returns (ListVideoCommentsReply) {
-    option (google.api.http) = {
-      get: "/api/v1/videos/{bvid}/comments/{root_comment_id}/replies"
-    };
+    option (google.api.http) = {get: "/api/v1/videos/{bvid}/comments/{root_comment_id}/replies"};
   }
 
   rpc CreateVideoComment(CreateVideoCommentRequest) returns (VideoComment) {
@@ -144,34 +114,23 @@ service VideoService {
   }
 
   rpc DeleteVideoComment(DeleteVideoCommentRequest) returns (google.protobuf.Empty) {
-    option (google.api.http) = {
-      delete: "/api/v1/videos/{bvid}/comments/{comment_id}"
-    };
+    option (google.api.http) = {delete: "/api/v1/videos/{bvid}/comments/{comment_id}"};
   }
 
-
   rpc LikeVideoComment(LikeVideoCommentRequest) returns (VideoCommentInteraction) {
-    option (google.api.http) = {
-      post: "/api/v1/videos/{bvid}/comments/{comment_id}/like"
-    };
+    option (google.api.http) = {post: "/api/v1/videos/{bvid}/comments/{comment_id}/like"};
   }
 
   rpc UnlikeVideoComment(UnlikeVideoCommentRequest) returns (VideoCommentInteraction) {
-    option (google.api.http) = {
-      delete: "/api/v1/videos/{bvid}/comments/{comment_id}/like"
-    };
+    option (google.api.http) = {delete: "/api/v1/videos/{bvid}/comments/{comment_id}/like"};
   }
 
   rpc ListMyVideoComments(ListVideoHistoryRequest) returns (ListVideoCommentHistoryReply) {
-    option (google.api.http) = {
-      get: "/api/v1/users/me/video-comments"
-    };
+    option (google.api.http) = {get: "/api/v1/users/me/video-comments"};
   }
 
   rpc GetVideoUploadStatus(GetVideoUploadStatusRequest) returns (VideoUploadStatus) {
-    option (google.api.http) = {
-      get: "/api/v1/videos/{bvid}/upload-status"
-    };
+    option (google.api.http) = {get: "/api/v1/videos/{bvid}/upload-status"};
   }
 
   rpc SubmitVideoForReview(SubmitVideoForReviewRequest) returns (Video) {
@@ -182,9 +141,7 @@ service VideoService {
   }
 
   rpc DeleteVideo(DeleteVideoRequest) returns (google.protobuf.Empty) {
-    option (google.api.http) = {
-      delete: "/api/v1/videos/{bvid}"
-    };
+    option (google.api.http) = {delete: "/api/v1/videos/{bvid}"};
   }
 
   rpc StartVideoView(StartVideoViewRequest) returns (VideoViewSession) {
@@ -202,27 +159,19 @@ service VideoService {
   }
 
   rpc ListAdminVideos(ListAdminVideosRequest) returns (ListVideosReply) {
-    option (google.api.http) = {
-      get: "/api/v1/admin/videos"
-    };
+    option (google.api.http) = {get: "/api/v1/admin/videos"};
   }
 
   rpc ListPendingReviewVideos(ListPendingReviewVideosRequest) returns (ListVideosReply) {
-    option (google.api.http) = {
-      get: "/api/v1/admin/videos/reviews"
-    };
+    option (google.api.http) = {get: "/api/v1/admin/videos/reviews"};
   }
 
   rpc GetAdminVideo(GetAdminVideoRequest) returns (Video) {
-    option (google.api.http) = {
-      get: "/api/v1/admin/videos/{bvid}"
-    };
+    option (google.api.http) = {get: "/api/v1/admin/videos/{bvid}"};
   }
 
   rpc GetReviewVideoPlay(GetReviewVideoPlayRequest) returns (VideoPlay) {
-    option (google.api.http) = {
-      get: "/api/v1/admin/videos/{bvid}/play"
-    };
+    option (google.api.http) = {get: "/api/v1/admin/videos/{bvid}/play"};
   }
 
   rpc ApproveVideo(ApproveVideoRequest) returns (Video) {
@@ -247,9 +196,7 @@ service VideoService {
   }
 
   rpc DeleteAdminVideo(DeleteAdminVideoRequest) returns (google.protobuf.Empty) {
-    option (google.api.http) = {
-      delete: "/api/v1/admin/videos/{bvid}"
-    };
+    option (google.api.http) = {delete: "/api/v1/admin/videos/{bvid}"};
   }
 }
 
@@ -300,6 +247,11 @@ message Video {
 }
 
 message ListVideosRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListRecommendedVideosRequest {
   int32 page_size = 1;
   string page_token = 2;
 }

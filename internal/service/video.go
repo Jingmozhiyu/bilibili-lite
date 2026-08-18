@@ -34,6 +34,15 @@ func (s *VideoService) ListVideos(ctx context.Context, req *v1.ListVideosRequest
 	return convertVideoListReply(list), nil
 }
 
+// ListRecommendedVideos returns the Redis-backed time-decayed homepage ranking.
+func (s *VideoService) ListRecommendedVideos(ctx context.Context, req *v1.ListRecommendedVideosRequest) (*v1.ListVideosReply, error) {
+	list, err := s.videoUsecase.ListRecommendedVideos(ctx, req.GetPageSize(), req.GetPageToken())
+	if err != nil {
+		return nil, err
+	}
+	return convertVideoListReply(list), nil
+}
+
 // SearchVideos returns published videos ranked by Meilisearch and hydrated from PostgreSQL.
 func (s *VideoService) SearchVideos(ctx context.Context, req *v1.SearchVideosRequest) (*v1.SearchVideosReply, error) {
 	result, err := s.videoUsecase.SearchVideos(

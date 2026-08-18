@@ -10,17 +10,26 @@ import type { VideoDetail } from '../types'
 export function HomePage() {
   const openUpload = useUploadPanel()
   const [videos, setVideos] = useState<VideoDetail[]>([])
+  const [recommendedVideos, setRecommendedVideos] = useState<VideoDetail[]>([])
   const [nextPageToken, setNextPageToken] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState('')
-  const recommendations = useMemo(() => fillRecommendationSlots(videos, 6), [videos])
+  const recommendations = useMemo(
+    () => recommendedVideos.length > 0 ? recommendedVideos : videos.slice(0, 6),
+    [recommendedVideos, videos],
+  )
+  const remainingVideos = useMemo(() => {
+    const recommendedIDs = new Set(recommendations.map((video) => video.bvid))
+    return videos.filter((video) => !recommendedIDs.has(video.bvid))
+  }, [recommendations, videos])
 
   useEffect(() => {
     let active = true
-    void loadPage('').then((page) => {
+    void Promise.all([loadPage(''), loadRecommendations().catch(() => null)]).then(([page, recommended]) => {
       if (!active) return
       setVideos(page.videos)
+      if (recommended) setRecommendedVideos(recommended.videos)
       setNextPageToken(page.nextPageToken)
     }).catch((loadError) => {
       if (active) setError(toErrorMessage(loadError, '视频列表加载失败'))
@@ -68,9 +77,9 @@ export function HomePage() {
         )}
       </section>
 
-      {videos.length > 0 && (
+      {remainingVideos.length > 0 && (
         <section className="feed-section" aria-label="视频列表">
-          <div className="home-feed-grid">{videos.map((video) => <VideoCard video={video} key={video.bvid} />)}</div>
+          <div className="home-feed-grid">{remainingVideos.map((video) => <VideoCard video={video} key={video.bvid} />)}</div>
           {nextPageToken && <button className="load-more-button" type="button" disabled={loadingMore} onClick={() => void loadMore()}><RefreshCw size={17} />{loadingMore ? '加载中' : '加载更多'}</button>}
           {error && <p className="inline-error" role="status">{error}</p>}
         </section>
@@ -79,13 +88,13 @@ export function HomePage() {
   )
 }
 
-function fillRecommendationSlots(videos: VideoDetail[], size: number) {
-  if (videos.length === 0) return []
-  return Array.from({ length: size }, (_, index) => videos[index % videos.length])
-}
-
 async function loadPage(pageToken: string) {
-  const query = new URLSearchParams({ page_size: '12' })
+  const query = new URLSearchParams({ page_size: '50' })
   if (pageToken) query.set('page_token', pageToken)
   return normalizeVideoList(await fetchJson<unknown>(`/api/v1/videos?${query}`))
+}
+
+async function loadRecommendations() {
+  const query = new URLSearchParams({ page_size: '6' })
+  return normalizeVideoList(await fetchJson<unknown>(`/api/v1/videos/recommended?${query}`))
 }

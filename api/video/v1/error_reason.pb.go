@@ -24,19 +24,20 @@ const (
 type ErrorReason int32
 
 const (
-	ErrorReason_VIDEO_UNSPECIFIED        ErrorReason = 0
-	ErrorReason_VIDEO_NOT_FOUND          ErrorReason = 1
-	ErrorReason_VIDEO_INVALID_ARGUMENT   ErrorReason = 2
-	ErrorReason_VIDEO_PROCESSING_FAILED  ErrorReason = 3
-	ErrorReason_VIDEO_UPLOAD_INTERRUPTED ErrorReason = 4
-	ErrorReason_VIDEO_UPLOAD_TOO_LARGE   ErrorReason = 5
-	ErrorReason_VIDEO_FORBIDDEN          ErrorReason = 6
-	ErrorReason_VIDEO_INVALID_STATE      ErrorReason = 7
-	ErrorReason_VIDEO_VIEW_TOO_EARLY     ErrorReason = 8
-	ErrorReason_VIDEO_INSUFFICIENT_COINS ErrorReason = 9
-	ErrorReason_VIDEO_COIN_LIMIT_REACHED ErrorReason = 10
-	ErrorReason_VIDEO_DANMAKU_NOT_FOUND  ErrorReason = 11
-	ErrorReason_VIDEO_COMMENT_NOT_FOUND  ErrorReason = 12
+	ErrorReason_VIDEO_UNSPECIFIED           ErrorReason = 0
+	ErrorReason_VIDEO_NOT_FOUND             ErrorReason = 1
+	ErrorReason_VIDEO_INVALID_ARGUMENT      ErrorReason = 2
+	ErrorReason_VIDEO_PROCESSING_FAILED     ErrorReason = 3
+	ErrorReason_VIDEO_UPLOAD_INTERRUPTED    ErrorReason = 4
+	ErrorReason_VIDEO_UPLOAD_TOO_LARGE      ErrorReason = 5
+	ErrorReason_VIDEO_FORBIDDEN             ErrorReason = 6
+	ErrorReason_VIDEO_INVALID_STATE         ErrorReason = 7
+	ErrorReason_VIDEO_VIEW_TOO_EARLY        ErrorReason = 8
+	ErrorReason_VIDEO_INSUFFICIENT_COINS    ErrorReason = 9
+	ErrorReason_VIDEO_COIN_LIMIT_REACHED    ErrorReason = 10
+	ErrorReason_VIDEO_DANMAKU_NOT_FOUND     ErrorReason = 11
+	ErrorReason_VIDEO_COMMENT_NOT_FOUND     ErrorReason = 12
+	ErrorReason_VIDEO_UPLOAD_QUOTA_EXCEEDED ErrorReason = 13
 )
 
 // Enum value maps for ErrorReason.
@@ -55,21 +56,23 @@ var (
 		10: "VIDEO_COIN_LIMIT_REACHED",
 		11: "VIDEO_DANMAKU_NOT_FOUND",
 		12: "VIDEO_COMMENT_NOT_FOUND",
+		13: "VIDEO_UPLOAD_QUOTA_EXCEEDED",
 	}
 	ErrorReason_value = map[string]int32{
-		"VIDEO_UNSPECIFIED":        0,
-		"VIDEO_NOT_FOUND":          1,
-		"VIDEO_INVALID_ARGUMENT":   2,
-		"VIDEO_PROCESSING_FAILED":  3,
-		"VIDEO_UPLOAD_INTERRUPTED": 4,
-		"VIDEO_UPLOAD_TOO_LARGE":   5,
-		"VIDEO_FORBIDDEN":          6,
-		"VIDEO_INVALID_STATE":      7,
-		"VIDEO_VIEW_TOO_EARLY":     8,
-		"VIDEO_INSUFFICIENT_COINS": 9,
-		"VIDEO_COIN_LIMIT_REACHED": 10,
-		"VIDEO_DANMAKU_NOT_FOUND":  11,
-		"VIDEO_COMMENT_NOT_FOUND":  12,
+		"VIDEO_UNSPECIFIED":           0,
+		"VIDEO_NOT_FOUND":             1,
+		"VIDEO_INVALID_ARGUMENT":      2,
+		"VIDEO_PROCESSING_FAILED":     3,
+		"VIDEO_UPLOAD_INTERRUPTED":    4,
+		"VIDEO_UPLOAD_TOO_LARGE":      5,
+		"VIDEO_FORBIDDEN":             6,
+		"VIDEO_INVALID_STATE":         7,
+		"VIDEO_VIEW_TOO_EARLY":        8,
+		"VIDEO_INSUFFICIENT_COINS":    9,
+		"VIDEO_COIN_LIMIT_REACHED":    10,
+		"VIDEO_DANMAKU_NOT_FOUND":     11,
+		"VIDEO_COMMENT_NOT_FOUND":     12,
+		"VIDEO_UPLOAD_QUOTA_EXCEEDED": 13,
 	}
 )
 
@@ -104,7 +107,7 @@ var File_video_v1_error_reason_proto protoreflect.FileDescriptor
 
 const file_video_v1_error_reason_proto_rawDesc = "" +
 	"\n" +
-	"\x1bvideo/v1/error_reason.proto\x12\bvideo.v1*\xea\x02\n" +
+	"\x1bvideo/v1/error_reason.proto\x12\bvideo.v1*\x8b\x03\n" +
 	"\vErrorReason\x12\x15\n" +
 	"\x11VIDEO_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fVIDEO_NOT_FOUND\x10\x01\x12\x1a\n" +
@@ -119,7 +122,8 @@ const file_video_v1_error_reason_proto_rawDesc = "" +
 	"\x18VIDEO_COIN_LIMIT_REACHED\x10\n" +
 	"\x12\x1b\n" +
 	"\x17VIDEO_DANMAKU_NOT_FOUND\x10\v\x12\x1b\n" +
-	"\x17VIDEO_COMMENT_NOT_FOUND\x10\fB8\n" +
+	"\x17VIDEO_COMMENT_NOT_FOUND\x10\f\x12\x1f\n" +
+	"\x1bVIDEO_UPLOAD_QUOTA_EXCEEDED\x10\rB8\n" +
 	"\bvideo.v1P\x01Z\x1dbilibili-lite/api/video/v1;v1\xa2\x02\n" +
 	"APIVideoV1b\x06proto3"
 

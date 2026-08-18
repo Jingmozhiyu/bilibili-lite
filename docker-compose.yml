@@ -1,28 +1,88 @@
+name: bilibili-lite
+
 services:
+  app:
+    image: ${BILI_IMAGE:-bilibili-lite:local}
+    build:
+      context: .
+      args:
+        VERSION: ${BILI_IMAGE_VERSION:-dev}
+    restart: unless-stopped
+    init: true
+    user: "${BILI_RUNTIME_UID:?set BILI_RUNTIME_UID}:${BILI_RUNTIME_GID:?set BILI_RUNTIME_GID}"
+    environment:
+      BILI_SERVER_HTTP_NETWORK: ${BILI_SERVER_HTTP_NETWORK:?set BILI_SERVER_HTTP_NETWORK}
+      BILI_SERVER_HTTP_ADDR: ${BILI_SERVER_HTTP_ADDR:?set BILI_SERVER_HTTP_ADDR}
+      BILI_SERVER_HTTP_TIMEOUT: ${BILI_SERVER_HTTP_TIMEOUT:?set BILI_SERVER_HTTP_TIMEOUT}
+      BILI_SERVER_GRPC_NETWORK: ${BILI_SERVER_GRPC_NETWORK:?set BILI_SERVER_GRPC_NETWORK}
+      BILI_SERVER_GRPC_ADDR: ${BILI_SERVER_GRPC_ADDR:?set BILI_SERVER_GRPC_ADDR}
+      BILI_SERVER_GRPC_TIMEOUT: ${BILI_SERVER_GRPC_TIMEOUT:?set BILI_SERVER_GRPC_TIMEOUT}
+      BILI_DATABASE_DRIVER: postgres
+      BILI_DATABASE_SOURCE: "host=postgres user=${POSTGRES_USER:?set POSTGRES_USER} password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD} dbname=${POSTGRES_DB:?set POSTGRES_DB} port=5432 sslmode=disable TimeZone=Asia/Shanghai"
+      BILI_MEDIA_STORAGE_DIR: /data/media
+      BILI_MEDIA_UPLOAD_IDLE_TIMEOUT: ${BILI_MEDIA_UPLOAD_IDLE_TIMEOUT:?set BILI_MEDIA_UPLOAD_IDLE_TIMEOUT}
+      BILI_MEDIA_TRANSCODE_TIMEOUT: ${BILI_MEDIA_TRANSCODE_TIMEOUT:?set BILI_MEDIA_TRANSCODE_TIMEOUT}
+      BILI_MEDIA_MAX_UPLOAD_BYTES: ${BILI_MEDIA_MAX_UPLOAD_BYTES:?set BILI_MEDIA_MAX_UPLOAD_BYTES}
+      BILI_MEDIA_MAX_COVER_BYTES: ${BILI_MEDIA_MAX_COVER_BYTES:?set BILI_MEDIA_MAX_COVER_BYTES}
+      BILI_MEDIA_MAX_USER_STORAGE_BYTES: ${BILI_MEDIA_MAX_USER_STORAGE_BYTES:?set BILI_MEDIA_MAX_USER_STORAGE_BYTES}
+      BILI_MEDIA_TRANSCODE_WORKERS: ${BILI_MEDIA_TRANSCODE_WORKERS:?set BILI_MEDIA_TRANSCODE_WORKERS}
+      BILI_MEDIA_TRANSCODE_POLL_INTERVAL: ${BILI_MEDIA_TRANSCODE_POLL_INTERVAL:?set BILI_MEDIA_TRANSCODE_POLL_INTERVAL}
+      BILI_SEARCH_ADDRESS: http://meilisearch:7700
+      BILI_SEARCH_API_KEY: ${MEILI_MASTER_KEY:?set MEILI_MASTER_KEY}
+      BILI_SEARCH_VIDEO_INDEX: ${BILI_SEARCH_VIDEO_INDEX:?set BILI_SEARCH_VIDEO_INDEX}
+      BILI_SEARCH_RETRY_INTERVAL: ${BILI_SEARCH_RETRY_INTERVAL:?set BILI_SEARCH_RETRY_INTERVAL}
+      BILI_REDIS_ADDRESS: redis:6379
+      BILI_REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
+      BILI_REDIS_DATABASE: ${BILI_REDIS_DATABASE:?set BILI_REDIS_DATABASE}
+      BILI_REDIS_VIDEO_RANKING_KEY: ${BILI_REDIS_VIDEO_RANKING_KEY:?set BILI_REDIS_VIDEO_RANKING_KEY}
+      BILI_SEED_ENABLED: ${BILI_SEED_ENABLED:?set BILI_SEED_ENABLED}
+      BILI_SEED_PASSWORD: ${BILI_SEED_PASSWORD:?set BILI_SEED_PASSWORD}
+      BILI_AUTH_ISSUER: ${BILI_AUTH_ISSUER:?set BILI_AUTH_ISSUER}
+      BILI_AUTH_SECRET: ${BILI_AUTH_SECRET:?set BILI_AUTH_SECRET}
+      BILI_AUTH_ACCESS_TTL: ${BILI_AUTH_ACCESS_TTL:?set BILI_AUTH_ACCESS_TTL}
+      BILI_AUTH_REFRESH_TTL: ${BILI_AUTH_REFRESH_TTL:?set BILI_AUTH_REFRESH_TTL}
+    ports:
+      - "${BILI_BIND_HOST:-127.0.0.1}:${BILI_HTTP_PORT:-8000}:8000"
+      - "${BILI_BIND_HOST:-127.0.0.1}:${BILI_GRPC_PORT:-9000}:9000"
+    volumes:
+      - type: bind
+        source: ${BILI_MEDIA_HOST_DIR:?set BILI_MEDIA_HOST_DIR}
+        target: /data/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      meilisearch:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    stop_grace_period: 30s
+
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: bilibili_lite
-      POSTGRES_USER: bilibili
-      POSTGRES_PASSWORD: bilibili
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
       TZ: Asia/Shanghai
     ports:
-      - "5432:5432"
+      - "${BILI_BIND_HOST:-127.0.0.1}:${BILI_POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bilibili -d bilibili_lite"]
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
       interval: 5s
       timeout: 3s
       retries: 10
 
   meilisearch:
     image: getmeili/meilisearch:v1.15.2
+    restart: unless-stopped
     environment:
-      MEILI_ENV: development
-      MEILI_MASTER_KEY: bilibili-lite-local-meilisearch-master-key
+      MEILI_ENV: ${MEILI_ENV:?set MEILI_ENV}
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?set MEILI_MASTER_KEY}
     ports:
-      - "7700:7700"
+      - "${BILI_BIND_HOST:-127.0.0.1}:${BILI_MEILI_PORT:-7700}:7700"
     volumes:
       - meilisearch-data:/meili_data
     healthcheck:
@@ -31,6 +91,23 @@ services:
       timeout: 3s
       retries: 20
 
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
+    ports:
+      - "${BILI_BIND_HOST:-127.0.0.1}:${BILI_REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
 volumes:
   postgres-data:
   meilisearch-data:
+  redis-data:

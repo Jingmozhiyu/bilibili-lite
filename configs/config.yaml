@@ -1,26 +1,40 @@
 server:
   http:
-    addr: 0.0.0.0:8000
-    timeout: 1800s
+    network: ${SERVER_HTTP_NETWORK}
+    addr: ${SERVER_HTTP_ADDR}
+    timeout: ${SERVER_HTTP_TIMEOUT}
   grpc:
-    addr: 0.0.0.0:9000
-    timeout: 1s
+    network: ${SERVER_GRPC_NETWORK}
+    addr: ${SERVER_GRPC_ADDR}
+    timeout: ${SERVER_GRPC_TIMEOUT}
 data:
   database:
-    driver: postgres
-    source: host=127.0.0.1 user=bilibili password=bilibili dbname=bilibili_lite port=5432 sslmode=disable TimeZone=Asia/Shanghai
+    driver: ${DATABASE_DRIVER}
+    source: ${DATABASE_SOURCE}
   media:
-    storage_dir: storage
-    upload_idle_timeout: 30s
-    transcode_timeout: 1200s
-    max_upload_bytes: 2147483648
-    max_cover_bytes: 10485760
+    storage_dir: ${MEDIA_STORAGE_DIR}
+    upload_idle_timeout: ${MEDIA_UPLOAD_IDLE_TIMEOUT}
+    transcode_timeout: ${MEDIA_TRANSCODE_TIMEOUT}
+    max_upload_bytes: ${MEDIA_MAX_UPLOAD_BYTES}
+    max_cover_bytes: ${MEDIA_MAX_COVER_BYTES}
+    max_user_storage_bytes: ${MEDIA_MAX_USER_STORAGE_BYTES}
+    transcode_workers: ${MEDIA_TRANSCODE_WORKERS}
+    transcode_poll_interval: ${MEDIA_TRANSCODE_POLL_INTERVAL}
   search:
-    address: http://127.0.0.1:7700
-    api_key: bilibili-lite-local-meilisearch-master-key
-    video_index: videos
+    address: ${SEARCH_ADDRESS}
+    api_key: ${SEARCH_API_KEY}
+    video_index: ${SEARCH_VIDEO_INDEX}
+    retry_interval: ${SEARCH_RETRY_INTERVAL}
+  redis:
+    address: ${REDIS_ADDRESS}
+    password: ${REDIS_PASSWORD}
+    database: ${REDIS_DATABASE}
+    video_ranking_key: ${REDIS_VIDEO_RANKING_KEY}
+  seed:
+    enabled: ${SEED_ENABLED}
+    password: ${SEED_PASSWORD}
 auth:
-  issuer: bilibili-lite
-  secret: bilibili-lite-local-development-secret-change-me
-  access_ttl: 7200s
-  refresh_ttl: 2592000s
+  issuer: ${AUTH_ISSUER}
+  secret: ${AUTH_SECRET}
+  access_ttl: ${AUTH_ACCESS_TTL}
+  refresh_ttl: ${AUTH_REFRESH_TTL}

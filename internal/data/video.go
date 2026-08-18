@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"bilibili-lite/internal/biz"
+	"bilibili-lite/internal/conf"
 	"bilibili-lite/internal/media"
 
 	"golang.org/x/sync/errgroup"
@@ -16,13 +17,14 @@ import (
 )
 
 type videoRepo struct {
-	data         *Data
-	mediaManager *media.Manager
+	data                *Data
+	mediaManager        *media.Manager
+	maxUserStorageBytes int64
 }
 
 // NewVideoRepo creates a PostgreSQL-backed VideoRepo.
-func NewVideoRepo(data *Data, mediaManager *media.Manager) biz.VideoRepo {
-	return &videoRepo{data: data, mediaManager: mediaManager}
+func NewVideoRepo(data *Data, mediaManager *media.Manager, dataConfig *conf.Data) biz.VideoRepo {
+	return &videoRepo{data: data, mediaManager: mediaManager, maxUserStorageBytes: dataConfig.GetMedia().GetMaxUserStorageBytes()}
 }
 
 // ListVideos returns a keyset-paginated page of published videos, optionally filtered by owner.
@@ -272,34 +274,19 @@ func (r *videoRepo) SubmitVideoForReview(ctx context.Context, input *biz.VideoRe
 	return r.findVideoByID(ctx, input.VideoID)
 }
 
-// ApproveVideo atomically publishes one pending submission and then refreshes its search document.
+// ApproveVideo atomically publishes one pending submission.
 func (r *videoRepo) ApproveVideo(ctx context.Context, decision biz.VideoReviewDecision) (*biz.Video, error) {
-	video, err := r.reviewVideo(ctx, decision, biz.VideoStatusPendingReview, biz.VideoStatusPublished, "")
-	if err != nil {
-		return nil, err
-	}
-	r.syncPublishedVideoToSearch(ctx, decision.VideoID)
-	return video, nil
+	return r.reviewVideo(ctx, decision, biz.VideoStatusPendingReview, biz.VideoStatusPublished, "")
 }
 
-// RejectVideo returns one pending submission to its owner and ensures it is absent from search.
+// RejectVideo returns one pending submission to its owner.
 func (r *videoRepo) RejectVideo(ctx context.Context, decision biz.VideoReviewDecision) (*biz.Video, error) {
-	video, err := r.reviewVideo(ctx, decision, biz.VideoStatusPendingReview, biz.VideoStatusRejected, decision.Reason)
-	if err != nil {
-		return nil, err
-	}
-	r.removeVideoFromSearch(ctx, decision.VideoID)
-	return video, nil
+	return r.reviewVideo(ctx, decision, biz.VideoStatusPendingReview, biz.VideoStatusRejected, decision.Reason)
 }
 
 // TakeDownVideo transitions a published video to rejected without deleting its media or BV record.
 func (r *videoRepo) TakeDownVideo(ctx context.Context, decision biz.VideoReviewDecision) (*biz.Video, error) {
-	video, err := r.reviewVideo(ctx, decision, biz.VideoStatusPublished, biz.VideoStatusRejected, decision.Reason)
-	if err != nil {
-		return nil, err
-	}
-	r.removeVideoFromSearch(ctx, decision.VideoID)
-	return video, nil
+	return r.reviewVideo(ctx, decision, biz.VideoStatusPublished, biz.VideoStatusRejected, decision.Reason)
 }
 
 // DeleteAdminVideo removes playable media for any settled state and retains the BV audit row.
@@ -368,7 +355,6 @@ func (r *videoRepo) deleteVideo(
 			return biz.ErrVideoStorage
 		}
 	}
-	r.removeVideoFromSearch(ctx, videoID)
 	return nil
 }
 

@@ -1,24 +1,32 @@
-FROM golang:1.25 AS builder
+FROM golang:1.25.7-bookworm AS builder
 
-COPY . /src
 WORKDIR /src
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
-RUN GOPROXY=https://goproxy.cn make build
+COPY . .
+ARG VERSION=dev
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build \
+    -trimpath \
+    -ldflags="-s -w -X main.Name=bilibili-lite -X main.Version=${VERSION}" \
+    -o /out/bilibili-lite ./cmd/bilibili-lite
 
-FROM debian:stable-slim
+FROM debian:bookworm-slim AS runtime
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-		ca-certificates  \
-        netbase \
-        && rm -rf /var/lib/apt/lists/ \
-        && apt-get autoremove -y && apt-get autoclean -y
-
-COPY --from=builder /src/bin /app
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates ffmpeg \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 10001 bilibili \
+    && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin bilibili
 
 WORKDIR /app
+COPY --from=builder /out/bilibili-lite /app/bilibili-lite
+COPY configs /app/configs
+RUN mkdir -p /data/media && chown -R bilibili:bilibili /data/media
 
-EXPOSE 8000
-EXPOSE 9000
-VOLUME /data/conf
-
-CMD ["./server", "-conf", "/data/conf"]
+USER bilibili
+EXPOSE 8000 9000
+VOLUME ["/data/media"]
+ENTRYPOINT ["/app/bilibili-lite"]
+CMD ["-conf", "/app/configs"]

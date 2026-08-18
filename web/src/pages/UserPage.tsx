@@ -13,7 +13,7 @@ import {
 import { useAuth } from '../auth/useAuth'
 import { VideoCard } from '../components/VideoCard'
 import type { AuthSession, UserProfile, VideoDetail } from '../types'
-import { formatDate } from '../utils/format'
+import { formatShortDate } from '../utils/format'
 
 type UserTab = 'home' | 'dynamic' | 'submissions'
 type HomeSectionKey = 'submissions' | 'favorites' | 'coins' | 'likes'
@@ -265,7 +265,7 @@ function UserHomeContent({ profile, ownPage }: { profile: UserProfile; ownPage: 
         return {
           items: page.items.map((item) => ({
             video: item.video,
-            historyLabel: `${key === 'coins' ? `${item.coinAmount} 币 · ` : ''}${formatDate(item.interactedAt)}`,
+            historyLabel: formatShortDate(item.interactedAt),
           })),
           hasMore: !!page.nextPageToken,
           error: '',

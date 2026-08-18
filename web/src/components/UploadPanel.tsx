@@ -4,16 +4,19 @@ import { useNavigate } from 'react-router-dom'
 import {
   asRecord,
   authorizedFetch,
+  authorizedJson,
   ensureFreshAuthSession,
   parseJSON,
   readString,
   toErrorMessage,
 } from '../api'
 import { useAuth } from '../auth/useAuth'
-import type { UploadResult } from '../types'
+import type { AuthSession, UploadResult } from '../types'
 import { formatFileSize, splitTags } from '../utils/format'
 
 type UploadPhase = 'idle' | 'uploading' | 'processing' | 'ready' | 'submitting' | 'success' | 'error'
+
+const maxVideoUploadBytes = 2 * 1024 * 1024 * 1024
 
 export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { session, setSession } = useAuth()
@@ -119,12 +122,41 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
       })
       if (requestVersion !== requestVersionRef.current) return
       setResult(uploadResult)
-      setPhase('ready')
-      setMessage('视频处理完成，填写信息后即可提交审核')
+      setPhase('processing')
+      setMessage('上传完成，已进入后台转码队列；可以继续填写视频信息')
+      await waitForProcessing(activeSession, uploadResult, requestVersion)
     } catch (uploadError) {
       if (requestVersion !== requestVersionRef.current) return
       setPhase('error')
       setMessage(toErrorMessage(uploadError, '上传失败'))
+    }
+  }
+
+  async function waitForProcessing(initialSession: AuthSession, uploadResult: UploadResult, requestVersion: number) {
+    let activeSession = initialSession
+    while (requestVersion === requestVersionRef.current) {
+      await new Promise((resolve) => window.setTimeout(resolve, 1500))
+      if (requestVersion !== requestVersionRef.current) return
+      const response = await authorizedJson<unknown>(`/api/v1/videos/${encodeURIComponent(uploadResult.bvid)}/upload-status`, {}, activeSession)
+      if (requestVersion !== requestVersionRef.current) return
+      activeSession = response.session
+      setSession(activeSession)
+      const status = asRecord(response.data)
+      const statusName = String(status.status ?? '').toLowerCase()
+      if (statusName.includes('ready')) {
+        setResult({
+          ...uploadResult,
+          status: statusName,
+          manifestUrl: readString(status, 'manifestUrl', 'manifest_url'),
+          coverUrl: readString(status, 'coverUrl', 'cover_url'),
+        })
+        setPhase('ready')
+        setMessage('视频处理完成，填写信息后即可提交审核')
+        return
+      }
+      if (statusName.includes('failed') || statusName.includes('deleted')) {
+        throw new Error(readString(status, 'failureReason', 'failure_reason') || '视频处理失败')
+      }
     }
   }
 
@@ -175,7 +207,7 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
             </label>
             <label className={uploadLocked ? 'file-picker disabled' : 'file-picker primary'}>
               <FileVideo size={22} /><span>{videoFile ? videoFile.name : '选择 MP4 视频'}</span>
-              <small>{videoFile ? formatFileSize(videoFile.size) : '仅支持 .mp4，选择后立即开始上传'}</small>
+              <small>{videoFile ? formatFileSize(videoFile.size) : `仅支持 .mp4，最大 ${formatFileSize(maxVideoUploadBytes)}，选择后立即开始上传`}</small>
               <input key={`video-${inputVersion}`} type="file" disabled={uploadLocked} accept="video/mp4,.mp4" onChange={(event) => { const file = event.target.files?.[0]; if (file) void startUpload(file) }} />
             </label>
           </div>
@@ -196,8 +228,8 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
             <label><span>标签</span><input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="用逗号分隔，最多 12 个" /></label>
           </div>
           <footer className="dialog-actions">
-            <span>{result ? `${result.bvid} 已占用并完成处理` : '视频进入数据库后会立即获得 BV 号'}</span>
-            <button className="primary-button" type="submit" disabled={!result || !title.trim() || phase === 'submitting' || phase === 'success'}>
+            <span>{result ? phase === 'ready' ? `${result.bvid} 已完成处理` : `${result.bvid} 已分配，正在后台处理` : '视频进入数据库后会立即获得 BV 号'}</span>
+            <button className="primary-button" type="submit" disabled={!result || phase !== 'ready' || !title.trim()}>
               {phase === 'success' ? <CheckCircle2 size={18} /> : null}{phase === 'submitting' ? '提交中' : phase === 'success' ? '已提交' : '提交审核'}
             </button>
           </footer>
@@ -210,5 +242,6 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
 function validateMP4File(file: File) {
   if (!/\.mp4$/i.test(file.name)) return '当前仅支持 .mp4 视频，请重新选择文件'
   if (file.type && file.type !== 'video/mp4' && file.type !== 'application/mp4') return '文件格式与 .mp4 扩展名不匹配'
+  if (file.size > maxVideoUploadBytes) return `视频不能超过 ${formatFileSize(maxVideoUploadBytes)}`
   return ''
 }

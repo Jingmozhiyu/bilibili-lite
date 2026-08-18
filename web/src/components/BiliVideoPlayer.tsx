@@ -1,6 +1,6 @@
 import { Maximize, Pause, Play, Volume2, VolumeX } from 'lucide-react'
-import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
-import type { CSSProperties, KeyboardEvent, MutableRefObject } from 'react'
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties, MutableRefObject } from 'react'
 import type { DanmakuItem, VideoStream } from '../types'
 import { formatDuration } from '../utils/format'
 import { BiliDanmakuIcon } from './BiliIcons'
@@ -8,10 +8,12 @@ import { BiliDanmakuIcon } from './BiliIcons'
 type BiliVideoPlayerProps = {
   poster?: string
   streams: VideoStream[]
-  selectedStreamId: string
+  qualityOptions: Array<{ id: string; label: string }>
+  selectedQualityId: string
   danmaku: DanmakuItem[]
   danmakuOn: boolean
-  onStreamChange: (streamID: string) => void
+  danmakuSpeed: number
+  onQualityChange: (qualityID: string) => void
   onDanmakuToggle: () => void
   onPlaying: (video: HTMLVideoElement) => void
   onTimeUpdate: (video: HTMLVideoElement) => void
@@ -21,10 +23,12 @@ type BiliVideoPlayerProps = {
 export const BiliVideoPlayer = forwardRef<HTMLVideoElement, BiliVideoPlayerProps>(function BiliVideoPlayer({
   poster,
   streams,
-  selectedStreamId,
+  qualityOptions,
+  selectedQualityId,
   danmaku,
   danmakuOn,
-  onStreamChange,
+  danmakuSpeed,
+  onQualityChange,
   onDanmakuToggle,
   onPlaying,
   onTimeUpdate,
@@ -38,6 +42,8 @@ export const BiliVideoPlayer = forwardRef<HTMLVideoElement, BiliVideoPlayerProps
   const [volume, setVolume] = useState(1)
   const [muted, setMuted] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
+  const [playerWidth, setPlayerWidth] = useState(0)
+  const [danmakuTime, setDanmakuTime] = useState(0)
 
   const assignVideoRef = useCallback((node: HTMLVideoElement | null) => {
     videoRef.current = node
@@ -53,6 +59,30 @@ export const BiliVideoPlayer = forwardRef<HTMLVideoElement, BiliVideoPlayerProps
     return () => document.removeEventListener('fullscreenchange', syncFullscreen)
   }, [])
 
+  useEffect(() => {
+    if (!playing || !danmakuOn || danmaku.length === 0) {
+      setDanmakuTime(videoRef.current?.currentTime ?? 0)
+      return
+    }
+    let frame = 0
+    const updateDanmakuClock = () => {
+      setDanmakuTime(videoRef.current?.currentTime ?? 0)
+      frame = window.requestAnimationFrame(updateDanmakuClock)
+    }
+    frame = window.requestAnimationFrame(updateDanmakuClock)
+    return () => window.cancelAnimationFrame(frame)
+  }, [danmaku.length, danmakuOn, playing])
+
+  useEffect(() => {
+    const shell = shellRef.current
+    if (!shell) return
+    const updateWidth = () => setPlayerWidth(shell.clientWidth)
+    updateWidth()
+    const observer = new ResizeObserver(updateWidth)
+    observer.observe(shell)
+    return () => observer.disconnect()
+  }, [])
+
   async function togglePlayback() {
     const video = videoRef.current
     if (!video || streams.length === 0) return
@@ -65,6 +95,7 @@ export const BiliVideoPlayer = forwardRef<HTMLVideoElement, BiliVideoPlayerProps
     if (!video || !Number.isFinite(value)) return
     video.currentTime = value
     setCurrentTime(value)
+    setDanmakuTime(value)
   }
 
   function changeVolume(value: number) {
@@ -89,27 +120,53 @@ export const BiliVideoPlayer = forwardRef<HTMLVideoElement, BiliVideoPlayerProps
     else await shellRef.current.requestFullscreen()
   }
 
-  function handleKeyboard(event: KeyboardEvent<HTMLElement>) {
-    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return
-    if (event.key === ' ' || event.key.toLowerCase() === 'k') {
-      event.preventDefault()
-      void togglePlayback()
-    } else if (event.key.toLowerCase() === 'm') {
-      toggleMute()
-    } else if (event.key.toLowerCase() === 'f') {
-      void toggleFullscreen()
-    } else if (event.key === 'ArrowLeft') {
-      seek(Math.max(0, currentTime - 5))
-    } else if (event.key === 'ArrowRight') {
-      seek(Math.min(duration, currentTime + 5))
+  useEffect(() => {
+    function handleKeyboard(event: globalThis.KeyboardEvent) {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || isEditableTarget(event.target)) return
+      const key = event.key.toLowerCase()
+      if (event.code === 'Space' || key === 'k') {
+        if (event.repeat) return
+        event.preventDefault()
+        void togglePlayback()
+      } else if (key === 'm') {
+        if (event.repeat) return
+        event.preventDefault()
+        toggleMute()
+      } else if (key === 'f') {
+        if (event.repeat) return
+        event.preventDefault()
+        void toggleFullscreen()
+      } else if (event.key === 'ArrowLeft') {
+        event.preventDefault()
+        seek(Math.max(0, currentTime - 5))
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault()
+        seek(Math.min(duration, currentTime + 5))
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        changeVolume(Math.min(1, (muted ? 0 : volume) + 0.05))
+      } else if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        changeVolume(Math.max(0, (muted ? 0 : volume) - 0.05))
+      }
     }
-  }
+    document.addEventListener('keydown', handleKeyboard)
+    return () => document.removeEventListener('keydown', handleKeyboard)
+  })
 
   const progress = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0
   const progressStyle = { '--player-progress': `${progress}%` } as CSSProperties
+  const visibleDanmaku = useMemo(() => danmaku.flatMap((item, index) => {
+    const lifetime = danmakuDuration(playerWidth, item.text, danmakuSpeed)
+    const age = danmakuTime - item.timeSeconds
+    if (!danmakuOn || age < 0 || age >= lifetime) return []
+    const textWidth = estimatedDanmakuWidth(playerWidth, item.text)
+    const x = playerWidth - (age / lifetime) * (playerWidth + textWidth)
+    return [{ item, index, x }]
+  }), [danmaku, danmakuOn, danmakuSpeed, danmakuTime, playerWidth])
 
   return (
-    <section ref={shellRef} className={`player-shell ${playing ? 'is-playing' : 'is-paused'} ${fullscreen ? 'is-fullscreen' : ''}`} aria-label="视频播放器" tabIndex={0} onKeyDown={handleKeyboard}>
+    <section ref={shellRef} className={`player-shell ${playing ? 'is-playing' : 'is-paused'} ${fullscreen ? 'is-fullscreen' : ''}`} aria-label="视频播放器" tabIndex={0}>
       {streams.length === 0 && <div className="player-empty"><strong>暂无可播放的视频流</strong><span>视频资源可能仍在处理中</span></div>}
       <video
         ref={assignVideoRef}
@@ -119,13 +176,15 @@ export const BiliVideoPlayer = forwardRef<HTMLVideoElement, BiliVideoPlayerProps
         onLoadedMetadata={(event) => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)}
         onDurationChange={(event) => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)}
         onPlaying={(event) => { setPlaying(true); onPlaying(event.currentTarget) }}
-        onPause={(event) => { setPlaying(false); onPause(event.currentTarget) }}
+        onPause={(event) => { setPlaying(false); setDanmakuTime(event.currentTarget.currentTime); onPause(event.currentTarget) }}
         onEnded={() => setPlaying(false)}
-        onTimeUpdate={(event) => { setCurrentTime(event.currentTarget.currentTime); onTimeUpdate(event.currentTarget) }}
+        onSeeking={(event) => setDanmakuTime(event.currentTarget.currentTime)}
+        onSeeked={(event) => setDanmakuTime(event.currentTarget.currentTime)}
+        onTimeUpdate={(event) => { setCurrentTime(event.currentTarget.currentTime); setDanmakuTime(event.currentTarget.currentTime); onTimeUpdate(event.currentTarget) }}
         onVolumeChange={(event) => { setVolume(event.currentTarget.volume); setMuted(event.currentTarget.muted) }}
       />
 
-      <div className="danmaku-stage" aria-hidden="true">{danmaku.map((item, index) => <span key={`${item.id}-${index}`} style={{ top: `${10 + (index % 7) * 11}%`, color: item.color }}>{item.text}</span>)}</div>
+      <div className="danmaku-stage" aria-hidden="true">{visibleDanmaku.map(({ item, index, x }) => <span key={`${item.id}-${index}`} style={{ top: `${10 + (index % 7) * 11}%`, color: item.color, transform: `translate3d(${x}px, 0, 0)` }}>{item.text}</span>)}</div>
 
       {!playing && streams.length > 0 && <button type="button" className="player-center-play" aria-label="播放" title="播放" onClick={() => void togglePlayback()}><Play size={32} fill="currentColor" /></button>}
 
@@ -140,7 +199,7 @@ export const BiliVideoPlayer = forwardRef<HTMLVideoElement, BiliVideoPlayerProps
           </div>
           <span className="player-controls-spacer" />
           <button type="button" className={danmakuOn ? 'active' : ''} aria-label={danmakuOn ? '关闭弹幕' : '打开弹幕'} title={danmakuOn ? '关闭弹幕' : '打开弹幕'} onClick={onDanmakuToggle}><BiliDanmakuIcon size={21} /></button>
-          {streams.length > 0 && <label className="player-quality" title="清晰度"><span className="sr-only">清晰度</span><select aria-label="清晰度" value={selectedStreamId} onChange={(event) => onStreamChange(event.target.value)}>{streams.map((stream) => <option key={stream.id} value={stream.id}>{formatStreamLabel(stream)}</option>)}</select></label>}
+          {streams.length > 0 && <label className="player-quality" title="清晰度"><span className="sr-only">清晰度</span><select aria-label="清晰度" value={selectedQualityId} onChange={(event) => onQualityChange(event.target.value)}>{qualityOptions.map((quality) => <option key={quality.id} value={quality.id}>{quality.label}</option>)}</select></label>}
           <button type="button" aria-label={fullscreen ? '退出全屏' : '全屏'} title={fullscreen ? '退出全屏' : '全屏'} onClick={() => void toggleFullscreen()}><Maximize size={20} /></button>
         </div>
       </div>
@@ -148,8 +207,18 @@ export const BiliVideoPlayer = forwardRef<HTMLVideoElement, BiliVideoPlayerProps
   )
 })
 
-function formatStreamLabel(stream: VideoStream) {
-  if (stream.height > 0) return `${stream.height}P`
-  if (stream.label && !stream.label.toLowerCase().includes('dash')) return stream.label
-  return '清晰'
+function isEditableTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false
+  return target.isContentEditable || !!target.closest('input, textarea, select, button, a, [role="button"], [contenteditable="true"]')
+}
+
+function danmakuDuration(playerWidth: number, text: string, speed: number) {
+  const width = playerWidth > 0 ? playerWidth : 960
+  const textWidth = estimatedDanmakuWidth(width, text)
+  return Math.min(14, Math.max(3.5, (width + textWidth) / (120 * speed)))
+}
+
+function estimatedDanmakuWidth(playerWidth: number, text: string) {
+  const width = playerWidth > 0 ? playerWidth : 960
+  return Math.min(width * 0.8, Math.max(36, Array.from(text).length * 18))
 }

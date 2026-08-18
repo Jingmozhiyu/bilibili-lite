@@ -20,3 +20,5 @@ internal/data/ent/** linguist-generated=true
 *.png binary
 *.jpg binary
 *.ico binary
+
+web/** linguist-vendored

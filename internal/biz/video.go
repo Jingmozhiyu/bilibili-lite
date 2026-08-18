@@ -21,19 +21,20 @@ const (
 )
 
 var (
-	ErrVideoNotFound          = errors.NotFound(v1.ErrorReason_VIDEO_NOT_FOUND.String(), "video not found")
-	ErrVideoInvalidArgument   = errors.BadRequest(v1.ErrorReason_VIDEO_INVALID_ARGUMENT.String(), "invalid video argument")
-	ErrVideoStorage           = errors.InternalServer(v1.ErrorReason_VIDEO_UNSPECIFIED.String(), "video storage unavailable")
-	ErrVideoProcessing        = errors.InternalServer(v1.ErrorReason_VIDEO_PROCESSING_FAILED.String(), "video processing failed")
-	ErrVideoUploadInterrupted = errors.New(408, v1.ErrorReason_VIDEO_UPLOAD_INTERRUPTED.String(), "video upload interrupted")
-	ErrVideoUploadTooLarge    = errors.BadRequest(v1.ErrorReason_VIDEO_UPLOAD_TOO_LARGE.String(), "video upload is too large")
-	ErrVideoForbidden         = errors.Forbidden(v1.ErrorReason_VIDEO_FORBIDDEN.String(), "video operation is not allowed")
-	ErrVideoInvalidState      = errors.Conflict(v1.ErrorReason_VIDEO_INVALID_STATE.String(), "video is not in the required state")
-	ErrVideoViewTooEarly      = errors.BadRequest(v1.ErrorReason_VIDEO_VIEW_TOO_EARLY.String(), "video must be watched for at least five seconds")
-	ErrVideoInsufficientCoins = errors.BadRequest(v1.ErrorReason_VIDEO_INSUFFICIENT_COINS.String(), "coin balance is insufficient")
-	ErrVideoCoinLimit         = errors.Conflict(v1.ErrorReason_VIDEO_COIN_LIMIT_REACHED.String(), "video coin amount cannot be reduced or exceed two")
-	ErrVideoDanmakuNotFound   = errors.NotFound(v1.ErrorReason_VIDEO_DANMAKU_NOT_FOUND.String(), "danmaku not found")
-	ErrVideoCommentNotFound   = errors.NotFound(v1.ErrorReason_VIDEO_COMMENT_NOT_FOUND.String(), "video comment not found")
+	ErrVideoNotFound            = errors.NotFound(v1.ErrorReason_VIDEO_NOT_FOUND.String(), "video not found")
+	ErrVideoInvalidArgument     = errors.BadRequest(v1.ErrorReason_VIDEO_INVALID_ARGUMENT.String(), "invalid video argument")
+	ErrVideoStorage             = errors.InternalServer(v1.ErrorReason_VIDEO_UNSPECIFIED.String(), "video storage unavailable")
+	ErrVideoProcessing          = errors.InternalServer(v1.ErrorReason_VIDEO_PROCESSING_FAILED.String(), "video processing failed")
+	ErrVideoUploadInterrupted   = errors.New(408, v1.ErrorReason_VIDEO_UPLOAD_INTERRUPTED.String(), "video upload interrupted")
+	ErrVideoUploadTooLarge      = errors.BadRequest(v1.ErrorReason_VIDEO_UPLOAD_TOO_LARGE.String(), "video upload is too large")
+	ErrVideoUploadQuotaExceeded = errors.Conflict(v1.ErrorReason_VIDEO_UPLOAD_QUOTA_EXCEEDED.String(), "video storage quota exceeded")
+	ErrVideoForbidden           = errors.Forbidden(v1.ErrorReason_VIDEO_FORBIDDEN.String(), "video operation is not allowed")
+	ErrVideoInvalidState        = errors.Conflict(v1.ErrorReason_VIDEO_INVALID_STATE.String(), "video is not in the required state")
+	ErrVideoViewTooEarly        = errors.BadRequest(v1.ErrorReason_VIDEO_VIEW_TOO_EARLY.String(), "video must be watched for at least five seconds")
+	ErrVideoInsufficientCoins   = errors.BadRequest(v1.ErrorReason_VIDEO_INSUFFICIENT_COINS.String(), "coin balance is insufficient")
+	ErrVideoCoinLimit           = errors.Conflict(v1.ErrorReason_VIDEO_COIN_LIMIT_REACHED.String(), "video coin amount cannot be reduced or exceed two")
+	ErrVideoDanmakuNotFound     = errors.NotFound(v1.ErrorReason_VIDEO_DANMAKU_NOT_FOUND.String(), "danmaku not found")
+	ErrVideoCommentNotFound     = errors.NotFound(v1.ErrorReason_VIDEO_COMMENT_NOT_FOUND.String(), "video comment not found")
 )
 
 // VideoStatus is the lifecycle state persisted for every allocated BV identifier.
@@ -348,7 +349,11 @@ type VideoViewResult struct {
 // VideoRepo owns persistence and media-side implementation details for video operations.
 type VideoRepo interface {
 	ListVideos(context.Context, VideoListOptions) (*VideoList, error)
+	ListRecommendedVideos(context.Context, int, string) (*VideoList, error)
+	RefreshVideoRanking(context.Context) error
 	SearchVideos(context.Context, VideoSearchOptions) (*VideoSearchResult, error)
+	PrepareVideoSearch(context.Context) error
+	ProcessNextVideoSearchUpdate(context.Context) (bool, error)
 	ListAdminVideos(context.Context, AdminVideoListOptions) (*VideoList, error)
 	ListPendingReviewVideos(context.Context, int, string) (*VideoList, error)
 	FindVideoByID(context.Context, VideoID) (*Video, error)
@@ -371,6 +376,9 @@ type VideoRepo interface {
 	SetVideoCommentLike(context.Context, uint64, VideoID, uint64, bool) (*VideoCommentInteraction, error)
 	ListVideoCommentHistory(context.Context, uint64, int, string) (*VideoCommentHistoryList, error)
 	ProcessVideoUpload(context.Context, *VideoUploadInput) (*VideoUploadResult, error)
+	ProcessNextVideoUpload(context.Context) (bool, error)
+	RecoverStaleVideoUploads(context.Context, time.Time) (int64, error)
+	ActiveUploadJobIDs(context.Context) ([]string, error)
 	SubmitVideoForReview(context.Context, *VideoReviewSubmission) (*Video, error)
 	ApproveVideo(context.Context, VideoReviewDecision) (*Video, error)
 	RejectVideo(context.Context, VideoReviewDecision) (*Video, error)
@@ -402,6 +410,20 @@ func (uc *VideoUsecase) ListVideos(ctx context.Context, ownerID uint64, pageSize
 	return uc.repo.ListVideos(ctx, VideoListOptions{
 		OwnerID: ownerID, PageSize: int(pageSize), PageToken: strings.TrimSpace(pageToken),
 	})
+}
+
+// ListRecommendedVideos returns a time-decayed hot ranking with stable pagination.
+func (uc *VideoUsecase) ListRecommendedVideos(ctx context.Context, pageSize int32, pageToken string) (*VideoList, error) {
+	pageSize, err := normalizeVideoPageSize(pageSize)
+	if err != nil {
+		return nil, err
+	}
+	return uc.repo.ListRecommendedVideos(ctx, int(pageSize), strings.TrimSpace(pageToken))
+}
+
+// RefreshVideoRanking rebuilds the optional Redis sorted set from PostgreSQL counters.
+func (uc *VideoUsecase) RefreshVideoRanking(ctx context.Context) error {
+	return uc.repo.RefreshVideoRanking(ctx)
 }
 
 // GetVideo returns a published video by its numeric ID.
@@ -571,6 +593,21 @@ func (uc *VideoUsecase) UploadVideo(ctx context.Context, input *VideoUploadInput
 	return uc.repo.ProcessVideoUpload(ctx, input)
 }
 
+// ProcessNextVideoUpload claims and processes at most one queued upload.
+func (uc *VideoUsecase) ProcessNextVideoUpload(ctx context.Context) (bool, error) {
+	return uc.repo.ProcessNextVideoUpload(ctx)
+}
+
+// RecoverStaleVideoUploads releases abandoned processing claims for retry.
+func (uc *VideoUsecase) RecoverStaleVideoUploads(ctx context.Context, before time.Time) (int64, error) {
+	return uc.repo.RecoverStaleVideoUploads(ctx, before)
+}
+
+// ActiveUploadJobIDs returns persisted media jobs that must not be removed by the janitor.
+func (uc *VideoUsecase) ActiveUploadJobIDs(ctx context.Context) ([]string, error) {
+	return uc.repo.ActiveUploadJobIDs(ctx)
+}
+
 // SearchVideos queries only published videos through the external search index.
 func (uc *VideoUsecase) SearchVideos(ctx context.Context, query string, order VideoSearchOrder, ownerID uint64, pageSize int32, pageToken string) (*VideoSearchResult, error) {
 	query = strings.TrimSpace(query)
@@ -585,6 +622,16 @@ func (uc *VideoUsecase) SearchVideos(ctx context.Context, query string, order Vi
 		Query: query, Order: order, OwnerID: ownerID,
 		PageSize: int(pageSize), PageToken: strings.TrimSpace(pageToken),
 	})
+}
+
+// PrepareVideoSearch configures the optional external index and seeds its outbox.
+func (uc *VideoUsecase) PrepareVideoSearch(ctx context.Context) error {
+	return uc.repo.PrepareVideoSearch(ctx)
+}
+
+// ProcessNextVideoSearchUpdate applies one durable outbox mutation.
+func (uc *VideoUsecase) ProcessNextVideoSearchUpdate(ctx context.Context) (bool, error) {
+	return uc.repo.ProcessNextVideoSearchUpdate(ctx)
 }
 
 // ListPendingReviewVideos returns the administrator's oldest-first moderation queue.

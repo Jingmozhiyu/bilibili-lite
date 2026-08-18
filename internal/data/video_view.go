@@ -130,9 +130,6 @@ func (r *videoRepo) CompleteVideoViewSession(ctx context.Context, userID uint64,
 			return nil, biz.ErrVideoStorage
 		}
 	}
-	if result.Counted {
-		r.syncPublishedVideoToSearch(ctx, videoID)
-	}
 	return result, nil
 }
 

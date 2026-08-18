@@ -43,6 +43,7 @@ const OperationVideoServiceListMyLikedVideos = "/video.v1.VideoService/ListMyLik
 const OperationVideoServiceListMyVideoComments = "/video.v1.VideoService/ListMyVideoComments"
 const OperationVideoServiceListMyWatchHistory = "/video.v1.VideoService/ListMyWatchHistory"
 const OperationVideoServiceListPendingReviewVideos = "/video.v1.VideoService/ListPendingReviewVideos"
+const OperationVideoServiceListRecommendedVideos = "/video.v1.VideoService/ListRecommendedVideos"
 const OperationVideoServiceListUserVideos = "/video.v1.VideoService/ListUserVideos"
 const OperationVideoServiceListVideoCommentReplies = "/video.v1.VideoService/ListVideoCommentReplies"
 const OperationVideoServiceListVideoComments = "/video.v1.VideoService/ListVideoComments"
@@ -83,6 +84,7 @@ type VideoServiceHTTPServer interface {
 	ListMyVideoComments(context.Context, *ListVideoHistoryRequest) (*ListVideoCommentHistoryReply, error)
 	ListMyWatchHistory(context.Context, *ListVideoHistoryRequest) (*ListVideoHistoryReply, error)
 	ListPendingReviewVideos(context.Context, *ListPendingReviewVideosRequest) (*ListVideosReply, error)
+	ListRecommendedVideos(context.Context, *ListRecommendedVideosRequest) (*ListVideosReply, error)
 	ListUserVideos(context.Context, *ListUserVideosRequest) (*ListVideosReply, error)
 	ListVideoCommentReplies(context.Context, *ListVideoCommentRepliesRequest) (*ListVideoCommentsReply, error)
 	ListVideoComments(context.Context, *ListVideoCommentsRequest) (*ListVideoCommentsReply, error)
@@ -101,6 +103,7 @@ type VideoServiceHTTPServer interface {
 func RegisterVideoServiceHTTPServer(s *http.Server, srv VideoServiceHTTPServer) {
 	r := s.Route("/")
 	r.Handle("GET", "/api/v1/videos", _VideoService_ListVideos0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/v1/videos/recommended", _VideoService_ListRecommendedVideos0_HTTP_Handler(srv))
 	r.Handle("GET", "/api/v1/search/videos", _VideoService_SearchVideos0_HTTP_Handler(srv))
 	r.Handle("GET", "/api/v1/users/{user_id}/videos", _VideoService_ListUserVideos0_HTTP_Handler(srv))
 	r.Handle("GET", "/api/v1/videos/{bvid}", _VideoService_GetVideo0_HTTP_Handler(srv))
@@ -149,6 +152,25 @@ func _VideoService_ListVideos0_HTTP_Handler(srv VideoServiceHTTPServer) func(ctx
 		http.SetOperation(ctx, OperationVideoServiceListVideos)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
 			return srv.ListVideos(ctx, req.(*ListVideosRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*ListVideosReply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _VideoService_ListRecommendedVideos0_HTTP_Handler(srv VideoServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in ListRecommendedVideosRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationVideoServiceListRecommendedVideos)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.ListRecommendedVideos(ctx, req.(*ListRecommendedVideosRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
@@ -975,6 +997,7 @@ type VideoServiceHTTPClient interface {
 	ListMyVideoComments(ctx context.Context, req *ListVideoHistoryRequest, opts ...http.CallOption) (rsp *ListVideoCommentHistoryReply, err error)
 	ListMyWatchHistory(ctx context.Context, req *ListVideoHistoryRequest, opts ...http.CallOption) (rsp *ListVideoHistoryReply, err error)
 	ListPendingReviewVideos(ctx context.Context, req *ListPendingReviewVideosRequest, opts ...http.CallOption) (rsp *ListVideosReply, err error)
+	ListRecommendedVideos(ctx context.Context, req *ListRecommendedVideosRequest, opts ...http.CallOption) (rsp *ListVideosReply, err error)
 	ListUserVideos(ctx context.Context, req *ListUserVideosRequest, opts ...http.CallOption) (rsp *ListVideosReply, err error)
 	ListVideoCommentReplies(ctx context.Context, req *ListVideoCommentRepliesRequest, opts ...http.CallOption) (rsp *ListVideoCommentsReply, err error)
 	ListVideoComments(ctx context.Context, req *ListVideoCommentsRequest, opts ...http.CallOption) (rsp *ListVideoCommentsReply, err error)
@@ -1394,6 +1417,22 @@ func (c *VideoServiceHTTPClientImpl) ListPendingReviewVideos(ctx context.Context
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
 		http.Operation(OperationVideoServiceListPendingReviewVideos),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *VideoServiceHTTPClientImpl) ListRecommendedVideos(ctx context.Context, in *ListRecommendedVideosRequest, opts ...http.CallOption) (*ListVideosReply, error) {
+	var out ListVideosReply
+	pattern := "/api/v1/videos/recommended"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationVideoServiceListRecommendedVideos),
 		http.PathTemplate(pattern),
 	}, opts...)
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)

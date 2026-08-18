@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/go-kratos/kratos/contrib/otel/v3/tracing"
 	"github.com/go-kratos/kratos/v3"
 	"github.com/go-kratos/kratos/v3/config"
+	"github.com/go-kratos/kratos/v3/config/env"
 	"github.com/go-kratos/kratos/v3/config/file"
 	"github.com/go-kratos/kratos/v3/log"
 	"github.com/go-kratos/kratos/v3/transport/grpc"
@@ -35,7 +37,7 @@ func init() {
 	flag.StringVar(&flagconf, "conf", "../../configs", "config path, eg: -conf config.yaml")
 }
 
-func newApp(logger *slog.Logger, gs *grpc.Server, hs *http.Server, uploadJanitor *worker.UploadJanitor) *kratos.App {
+func newApp(logger *slog.Logger, gs *grpc.Server, hs *http.Server, uploadJanitor *worker.UploadJanitor, videoTranscoder *worker.VideoTranscoder, searchIndexer *worker.SearchIndexer, recommendationRefresher *worker.RecommendationRefresher) *kratos.App {
 	return kratos.New(
 		kratos.ID(id),
 		kratos.Name(Name),
@@ -46,8 +48,30 @@ func newApp(logger *slog.Logger, gs *grpc.Server, hs *http.Server, uploadJanitor
 			gs,
 			hs,
 			uploadJanitor,
+			videoTranscoder,
+			searchIndexer,
+			recommendationRefresher,
 		),
 	)
+}
+
+func loadBootstrap(path string) (*conf.Bootstrap, error) {
+	c := config.New(
+		config.WithResolveActualTypes(true),
+		config.WithSource(
+			file.NewSource(path),
+			env.NewSource("BILI_"),
+		),
+	)
+	defer c.Close()
+	if err := c.Load(); err != nil {
+		return nil, fmt.Errorf("load configuration: %w", err)
+	}
+	var bootstrap conf.Bootstrap
+	if err := c.Scan(&bootstrap); err != nil {
+		return nil, fmt.Errorf("decode configuration: %w", err)
+	}
+	return &bootstrap, nil
 }
 
 func main() {
@@ -64,19 +88,8 @@ func main() {
 		slog.String("service.version", Version),
 	)
 	log.SetDefault(logger)
-	c := config.New(
-		config.WithSource(
-			file.NewSource(flagconf),
-		),
-	)
-	defer c.Close()
-
-	if err := c.Load(); err != nil {
-		panic(err)
-	}
-
-	var bc conf.Bootstrap
-	if err := c.Scan(&bc); err != nil {
+	bc, err := loadBootstrap(flagconf)
+	if err != nil {
 		panic(err)
 	}
 
