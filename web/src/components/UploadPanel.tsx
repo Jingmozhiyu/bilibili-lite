@@ -2,7 +2,6 @@ import { CheckCircle2, FileVideo, ImagePlus, RotateCcw, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  apiURL,
   asRecord,
   authorizedFetch,
   authorizedJson,
@@ -10,6 +9,7 @@ import {
   parseJSON,
   readString,
   toErrorMessage,
+  uploadURL,
 } from '../api'
 import { useAuth } from '../auth/useAuth'
 import type { AuthSession, UploadResult } from '../types'
@@ -95,7 +95,7 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
       const uploadResult = await new Promise<UploadResult>((resolve, reject) => {
         const request = new XMLHttpRequest()
         requestRef.current = request
-        request.open('POST', apiURL('/api/v1/videos/upload'))
+        request.open('POST', uploadURL('/api/v1/videos/upload'))
         request.setRequestHeader('Authorization', `Bearer ${activeSession.accessToken}`)
         request.upload.addEventListener('progress', (event) => {
           if (!event.lengthComputable) return

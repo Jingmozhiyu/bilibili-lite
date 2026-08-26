@@ -144,6 +144,21 @@ Default local ports are configured in `.env.example`:
 - HTTP: `0.0.0.0:8000`
 - gRPC: `0.0.0.0:9000`
 
+For an Internet deployment, keep the ordinary API and large uploads on
+separate hostnames. `VITE_API_ORIGIN` should point to the Cloudflare-proxied
+API hostname, while `VITE_UPLOAD_ORIGIN` points to a DNS-only hostname that
+bypasses proxy request-body limits. Both hostnames reverse-proxy to the same
+Kratos HTTP service and must allow the frontend origin through CORS. The
+production defaults are:
+
+```text
+VITE_API_ORIGIN=https://bili.madenroll.com
+VITE_UPLOAD_ORIGIN=https://bili-upload.madenroll.com
+```
+
+The Compose Caddy overlay uses `BILI_PUBLIC_HOST` and `BILI_UPLOAD_HOST` for
+the corresponding server names.
+
 With `.env.example`, the seeded login is `demo` / `demo123456`. Login returns a two-hour Access JWT
 and a 30-day Refresh JWT:
 

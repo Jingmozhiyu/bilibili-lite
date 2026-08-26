@@ -1,4 +1,4 @@
-{$BILI_PUBLIC_HOST} {
+{$BILI_PUBLIC_HOST}, {$BILI_UPLOAD_HOST} {
 	encode zstd gzip
 	log
 

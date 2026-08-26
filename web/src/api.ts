@@ -24,12 +24,17 @@ export const AUTH_STORAGE_KEY = 'bilibili-lite.auth-session'
 
 const configuredAPIOrigin = import.meta.env.VITE_API_ORIGIN?.trim()
 const apiOrigin = (configuredAPIOrigin || (import.meta.env.PROD ? 'https://bili.madenroll.com' : '')).replace(/\/$/, '')
+const configuredUploadOrigin = import.meta.env.VITE_UPLOAD_ORIGIN?.trim()
+const uploadOrigin = (configuredUploadOrigin || (import.meta.env.PROD ? 'https://bili-upload.madenroll.com' : apiOrigin)).replace(/\/$/, '')
 
 let refreshInFlight: Promise<AuthSession> | null = null
 
 export function apiURL(url: string) {
-  if (!apiOrigin || !url.startsWith('/')) return url
-  return `${apiOrigin}${url}`
+  return withOrigin(apiOrigin, url)
+}
+
+export function uploadURL(url: string) {
+  return withOrigin(uploadOrigin, url)
 }
 
 export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -403,6 +408,11 @@ function withAuthorization(init: RequestInit, accessToken: string): RequestInit 
     ...init,
     headers: { ...init.headers, Authorization: `Bearer ${accessToken}` },
   }
+}
+
+function withOrigin(origin: string, url: string) {
+  if (!origin || !url.startsWith('/')) return url
+  return `${origin}${url}`
 }
 
 async function parseAPIResponse<T>(response: Response, url: string): Promise<T> {
