@@ -1,0 +1,22 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      BILI_PUBLIC_HOST: ${BILI_PUBLIC_HOST:?set BILI_PUBLIC_HOST}
+      BILI_FRONTEND_ORIGIN: ${BILI_FRONTEND_ORIGIN:?set BILI_FRONTEND_ORIGIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      bili:
+        condition: service_started
+
+volumes:
+  caddy-data:
+  caddy-config:

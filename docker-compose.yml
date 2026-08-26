@@ -1,7 +1,7 @@
 name: bilibili-lite
 
 services:
-  app:
+  bili:
     image: ${BILI_IMAGE:-bilibili-lite:local}
     build:
       context: .
@@ -65,8 +65,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
       TZ: Asia/Shanghai
-    ports:
-      - "${BILI_BIND_HOST:-127.0.0.1}:${BILI_POSTGRES_PORT:-5432}:5432"
+    expose:
+      - "5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -81,8 +81,8 @@ services:
     environment:
       MEILI_ENV: ${MEILI_ENV:?set MEILI_ENV}
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?set MEILI_MASTER_KEY}
-    ports:
-      - "${BILI_BIND_HOST:-127.0.0.1}:${BILI_MEILI_PORT:-7700}:7700"
+    expose:
+      - "7700"
     volumes:
       - meilisearch-data:/meili_data
     healthcheck:
@@ -97,8 +97,8 @@ services:
     command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD}"]
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
-    ports:
-      - "${BILI_BIND_HOST:-127.0.0.1}:${BILI_REDIS_PORT:-6379}:6379"
+    expose:
+      - "6379"
     volumes:
       - redis-data:/data
     healthcheck:

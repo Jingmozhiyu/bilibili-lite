@@ -1,0 +1,18 @@
+{$BILI_PUBLIC_HOST} {
+	encode zstd gzip
+	log
+
+	route {
+		header {
+			Access-Control-Allow-Origin "{$BILI_FRONTEND_ORIGIN}"
+			Access-Control-Allow-Methods "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS"
+			Access-Control-Allow-Headers "Authorization, Content-Type"
+			Vary "Origin"
+		}
+
+		@preflight method OPTIONS
+		respond @preflight 204
+
+		reverse_proxy bili:8000
+	}
+}

@@ -1,0 +1,12 @@
+services:
+  postgres:
+    ports:
+      - "${BILI_BIND_HOST:-127.0.0.1}:${BILI_POSTGRES_PORT:-5432}:5432"
+
+  meilisearch:
+    ports:
+      - "${BILI_BIND_HOST:-127.0.0.1}:${BILI_MEILI_PORT:-7700}:7700"
+
+  redis:
+    ports:
+      - "${BILI_BIND_HOST:-127.0.0.1}:${BILI_REDIS_PORT:-6379}:6379"

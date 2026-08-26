@@ -100,7 +100,11 @@ configuration belongs in the ignored `.env` file. Start only the dependencies
 when running the Go process directly:
 
 ```bash
-docker compose --env-file .env.example up -d postgres meilisearch redis
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.dev.yml \
+  --env-file .env.example \
+  up -d postgres meilisearch redis
 ```
 
 MP4 uploads are converted into separate DASH audio and video segments by
@@ -304,26 +308,47 @@ programs used by media workers.
 This is the backend image. Build `web/dist` separately and serve it through a
 static host or reverse proxy; Node.js is not needed by the Kratos container.
 
-For a repository checked out at `/home/opc/bili`, prepare configuration and a
+For a repository checked out at `/home/ubuntu/bili`, prepare configuration and a
 host-owned media directory before the first start:
 
 ```bash
-cd /home/opc/bili
+cd /home/ubuntu/bili
 cp .env.example .env
-mkdir -p /home/opc/bili/data/media
+mkdir -p /home/ubuntu/bili/data/media
 id -u
 id -g
 ```
 
 Edit `.env` and set `BILI_RUNTIME_UID`/`BILI_RUNTIME_GID` to the two `id`
-outputs, and set `BILI_MEDIA_HOST_DIR=/home/opc/bili/data/media`. Do not use `~`
+outputs, and set `BILI_MEDIA_HOST_DIR=/home/ubuntu/bili/data/media`. Do not use `~`
 inside `.env`. Replace the PostgreSQL, Redis, Meilisearch, JWT, and seed
-passwords before starting:
+passwords before starting. Meilisearch requires at least 16 bytes for a
+production master key, and `BILI_AUTH_SECRET` requires at least 32 bytes:
 
 ```bash
 docker compose up -d --build
 docker compose ps
 ```
+
+The base Compose file publishes only the application HTTP/gRPC ports on the
+configured bind host; PostgreSQL, Redis, and Meilisearch stay inside the Docker
+network. `docker-compose.dev.yml` is only for exposing those dependencies on a
+developer machine.
+
+On a dedicated VM where ports 80 and 443 are free, set `BILI_PUBLIC_HOST` to
+the backend DNS name and `BILI_FRONTEND_ORIGIN` to the exact Vercel origin, then
+start the optional Caddy overlay:
+
+```bash
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.caddy.yml \
+  up -d --build
+```
+
+If the VM already has a reverse proxy, do not start the Caddy overlay. Add the
+backend hostname to the existing proxy and forward it to the application
+instead; only one process can bind the host's ports 80 and 443.
 
 On an OCI block volume, mount the filesystem at a stable host path such as
 `/mnt/bili-data`, create `/mnt/bili-data/media`, and set
@@ -339,7 +364,7 @@ media/
 
 PostgreSQL, Meilisearch, and Redis use Docker named volumes and require a
 separate backup policy. The media bind mount is independent from container
-replacement, so rebuilding or recreating `app` does not remove video files.
+replacement, so rebuilding or recreating `bili` does not remove video files.
 
 `BILI_SEED_ENABLED=true` creates the demo users and administrator with
 `BILI_SEED_PASSWORD`. Use a strong unique value for the first production boot;

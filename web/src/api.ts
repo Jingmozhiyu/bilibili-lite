@@ -22,10 +22,18 @@ import type {
 
 export const AUTH_STORAGE_KEY = 'bilibili-lite.auth-session'
 
+const configuredAPIOrigin = import.meta.env.VITE_API_ORIGIN?.trim()
+const apiOrigin = (configuredAPIOrigin || (import.meta.env.PROD ? 'https://bili.madenroll.com' : '')).replace(/\/$/, '')
+
 let refreshInFlight: Promise<AuthSession> | null = null
 
+export function apiURL(url: string) {
+  if (!apiOrigin || !url.startsWith('/')) return url
+  return `${apiOrigin}${url}`
+}
+
 export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init)
+  const response = await fetch(apiURL(url), init)
   return parseAPIResponse<T>(response, url)
 }
 
@@ -50,10 +58,10 @@ export async function authorizedFetch(
   session: AuthSession,
 ): Promise<{ response: Response; session: AuthSession }> {
   let activeSession = await ensureFreshAuthSession(session)
-  let response = await fetch(url, withAuthorization(init, activeSession.accessToken))
+  let response = await fetch(apiURL(url), withAuthorization(init, activeSession.accessToken))
   if (response.status === 401) {
     activeSession = await refreshAuthSession(activeSession)
-    response = await fetch(url, withAuthorization(init, activeSession.accessToken))
+    response = await fetch(apiURL(url), withAuthorization(init, activeSession.accessToken))
   }
   if (!response.ok) {
     throw await responseError(response, url)
@@ -124,8 +132,8 @@ export function normalizeVideoDetail(value: unknown): VideoDetail {
     title: readString(record, 'title'),
     description: readString(record, 'description'),
     ownerName: readString(record, 'ownerName', 'owner_name'),
-    ownerAvatarUrl: readString(record, 'ownerAvatarUrl', 'owner_avatar_url'),
-    coverUrl: readString(record, 'coverUrl', 'cover_url'),
+    ownerAvatarUrl: apiURL(readString(record, 'ownerAvatarUrl', 'owner_avatar_url')),
+    coverUrl: apiURL(readString(record, 'coverUrl', 'cover_url')),
     durationSeconds: readMetric(record, 'durationSeconds', 'duration_seconds'),
     viewCount: readMetric(record, 'viewCount', 'view_count'),
     danmakuCount: readMetric(record, 'danmakuCount', 'danmaku_count'),
@@ -169,7 +177,7 @@ export function normalizeVideoPlay(value: unknown): VideoPlay {
     const item = asRecord(stream)
     return {
       id: readString(item, 'id'), label: readString(item, 'label'), codec: readString(item, 'codec'),
-      mimeType: readString(item, 'mimeType', 'mime_type'), url: readString(item, 'url'),
+      mimeType: readString(item, 'mimeType', 'mime_type'), url: apiURL(readString(item, 'url')),
       width: Number(readMetric(item, 'width')), height: Number(readMetric(item, 'height')),
       bandwidth: Number(readMetric(item, 'bandwidth')),
       defaultStream: readBoolean(item, 'defaultStream', 'default_stream'),
@@ -205,7 +213,7 @@ export function normalizeUser(value: unknown): AuthUser {
   return {
     id: Number(readMetric(user, 'id')), username: readString(user, 'username'),
     displayName: readString(user, 'displayName', 'display_name'),
-    avatarUrl: readString(user, 'avatarUrl', 'avatar_url'), bio: readString(user, 'bio'),
+    avatarUrl: apiURL(readString(user, 'avatarUrl', 'avatar_url')), bio: readString(user, 'bio'),
     coinBalance: toNumber(readMetric(user, 'coinBalance', 'coin_balance')),
     isAdmin: readBoolean(user, 'isAdmin', 'is_admin'),
     experience: Math.max(0, toNumber(readMetric(user, 'experience'))),
@@ -256,7 +264,7 @@ export function normalizeVideoComment(value: unknown): VideoComment {
     id: toNumber(readMetric(record, 'id')), bvid: readString(record, 'bvid'),
     userId: toNumber(readMetric(record, 'userId', 'user_id')),
     userName: readString(record, 'userName', 'user_name'),
-    userAvatarUrl: readString(record, 'userAvatarUrl', 'user_avatar_url'),
+    userAvatarUrl: apiURL(readString(record, 'userAvatarUrl', 'user_avatar_url')),
     content: readString(record, 'content'), createdAt: readTimestamp(record, 'createdAt', 'created_at'),
     rootId: toNumber(readMetric(record, 'rootId', 'root_id')),
     parentId: toNumber(readMetric(record, 'parentId', 'parent_id')),

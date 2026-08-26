@@ -16,6 +16,10 @@ FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates ffmpeg \
+    && command -v ffmpeg \
+    && command -v ffprobe \
+    && ffmpeg -hide_banner -version \
+    && ffprobe -hide_banner -version \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 10001 bilibili \
     && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin bilibili
