@@ -26,6 +26,15 @@ func TestFFmpegErrorSummaryKeepsFirstUsefulError(t *testing.T) {
 	}
 }
 
+func TestDASHAudioArgsNormalizeSourceAudio(t *testing.T) {
+	args := strings.Join(dashAudioArgs(), " ")
+	for _, required := range []string{"-map 0:a:0", "-c:a aac", "-b:a 128k", "-ac 2", "-ar 48000"} {
+		if !strings.Contains(args, required) {
+			t.Errorf("dashAudioArgs() = %q, missing %q", args, required)
+		}
+	}
+}
+
 func TestBuildRenditionsDoesNotUpscale(t *testing.T) {
 	tests := []struct {
 		name         string

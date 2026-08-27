@@ -132,9 +132,11 @@ func (m *Manager) TranscodeDASH(ctx context.Context, job *UploadJob, metadata *M
 		)
 	}
 	args = append(args,
-		"-map", "0:a:0", "-c:v", "libx264", "-preset", "veryfast",
+		"-c:v", "libx264", "-preset", "veryfast",
 		"-g", "48", "-keyint_min", "48", "-sc_threshold", "0",
-		"-c:a", "aac", "-b:a", "128k",
+	)
+	args = append(args, dashAudioArgs()...)
+	args = append(args,
 		"-use_template", "1", "-use_timeline", "1", "-seg_duration", "4",
 		"-adaptation_sets", "id=0,streams=v id=1,streams=a",
 		"-init_seg_name", "init-$RepresentationID$.m4s",
@@ -174,6 +176,8 @@ func ffmpegErrorSummary(output string) string {
 		if strings.Contains(lower, "error") || strings.Contains(lower, "failed") ||
 			strings.Contains(lower, "invalid") || strings.Contains(lower, "unable") ||
 			strings.Contains(lower, "cannot") || strings.Contains(lower, "not divisible") ||
+			strings.Contains(lower, "unsupported") || strings.Contains(lower, "not supported") ||
+			strings.Contains(lower, "sample rate") || strings.Contains(lower, "channel layout") ||
 			strings.Contains(lower, "no space") || strings.Contains(lower, "killed") {
 			relevant = append(relevant, line)
 		}
@@ -182,6 +186,14 @@ func ffmpegErrorSummary(output string) string {
 		return tail(output, 2000)
 	}
 	return tail(strings.Join(relevant, "\n"), maxRelevantBytes)
+}
+
+func dashAudioArgs() []string {
+	// Normalize arbitrary upload audio before DASH packaging. In particular,
+	// native AAC cannot initialize every source sample-rate/channel-layout
+	// combination accepted by MP4, which otherwise fails the final mapped
+	// output stream while all video renditions are valid.
+	return []string{"-map", "0:a:0", "-c:a", "aac", "-b:a", "128k", "-ac", "2", "-ar", "48000"}
 }
 
 func renditionScaleFilter(input, output string, height int32) string {
