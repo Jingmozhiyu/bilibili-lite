@@ -22,6 +22,14 @@ type Metadata struct {
 	Width           int32
 	Height          int32
 	Bandwidth       int32
+	VideoCodec      string
+	PixelFormat     string
+	FrameRate       string
+	AudioCodec      string
+	AudioSampleRate string
+	AudioChannels   int32
+	AudioLayout     string
+	Rotation        int32
 }
 
 // Rendition describes one encoded DASH video representation.
@@ -30,17 +38,30 @@ type Rendition struct {
 	Bandwidth int32
 }
 
+type probeSideData struct {
+	Rotation int32 `json:"rotation"`
+}
+
+type probeStream struct {
+	CodecType     string          `json:"codec_type"`
+	CodecName     string          `json:"codec_name"`
+	Width         int32           `json:"width"`
+	Height        int32           `json:"height"`
+	BitRate       string          `json:"bit_rate"`
+	PixelFormat   string          `json:"pix_fmt"`
+	FrameRate     string          `json:"avg_frame_rate"`
+	SampleRate    string          `json:"sample_rate"`
+	Channels      int32           `json:"channels"`
+	ChannelLayout string          `json:"channel_layout"`
+	SideData      []probeSideData `json:"side_data_list"`
+}
+
 type probeOutput struct {
 	Format struct {
 		Duration string `json:"duration"`
 		BitRate  string `json:"bit_rate"`
 	} `json:"format"`
-	Streams []struct {
-		CodecType string `json:"codec_type"`
-		Width     int32  `json:"width"`
-		Height    int32  `json:"height"`
-		BitRate   string `json:"bit_rate"`
-	} `json:"streams"`
+	Streams []probeStream `json:"streams"`
 }
 
 // InspectMP4 runs ffprobe and requires one video track and one audio track.
@@ -169,23 +190,10 @@ func (m *Manager) TranscodeDASH(ctx context.Context, job *UploadJob, metadata *M
 }
 
 func ffmpegErrorSummary(output string) string {
-	const maxRelevantBytes = 6000
-	relevant := make([]string, 0, 8)
-	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
-		lower := strings.ToLower(line)
-		if strings.Contains(lower, "error") || strings.Contains(lower, "failed") ||
-			strings.Contains(lower, "invalid") || strings.Contains(lower, "unable") ||
-			strings.Contains(lower, "cannot") || strings.Contains(lower, "not divisible") ||
-			strings.Contains(lower, "unsupported") || strings.Contains(lower, "not supported") ||
-			strings.Contains(lower, "sample rate") || strings.Contains(lower, "channel layout") ||
-			strings.Contains(lower, "no space") || strings.Contains(lower, "killed") {
-			relevant = append(relevant, line)
-		}
-	}
-	if len(relevant) == 0 {
-		return tail(output, 2000)
-	}
-	return tail(strings.Join(relevant, "\n"), maxRelevantBytes)
+	// With -nostats, stderr contains command setup and the final encoder report,
+	// not per-frame progress. Keep enough of the tail to retain muxer context
+	// that often appears several lines before the generic Conversion failed.
+	return tail(output, 64*1024)
 }
 
 func dashAudioArgs() []string {
@@ -201,7 +209,10 @@ func renditionScaleFilter(input, output string, height int32) string {
 	// fixed target height cannot upscale. Let scale calculate an even width;
 	// force_original_aspect_ratio=decrease can override -2 and produce odd
 	// widths such as 853x480, which libx264 rejects for yuv420p output.
-	return fmt.Sprintf("[%s]scale=-2:%d[%s]", input, height, output)
+	// DASH requires every representation in one adaptation set to report the
+	// same sample aspect ratio. Rounding -2 to an even width can otherwise
+	// leave different SAR values for non-standard source ratios.
+	return fmt.Sprintf("[%s]scale=-2:%d,setsar=1[%s]", input, height, output)
 }
 
 func buildRenditions(sourceHeight int32) []Rendition {
@@ -234,13 +245,19 @@ func metadataFromProbe(probe *probeOutput) (*Metadata, error) {
 		switch stream.CodecType {
 		case "video":
 			hasVideo = true
-			metadata.Width = stream.Width
-			metadata.Height = stream.Height
+			metadata.Width, metadata.Height, metadata.Rotation = displayDimensions(stream)
+			metadata.VideoCodec = stream.CodecName
+			metadata.PixelFormat = stream.PixelFormat
+			metadata.FrameRate = stream.FrameRate
 			if streamBandwidth, err := strconv.ParseInt(stream.BitRate, 10, 32); err == nil && streamBandwidth > bandwidth {
 				bandwidth = streamBandwidth
 			}
 		case "audio":
 			hasAudio = true
+			metadata.AudioCodec = stream.CodecName
+			metadata.AudioSampleRate = stream.SampleRate
+			metadata.AudioChannels = stream.Channels
+			metadata.AudioLayout = stream.ChannelLayout
 		}
 	}
 	if !hasVideo || !hasAudio {
@@ -251,6 +268,21 @@ func metadataFromProbe(probe *probeOutput) (*Metadata, error) {
 	}
 	metadata.Bandwidth = int32(bandwidth)
 	return metadata, nil
+}
+
+func displayDimensions(stream probeStream) (int32, int32, int32) {
+	rotation := int32(0)
+	for _, sideData := range stream.SideData {
+		if sideData.Rotation != 0 {
+			rotation = sideData.Rotation
+			break
+		}
+	}
+	normalized := ((rotation % 360) + 360) % 360
+	if normalized == 90 || normalized == 270 {
+		return stream.Height, stream.Width, rotation
+	}
+	return stream.Width, stream.Height, rotation
 }
 
 func tail(value string, max int) string {

@@ -103,7 +103,11 @@ func (r *videoRepo) ProcessNextVideoUpload(ctx context.Context) (bool, error) {
 		return fail("cover generation failed", err)
 	}
 	log.Info("start video transcode", "bvid", videoID.BVID(), "job_id", record.UploadJobID,
-		"width", metadata.Width, "height", metadata.Height, "duration_seconds", metadata.DurationSeconds)
+		"width", metadata.Width, "height", metadata.Height, "duration_seconds", metadata.DurationSeconds,
+		"video_codec", metadata.VideoCodec, "pixel_format", metadata.PixelFormat, "frame_rate", metadata.FrameRate,
+		"rotation", metadata.Rotation,
+		"audio_codec", metadata.AudioCodec, "audio_sample_rate", metadata.AudioSampleRate,
+		"audio_channels", metadata.AudioChannels, "audio_layout", metadata.AudioLayout)
 	renditions, err := r.mediaManager.TranscodeDASH(ctx, job, metadata)
 	if err != nil {
 		if ctx.Err() != nil {

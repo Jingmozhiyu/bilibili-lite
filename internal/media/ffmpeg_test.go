@@ -7,11 +7,29 @@ import (
 
 func TestRenditionScaleFilterKeepsWidthEven(t *testing.T) {
 	filter := renditionScaleFilter("v1", "vout1", 480)
-	if filter != "[v1]scale=-2:480[vout1]" {
+	if filter != "[v1]scale=-2:480,setsar=1[vout1]" {
 		t.Fatalf("renditionScaleFilter() = %q", filter)
 	}
 	if strings.Contains(filter, "force_original_aspect_ratio") {
 		t.Fatalf("renditionScaleFilter() may override the even-width -2 expression: %q", filter)
+	}
+}
+
+func TestMetadataFromProbeUsesRotatedDisplayDimensions(t *testing.T) {
+	probe := &probeOutput{Streams: []probeStream{
+		{CodecType: "video", Width: 1180, Height: 2556, SideData: []probeSideData{{Rotation: -90}}},
+		{CodecType: "audio", SampleRate: "44100", Channels: 2, ChannelLayout: "stereo"},
+	}}
+	metadata, err := metadataFromProbe(probe)
+	if err != nil {
+		t.Fatalf("metadataFromProbe() error = %v", err)
+	}
+	if metadata.Width != 2556 || metadata.Height != 1180 || metadata.Rotation != -90 {
+		t.Fatalf("metadataFromProbe() dimensions = %dx%d rotation %d", metadata.Width, metadata.Height, metadata.Rotation)
+	}
+	renditions := buildRenditions(metadata.Height)
+	if got := renditions[len(renditions)-1].Height; got != 1080 {
+		t.Fatalf("highest rendition = %d, want 1080", got)
 	}
 }
 
