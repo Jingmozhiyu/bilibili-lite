@@ -15,7 +15,7 @@ func TestLoadBootstrapResolvesPrefixedEnvironment(t *testing.T) {
 		"MEDIA_MAX_UPLOAD_BYTES": "1024", "MEDIA_MAX_COVER_BYTES": "512", "MEDIA_MAX_USER_STORAGE_BYTES": "4096",
 		"MEDIA_TRANSCODE_WORKERS": "1", "MEDIA_TRANSCODE_POLL_INTERVAL": "1s",
 		"SEARCH_ADDRESS": "http://127.0.0.1:17700", "SEARCH_API_KEY": "search-key", "SEARCH_VIDEO_INDEX": "videos-test", "SEARCH_RETRY_INTERVAL": "5s",
-		"REDIS_ADDRESS": "127.0.0.1:16379", "REDIS_PASSWORD": "redis-key", "REDIS_DATABASE": "2", "REDIS_VIDEO_RANKING_KEY": "videos:hot:test",
+		"REDIS_ADDRESS": "127.0.0.1:16379", "REDIS_PASSWORD": "redis-key", "REDIS_DATABASE": "2", "REDIS_VIDEO_RANKING_KEY": "videos:hot:test", "REDIS_USER_RATE_LIMIT_KEY_PREFIX": "bili:user-rate:test",
 		"SEED_ENABLED": "false", "SEED_PASSWORD": "not-used-in-test",
 		"AUTH_ISSUER": "test", "AUTH_SECRET": "01234567890123456789012345678901", "AUTH_ACCESS_TTL": "7200s", "AUTH_REFRESH_TTL": "2592000s",
 	}
@@ -33,7 +33,7 @@ func TestLoadBootstrapResolvesPrefixedEnvironment(t *testing.T) {
 	if bootstrap.Data.GetMedia().GetTranscodeWorkers() != 1 || bootstrap.Data.GetMedia().GetMaxUserStorageBytes() != 4096 {
 		t.Fatalf("media configuration = %+v", bootstrap.Data.GetMedia())
 	}
-	if bootstrap.Data.GetRedis().GetPassword() != "redis-key" || bootstrap.Auth.GetIssuer() != "test" {
+	if bootstrap.Data.GetRedis().GetPassword() != "redis-key" || bootstrap.Data.GetRedis().GetUserRateLimitKeyPrefix() != "bili:user-rate:test" || bootstrap.Auth.GetIssuer() != "test" {
 		t.Fatalf("external/auth configuration did not resolve environment values")
 	}
 }

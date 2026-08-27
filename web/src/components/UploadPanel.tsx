@@ -4,16 +4,14 @@ import { useNavigate } from 'react-router-dom'
 import {
   asRecord,
   authorizedFetch,
-  authorizedJson,
   ensureFreshAuthSession,
-  normalizeVideoStatus,
   parseJSON,
   readString,
   toErrorMessage,
   uploadURL,
 } from '../api'
 import { useAuth } from '../auth/useAuth'
-import type { AuthSession, UploadResult } from '../types'
+import type { UploadResult } from '../types'
 import { formatFileSize, splitTags } from '../utils/format'
 
 type UploadPhase = 'idle' | 'uploading' | 'processing' | 'ready' | 'submitting' | 'success' | 'error'
@@ -32,6 +30,7 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
   const [progress, setProgress] = useState(0)
   const [message, setMessage] = useState('')
   const [fileError, setFileError] = useState('')
+  const [submissionError, setSubmissionError] = useState('')
   const [result, setResult] = useState<UploadResult | null>(null)
   const [inputVersion, setInputVersion] = useState(0)
   const requestRef = useRef<XMLHttpRequest | null>(null)
@@ -59,6 +58,7 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
     setProgress(0)
     setMessage('')
     setFileError('')
+    setSubmissionError('')
     setResult(null)
     setInputVersion((current) => current + 1)
   }
@@ -86,6 +86,7 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
     setProgress(0)
     setMessage('')
     setFileError('')
+    setSubmissionError('')
     setResult(null)
     try {
       const activeSession = await ensureFreshAuthSession(session)
@@ -125,40 +126,11 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
       if (requestVersion !== requestVersionRef.current) return
       setResult(uploadResult)
       setPhase('processing')
-      setMessage('上传完成，已进入后台转码队列；可以继续填写视频信息')
-      await waitForProcessing(activeSession, uploadResult, requestVersion)
+      setMessage('上传完成，已进入后台转码队列；现在即可提交投稿信息')
     } catch (uploadError) {
       if (requestVersion !== requestVersionRef.current) return
       setPhase('error')
       setMessage(toErrorMessage(uploadError, '上传失败'))
-    }
-  }
-
-  async function waitForProcessing(initialSession: AuthSession, uploadResult: UploadResult, requestVersion: number) {
-    let activeSession = initialSession
-    while (requestVersion === requestVersionRef.current) {
-      await new Promise((resolve) => window.setTimeout(resolve, 1500))
-      if (requestVersion !== requestVersionRef.current) return
-      const response = await authorizedJson<unknown>(`/api/v1/videos/${encodeURIComponent(uploadResult.bvid)}/upload-status`, {}, activeSession)
-      if (requestVersion !== requestVersionRef.current) return
-      activeSession = response.session
-      setSession(activeSession)
-      const status = asRecord(response.data)
-      const statusName = normalizeVideoStatus(status.status)
-      if (statusName.includes('ready')) {
-        setResult({
-          ...uploadResult,
-          status: statusName,
-          manifestUrl: readString(status, 'manifestUrl', 'manifest_url'),
-          coverUrl: readString(status, 'coverUrl', 'cover_url'),
-        })
-        setPhase('ready')
-        setMessage('视频处理完成，填写信息后即可提交审核')
-        return
-      }
-      if (statusName.includes('failed') || statusName.includes('deleted')) {
-        throw new Error(readString(status, 'failureReason', 'failure_reason') || '视频处理失败')
-      }
     }
   }
 
@@ -167,6 +139,7 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
     if (!session || !result || !title.trim()) return
     setPhase('submitting')
     setMessage('')
+    setSubmissionError('')
     try {
       const { session: nextSession } = await authorizedFetch(
         `/api/v1/videos/${encodeURIComponent(result.bvid)}/submit-review`,
@@ -178,20 +151,21 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
       )
       setSession(nextSession)
       setPhase('success')
-      setMessage('已提交审核，通过后会出现在首页和搜索结果中')
+      setMessage('投稿信息已保存，转码完成后会自动进入审核')
       redirectTimerRef.current = window.setTimeout(() => {
         resetPanel()
         onClose()
         navigate('/space/me')
       }, 900)
     } catch (submitError) {
-      setPhase('error')
-      setMessage(toErrorMessage(submitError, '提交审核失败'))
+      setPhase('processing')
+      setSubmissionError(toErrorMessage(submitError, '提交投稿信息失败'))
     }
   }
 
   if (!open) return null
   const uploadLocked = phase === 'uploading' || phase === 'processing' || phase === 'ready' || phase === 'submitting' || phase === 'success'
+  const canSubmit = Boolean(result && title.trim() && (phase === 'processing' || phase === 'ready'))
 
   return (
     <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closePanel() }}>
@@ -214,6 +188,7 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
             </label>
           </div>
           {fileError && <p className="upload-file-error" role="alert">{fileError}</p>}
+          {submissionError && <p className="upload-file-error" role="alert">{submissionError}</p>}
 
           {phase !== 'idle' && (
             <div className={`upload-progress-panel ${phase}`} aria-live="polite">
@@ -231,7 +206,7 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
           </div>
           <footer className="dialog-actions">
             <span>{result ? phase === 'ready' ? `${result.bvid} 已完成处理` : `${result.bvid} 已分配，正在后台处理` : '视频进入数据库后会立即获得 BV 号'}</span>
-            <button className="primary-button" type="submit" disabled={!result || phase !== 'ready' || !title.trim()}>
+            <button className="primary-button" type="submit" disabled={!canSubmit}>
               {phase === 'success' ? <CheckCircle2 size={18} /> : null}{phase === 'submitting' ? '提交中' : phase === 'success' ? '已提交' : '提交审核'}
             </button>
           </footer>

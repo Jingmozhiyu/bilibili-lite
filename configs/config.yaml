@@ -30,6 +30,7 @@ data:
     password: ${REDIS_PASSWORD}
     database: ${REDIS_DATABASE}
     video_ranking_key: ${REDIS_VIDEO_RANKING_KEY}
+    user_rate_limit_key_prefix: ${REDIS_USER_RATE_LIMIT_KEY_PREFIX}
   seed:
     enabled: ${SEED_ENABLED}
     password: ${SEED_PASSWORD}

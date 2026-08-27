@@ -619,13 +619,14 @@ func (x *Data_Search) GetRetryInterval() *durationpb.Duration {
 }
 
 type Data_Redis struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	Address         string                 `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
-	Password        string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
-	Database        int32                  `protobuf:"varint,3,opt,name=database,proto3" json:"database,omitempty"`
-	VideoRankingKey string                 `protobuf:"bytes,4,opt,name=video_ranking_key,json=videoRankingKey,proto3" json:"video_ranking_key,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	Address                string                 `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
+	Password               string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
+	Database               int32                  `protobuf:"varint,3,opt,name=database,proto3" json:"database,omitempty"`
+	VideoRankingKey        string                 `protobuf:"bytes,4,opt,name=video_ranking_key,json=videoRankingKey,proto3" json:"video_ranking_key,omitempty"`
+	UserRateLimitKeyPrefix string                 `protobuf:"bytes,5,opt,name=user_rate_limit_key_prefix,json=userRateLimitKeyPrefix,proto3" json:"user_rate_limit_key_prefix,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *Data_Redis) Reset() {
@@ -682,6 +683,13 @@ func (x *Data_Redis) GetDatabase() int32 {
 func (x *Data_Redis) GetVideoRankingKey() string {
 	if x != nil {
 		return x.VideoRankingKey
+	}
+	return ""
+}
+
+func (x *Data_Redis) GetUserRateLimitKeyPrefix() string {
+	if x != nil {
+		return x.UserRateLimitKeyPrefix
 	}
 	return ""
 }
@@ -758,7 +766,7 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\x04GRPC\x12\x18\n" +
 	"\anetwork\x18\x01 \x01(\tR\anetwork\x12\x12\n" +
 	"\x04addr\x18\x02 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xe3\b\n" +
+	"\atimeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\x9f\t\n" +
 	"\x04Data\x125\n" +
 	"\bdatabase\x18\x01 \x01(\v2\x19.kratos.api.Data.DatabaseR\bdatabase\x12,\n" +
 	"\x05media\x18\x03 \x01(\v2\x16.kratos.api.Data.MediaR\x05media\x12/\n" +
@@ -783,12 +791,13 @@ const file_conf_conf_proto_rawDesc = "" +
 	"\aapi_key\x18\x02 \x01(\tR\x06apiKey\x12\x1f\n" +
 	"\vvideo_index\x18\x03 \x01(\tR\n" +
 	"videoIndex\x12@\n" +
-	"\x0eretry_interval\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\rretryInterval\x1a\x85\x01\n" +
+	"\x0eretry_interval\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\rretryInterval\x1a\xc1\x01\n" +
 	"\x05Redis\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x1a\n" +
 	"\bdatabase\x18\x03 \x01(\x05R\bdatabase\x12*\n" +
-	"\x11video_ranking_key\x18\x04 \x01(\tR\x0fvideoRankingKey\x1a<\n" +
+	"\x11video_ranking_key\x18\x04 \x01(\tR\x0fvideoRankingKey\x12:\n" +
+	"\x1auser_rate_limit_key_prefix\x18\x05 \x01(\tR\x16userRateLimitKeyPrefix\x1a<\n" +
 	"\x04Seed\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpasswordJ\x04\b\x02\x10\x03\"\xac\x01\n" +

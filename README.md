@@ -115,7 +115,7 @@ brew install ffmpeg
 ```
 
 The service applies embedded SQL migrations and, when `BILI_SEED_ENABLED=true`,
-inserts three demo users plus one administrator without creating sample videos.
+creates only the administrator account without inserting demo users or videos.
 `videos.id` is the numeric auto-increment
 primary key, and the API formats it as `BV1`, `BV2`, and so on. Related tables
 store `video_id` numeric foreign keys; BVID strings are not persisted.
@@ -159,13 +159,13 @@ VITE_UPLOAD_ORIGIN=https://bili-upload.madenroll.com
 The Compose Caddy overlay uses `BILI_PUBLIC_HOST` and `BILI_UPLOAD_HOST` for
 the corresponding server names.
 
-With `.env.example`, the seeded login is `demo` / `demo123456`. Login returns a two-hour Access JWT
-and a 30-day Refresh JWT:
+Ordinary users register through the public API. Registration returns a two-hour
+Access JWT and a 30-day Refresh JWT immediately:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/api/v1/auth/login \
+curl -X POST http://127.0.0.1:8000/api/v1/auth/register \
   -H 'Content-Type: application/json' \
-  -d '{"username":"demo","password":"demo123456"}'
+  -d '{"username":"new_user","password":"password123","displayName":"New user"}'
 ```
 
 The local administrator seed creates `admin` with `BILI_SEED_PASSWORD`. If an `admin`
@@ -206,10 +206,10 @@ curl -X POST http://127.0.0.1:8000/api/v1/videos/upload \
 
 The request allocates the numeric video row and BV identifier immediately and
 returns `processing` after the source is safely queued. One bounded worker by
-default produces an adaptive DASH manifest with a no-upscale 360p/480p/720p/1080p/
-1440p/2160p ladder; 4K is emitted only when the source reaches 2160p. Poll
-`GET /api/v1/videos/{bvid}/upload-status` until `ready`, then submit metadata
-for administrator review:
+default produces an adaptive DASH manifest with a no-upscale 720p/1080p/1440p/
+2160p ladder; sources below 720p are rejected and 4K is emitted only when the
+source reaches 2160p. Metadata can be submitted as soon as the upload returns;
+processing continues in the background and enters review automatically when ready:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/v1/videos/BV1/submit-review \
@@ -218,7 +218,8 @@ curl -X POST http://127.0.0.1:8000/api/v1/videos/BV1/submit-review \
   -d '{"title":"My video","description":"Uploaded locally","tags":["local","DASH"]}'
 ```
 
-The source MP4 limit is 2 GiB. Active videos consume their original upload
+`GET /api/v1/videos/{bvid}/upload-status` remains available for observing the
+background job. The source MP4 limit is 2 GiB. Active videos consume their original upload
 size against a 10 GiB per-user quota; administrators are exempt. Failed and
 deleted jobs release quota, remove temporary input, and abandoned worker claims
 are recovered after restart. The moderation lifecycle is
@@ -381,7 +382,7 @@ PostgreSQL, Meilisearch, and Redis use Docker named volumes and require a
 separate backup policy. The media bind mount is independent from container
 replacement, so rebuilding or recreating `bili` does not remove video files.
 
-`BILI_SEED_ENABLED=true` creates the demo users and administrator with
+`BILI_SEED_ENABLED=true` creates only the administrator with
 `BILI_SEED_PASSWORD`. Use a strong unique value for the first production boot;
 after the accounts exist, it can be changed to `false`. Services bind to
 `127.0.0.1` by default; place a TLS reverse proxy in front of HTTP instead of

@@ -231,6 +231,24 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/user.v1.LoginReply'
+    /api/v1/auth/register:
+        post:
+            tags:
+                - UserService
+            operationId: UserService_Register
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/user.v1.RegisterRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/user.v1.LoginReply'
     /api/v1/search/videos:
         get:
             tags:
@@ -1034,6 +1052,19 @@ components:
             type: object
             properties:
                 refreshToken:
+                    type: string
+        user.v1.RegisterRequest:
+            required:
+                - username
+                - password
+                - displayName
+            type: object
+            properties:
+                username:
+                    type: string
+                password:
+                    type: string
+                displayName:
                     type: string
         user.v1.UpdateMeRequest:
             required:

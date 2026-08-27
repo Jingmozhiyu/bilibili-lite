@@ -227,7 +227,8 @@ func (r *videoRepo) FindVideoUploadStatus(ctx context.Context, userID uint64, vi
 	}, nil
 }
 
-// SubmitVideoForReview attaches final metadata and moves a ready or rejected draft into moderation.
+// SubmitVideoForReview stores final metadata immediately and enters moderation
+// now or after an in-flight transcode becomes ready.
 func (r *videoRepo) SubmitVideoForReview(ctx context.Context, input *biz.VideoReviewSubmission) (*biz.Video, error) {
 	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var record videoPO
@@ -244,14 +245,16 @@ func (r *videoRepo) SubmitVideoForReview(ctx context.Context, input *biz.VideoRe
 		if record.Status == string(biz.VideoStatusPendingReview) {
 			return nil
 		}
-		if record.Status != string(biz.VideoStatusReady) && record.Status != string(biz.VideoStatusRejected) {
+		if !canSubmitVideoStatus(biz.VideoStatus(record.Status)) {
 			return biz.ErrVideoInvalidState
 		}
 		now := time.Now()
 		record.Title = input.Title
 		record.Description = input.Description
 		record.Tags = append([]string(nil), input.Tags...)
-		record.Status = string(biz.VideoStatusPendingReview)
+		if record.Status != string(biz.VideoStatusProcessing) {
+			record.Status = string(biz.VideoStatusPendingReview)
+		}
 		record.ReviewReason = ""
 		record.SubmittedAt = &now
 		record.ReviewedAt = nil
@@ -272,6 +275,10 @@ func (r *videoRepo) SubmitVideoForReview(ctx context.Context, input *biz.VideoRe
 		}
 	}
 	return r.findVideoByID(ctx, input.VideoID)
+}
+
+func canSubmitVideoStatus(status biz.VideoStatus) bool {
+	return status == biz.VideoStatusProcessing || status == biz.VideoStatusReady || status == biz.VideoStatusRejected
 }
 
 // ApproveVideo atomically publishes one pending submission.

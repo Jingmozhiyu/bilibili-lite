@@ -13,11 +13,12 @@ import (
 )
 
 // NewGRPCServer creates and registers the gRPC transport.
-func NewGRPCServer(serverConfig *conf.Server, authenticator *appMiddleware.Authenticator, videoService *service.VideoService, userService *service.UserService) *grpc.Server {
+func NewGRPCServer(serverConfig *conf.Server, authenticator *appMiddleware.Authenticator, userRateLimiter *appMiddleware.UserRateLimiterMiddleware, videoService *service.VideoService, userService *service.UserService) *grpc.Server {
 	opts := []grpc.ServerOption{
 		grpc.Middleware(
 			recovery.Recovery(),
 			authenticator.Server(),
+			userRateLimiter.Server(),
 			selector.Server(authenticator.Admin()).Match(adminOperation).Build(),
 		),
 	}

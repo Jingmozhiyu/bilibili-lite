@@ -3,11 +3,20 @@ package biz
 import (
 	"context"
 	"testing"
+	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type userRepoStub struct {
-	user   *User
-	update UserProfileUpdate
+	user    *User
+	update  UserProfileUpdate
+	created UserRegistration
+}
+
+func (r *userRepoStub) CreateUser(_ context.Context, input UserRegistration) (*User, error) {
+	r.created = input
+	return &User{ID: 2, Username: input.Username, DisplayName: input.DisplayName, CoinBalance: 1000}, nil
 }
 
 func (r *userRepoStub) GrantDailyExperience(_ context.Context, _ uint64, _ string, amount, _ int32) (int64, error) {
@@ -37,6 +46,46 @@ func (r *userRepoStub) UpdateUserAvatar(_ context.Context, _ uint64, avatarURL s
 	previous := copy.AvatarURL
 	copy.AvatarURL = avatarURL
 	return &copy, previous, nil
+}
+
+type tokenManagerStub struct{}
+
+func (tokenManagerStub) Issue(uint64, bool) (*TokenPair, error) {
+	now := time.Now()
+	return &TokenPair{AccessToken: "access", RefreshToken: "refresh", AccessExpiresAt: now.Add(time.Hour), RefreshExpiresAt: now.Add(24 * time.Hour)}, nil
+}
+
+func (tokenManagerStub) ParseAccess(string) (*TokenClaims, error)  { return nil, ErrSessionInvalid }
+func (tokenManagerStub) ParseRefresh(string) (*TokenClaims, error) { return nil, ErrSessionInvalid }
+
+func TestRegisterNormalizesAndHashesCredentials(t *testing.T) {
+	t.Parallel()
+	repo := &userRepoStub{user: &User{ID: 1}}
+	session, err := NewUserUsecase(repo, tokenManagerStub{}).Register(context.Background(), "  New_User ", "password123", "  新用户  ")
+	if err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+	if session.User.Username != "new_user" || repo.created.DisplayName != "新用户" {
+		t.Fatalf("Register() created = %+v", repo.created)
+	}
+	if bcrypt.CompareHashAndPassword([]byte(repo.created.PasswordHash), []byte("password123")) != nil {
+		t.Fatal("Register() did not persist a bcrypt password hash")
+	}
+}
+
+func TestRegisterRejectsInvalidCredentials(t *testing.T) {
+	t.Parallel()
+	usecase := NewUserUsecase(&userRepoStub{user: &User{ID: 1}}, tokenManagerStub{})
+	for _, input := range []struct{ username, password, displayName string }{
+		{"ab", "password123", "name"},
+		{"invalid name", "password123", "name"},
+		{"valid_name", "short", "name"},
+		{"valid_name", "password123", "   "},
+	} {
+		if _, err := usecase.Register(context.Background(), input.username, input.password, input.displayName); err == nil {
+			t.Fatalf("Register(%q) unexpectedly succeeded", input.username)
+		}
+	}
 }
 
 func TestGetUserHidesCoinBalance(t *testing.T) {

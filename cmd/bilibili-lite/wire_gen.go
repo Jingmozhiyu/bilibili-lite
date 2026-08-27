@@ -36,6 +36,8 @@ func wireApp(confServer *conf.Server, confData *conf.Data, auth *conf.Auth, logg
 	if err != nil {
 		return nil, nil, err
 	}
+	userRequestLimiter := data.NewUserRequestLimiter(dataData)
+	userRateLimiterMiddleware := middleware.NewUserRateLimiterMiddleware(userRequestLimiter)
 	manager, err := media.NewManager(confData)
 	if err != nil {
 		cleanup()
@@ -47,9 +49,9 @@ func wireApp(confServer *conf.Server, confData *conf.Data, auth *conf.Auth, logg
 	userRepo := data.NewUserRepo(dataData)
 	userUsecase := biz.NewUserUsecase(userRepo, tokenManager)
 	userService := service.NewUserService(userUsecase, manager)
-	grpcServer := server.NewGRPCServer(confServer, authenticator, videoService, userService)
+	grpcServer := server.NewGRPCServer(confServer, authenticator, userRateLimiterMiddleware, videoService, userService)
 	videoUploadHTTPHandler := service.NewVideoUploadHTTPHandler(videoUsecase, confData)
-	httpServer := server.NewHTTPServer(confServer, confData, manager, authenticator, videoService, videoUploadHTTPHandler, userService)
+	httpServer := server.NewHTTPServer(confServer, confData, manager, authenticator, userRateLimiterMiddleware, videoService, videoUploadHTTPHandler, userService)
 	uploadJanitor := worker.NewUploadJanitor(manager, videoUsecase)
 	videoTranscoder := worker.NewVideoTranscoder(videoUsecase, confData)
 	searchIndexer := worker.NewSearchIndexer(videoUsecase, confData)

@@ -2,6 +2,7 @@ package biz
 
 import (
 	"context"
+	"regexp"
 	"strings"
 	"time"
 
@@ -17,9 +18,13 @@ var (
 	ErrInvalidCredentials  = errors.Unauthorized(v1.ErrorReason_USER_INVALID_CREDENTIALS.String(), "invalid username or password")
 	ErrSessionInvalid      = errors.Unauthorized(v1.ErrorReason_USER_SESSION_INVALID.String(), "invalid session")
 	ErrUserForbidden       = errors.Forbidden(v1.ErrorReason_USER_FORBIDDEN.String(), "administrator access is required")
+	ErrUserAlreadyExists   = errors.Conflict(v1.ErrorReason_USER_ALREADY_EXISTS.String(), "username is already registered")
+	ErrUserRateLimited     = errors.TooManyRequests(v1.ErrorReason_USER_RATE_LIMITED.String(), "too many user requests")
 	ErrUserStorage         = errors.InternalServer(v1.ErrorReason_USER_UNSPECIFIED.String(), "user storage unavailable")
 	ErrUserAvatarInvalid   = errors.BadRequest(v1.ErrorReason_USER_INVALID_ARGUMENT.String(), "avatar must be a JPEG or PNG image within the size limit")
 )
+
+var usernamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{2,31}$`)
 
 const (
 	ExperienceSourceLogin = "login"
@@ -50,6 +55,13 @@ type User struct {
 type UserProfileUpdate struct {
 	DisplayName string
 	Bio         string
+}
+
+// UserRegistration contains normalized credentials for a new ordinary user.
+type UserRegistration struct {
+	Username     string
+	PasswordHash string
+	DisplayName  string
 }
 
 // UserCredential contains the stored credential needed during authentication.
@@ -91,11 +103,17 @@ type TokenManager interface {
 
 // UserRepo reads user identity and credentials.
 type UserRepo interface {
+	CreateUser(context.Context, UserRegistration) (*User, error)
 	FindCredentialByUsername(context.Context, string) (*UserCredential, error)
 	FindUserByID(context.Context, uint64) (*User, error)
 	UpdateUserProfile(context.Context, uint64, UserProfileUpdate) (*User, error)
 	UpdateUserAvatar(context.Context, uint64, string) (*User, string, error)
 	GrantDailyExperience(context.Context, uint64, string, int32, int32) (int64, error)
+}
+
+// UserRequestLimiter applies shared Redis-backed request budgets.
+type UserRequestLimiter interface {
+	Allow(context.Context, string, string, int64, time.Duration) (bool, error)
 }
 
 // UserUsecase handles authentication.
@@ -153,7 +171,7 @@ func (uc *UserUsecase) UpdateAvatar(ctx context.Context, userID uint64, avatarUR
 
 // Login verifies a username and password before issuing a new access and refresh token pair.
 func (uc *UserUsecase) Login(ctx context.Context, username, password string) (*UserSession, error) {
-	username = strings.TrimSpace(username)
+	username = strings.ToLower(strings.TrimSpace(username))
 	if username == "" || password == "" {
 		return nil, ErrUserInvalidArgument
 	}
@@ -171,17 +189,40 @@ func (uc *UserUsecase) Login(ctx context.Context, username, password string) (*U
 	}
 	credential.Experience = experience
 
-	tokens, err := uc.tokens.Issue(credential.ID, credential.IsAdmin)
+	return uc.issueSession(credential.User)
+}
+
+// Register validates credentials, creates an ordinary user, and signs in the new account.
+func (uc *UserUsecase) Register(ctx context.Context, username, password, displayName string) (*UserSession, error) {
+	username = strings.ToLower(strings.TrimSpace(username))
+	displayName = strings.TrimSpace(displayName)
+	if !usernamePattern.MatchString(username) || len(password) < 8 || len(password) > 72 || displayName == "" || len([]rune(displayName)) > 100 {
+		return nil, ErrUserInvalidArgument
+	}
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, errors.InternalServer(v1.ErrorReason_USER_UNSPECIFIED.String(), "failed to secure credentials")
+	}
+	user, err := uc.repo.CreateUser(ctx, UserRegistration{
+		Username: username, PasswordHash: string(passwordHash), DisplayName: displayName,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return uc.issueSession(*user)
+}
+
+func (uc *UserUsecase) issueSession(user User) (*UserSession, error) {
+	tokens, err := uc.tokens.Issue(user.ID, user.IsAdmin)
 	if err != nil {
 		return nil, errors.InternalServer(v1.ErrorReason_USER_UNSPECIFIED.String(), "failed to create session")
 	}
-
 	return &UserSession{
 		AccessToken:      tokens.AccessToken,
 		RefreshToken:     tokens.RefreshToken,
 		ExpiresAt:        tokens.AccessExpiresAt,
 		RefreshExpiresAt: tokens.RefreshExpiresAt,
-		User:             credential.User,
+		User:             user,
 	}, nil
 }
 

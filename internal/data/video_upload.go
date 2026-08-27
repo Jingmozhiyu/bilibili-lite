@@ -113,6 +113,9 @@ func (r *videoRepo) ProcessNextVideoUpload(ctx context.Context) (bool, error) {
 		if ctx.Err() != nil {
 			return true, r.releaseVideoUploadClaim(videoID)
 		}
+		if errors.Is(err, media.ErrVideoResolutionTooLow) {
+			return fail("video resolution is below 720p", err)
+		}
 		return fail("DASH transcoding failed", err)
 	}
 	manifestURL, publishedDir, err := r.mediaManager.PublishDASH(job, videoID.BVID())
@@ -217,10 +220,20 @@ func (r *videoRepo) releaseVideoUploadClaim(videoID biz.VideoID) error {
 func (r *videoRepo) markVideoUploadReady(ctx context.Context, videoID biz.VideoID, metadata *media.Metadata, renditions []media.Rendition, manifestURL, coverURL string) error {
 	now := time.Now()
 	err := r.data.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var record videoPO
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND status = ?", uint64(videoID), string(biz.VideoStatusProcessing)).
+			First(&record).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return biz.ErrVideoInvalidState
+			}
+			return err
+		}
+		nextStatus := videoStatusAfterTranscode(record.SubmittedAt)
 		result := tx.Model(&videoPO{}).
 			Where("id = ? AND status = ?", uint64(videoID), string(biz.VideoStatusProcessing)).
 			Updates(map[string]any{
-				"status": string(biz.VideoStatusReady), "failure_reason": "",
+				"status": string(nextStatus), "failure_reason": "",
 				"duration_seconds": metadata.DurationSeconds, "cover_url": coverURL,
 				"ready_at": &now, "updated_at": now, "upload_job_id": "", "processing_started_at": nil,
 			})
@@ -249,6 +262,13 @@ func (r *videoRepo) markVideoUploadReady(ctx context.Context, videoID biz.VideoI
 		return biz.ErrVideoStorage
 	}
 	return nil
+}
+
+func videoStatusAfterTranscode(submittedAt *time.Time) biz.VideoStatus {
+	if submittedAt != nil {
+		return biz.VideoStatusPendingReview
+	}
+	return biz.VideoStatusReady
 }
 
 func (r *videoRepo) failQueuedVideoUpload(videoID biz.VideoID, jobID, reason string) {

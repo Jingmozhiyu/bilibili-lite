@@ -18,8 +18,10 @@ const levelThresholds = [0, 10, 50, 150, 450, 1080, 2880] as const
 
 export function AuthMenu({ open, onOpenChange, onUpload }: AuthMenuProps) {
   const { session, restoring, setSession } = useAuth()
-  const [username, setUsername] = useState('demo')
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [displayName, setDisplayName] = useState('')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
   const openTimer = useRef<number | null>(null)
@@ -87,17 +89,23 @@ export function AuthMenu({ open, onOpenChange, onUpload }: AuthMenuProps) {
     if (!event.currentTarget.contains(event.relatedTarget as Node | null)) scheduleClose()
   }
 
-  async function login(event: React.FormEvent<HTMLFormElement>) {
+  async function submitAuthentication(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setPending(true)
     setError('')
     try {
-      const response = await postJson<unknown>('/api/v1/auth/login', { username, password })
+      const registering = authMode === 'register'
+      const response = await postJson<unknown>(registering ? '/api/v1/auth/register' : '/api/v1/auth/login', registering ? { username, password, displayName } : { username, password })
       setSession(normalizeAuthSession(response))
       setPassword('')
+      setDisplayName('')
     } catch (loginError) {
       const message = toErrorMessage(loginError, '')
-      setError(message.startsWith('401') ? '用户名或密码不正确' : '登录失败，请稍后重试')
+      if (message.startsWith('401')) setError('用户名或密码不正确')
+      else if (message.startsWith('409')) setError('该用户名已经被注册')
+      else if (message.startsWith('429')) setError('请求过于频繁，请稍后再试')
+      else if (message.startsWith('400') && authMode === 'register') setError('用户名需为3–32位字母、数字、下划线或连字符，密码至少8位')
+      else setError(authMode === 'register' ? '注册失败，请稍后重试' : '登录失败，请稍后重试')
     } finally {
       setPending(false)
     }
@@ -187,12 +195,14 @@ export function AuthMenu({ open, onOpenChange, onUpload }: AuthMenuProps) {
               </button>
             </div>
           ) : (
-            <form className="login-form" onSubmit={login}>
-              <div><strong>登录 bilibili-lite</strong><p>互动、评论和投稿需要登录</p></div>
+            <form className="login-form" onSubmit={submitAuthentication}>
+              <div><strong>{authMode === 'register' ? '注册 bilibili-lite' : '登录 bilibili-lite'}</strong><p>{authMode === 'register' ? '创建账户后即可互动和投稿' : '互动、评论和投稿需要登录'}</p></div>
               <label><span>用户名</span><input autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} required /></label>
-              <label><span>密码</span><input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required autoFocus /></label>
+              {authMode === 'register' && <label><span>显示名称</span><input autoComplete="nickname" maxLength={100} value={displayName} onChange={(event) => setDisplayName(event.target.value)} required /></label>}
+              <label><span>密码</span><input type="password" minLength={authMode === 'register' ? 8 : undefined} maxLength={72} autoComplete={authMode === 'register' ? 'new-password' : 'current-password'} value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
               {error && <p className="form-error" role="alert">{error}</p>}
-              <button className="menu-primary" type="submit" disabled={pending}>{pending ? '登录中' : '登录'}</button>
+              <button className="menu-primary" type="submit" disabled={pending}>{pending ? authMode === 'register' ? '注册中' : '登录中' : authMode === 'register' ? '注册并登录' : '登录'}</button>
+              <button className="menu-quiet" type="button" disabled={pending} onClick={() => { setAuthMode((current) => current === 'login' ? 'register' : 'login'); setError(''); setPassword('') }}>{authMode === 'register' ? '已有账户，返回登录' : '没有账户，立即注册'}</button>
             </form>
           )}
         </div>

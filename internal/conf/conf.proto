@@ -60,6 +60,7 @@ message Data {
     string password = 2;
     int32 database = 3;
     string video_ranking_key = 4;
+    string user_rate_limit_key_prefix = 5;
   }
   Redis redis = 5;
 

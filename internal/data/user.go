@@ -20,6 +20,27 @@ func NewUserRepo(data *Data) biz.UserRepo {
 	return &userRepo{data: data}
 }
 
+// CreateUser atomically inserts one ordinary account without racing the unique username constraint.
+func (r *userRepo) CreateUser(ctx context.Context, input biz.UserRegistration) (*biz.User, error) {
+	record := userPO{
+		Username: input.Username, PasswordHash: input.PasswordHash, DisplayName: input.DisplayName,
+		CoinBalance: 1000, Role: "user",
+	}
+	result := r.data.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "username"}}, DoNothing: true,
+	}).Create(&record)
+	if result.Error != nil {
+		return nil, biz.ErrUserStorage
+	}
+	if result.RowsAffected != 1 {
+		return nil, biz.ErrUserAlreadyExists
+	}
+	return &biz.User{
+		ID: record.ID, Username: record.Username, DisplayName: record.DisplayName,
+		CoinBalance: record.CoinBalance,
+	}, nil
+}
+
 // FindCredentialByUsername loads the password hash and public profile needed by the login usecase.
 func (r *userRepo) FindCredentialByUsername(ctx context.Context, username string) (*biz.UserCredential, error) {
 	var user userPO

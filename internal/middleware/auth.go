@@ -14,7 +14,7 @@ import (
 )
 
 // ProviderSet provides JWT infrastructure and request authentication middleware.
-var ProviderSet = wire.NewSet(NewJWTManager, NewAuthenticator)
+var ProviderSet = wire.NewSet(NewJWTManager, NewAuthenticator, NewUserRateLimiterMiddleware)
 
 type identityContextKey struct{}
 

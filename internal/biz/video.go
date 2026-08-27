@@ -673,7 +673,8 @@ func (uc *VideoUsecase) GetReviewVideoPlay(ctx context.Context, videoID VideoID)
 	return uc.repo.FindReviewVideoPlayByID(ctx, videoID)
 }
 
-// SubmitVideoForReview validates metadata and transitions a ready or rejected draft to pending review.
+// SubmitVideoForReview validates metadata and records the owner's submission;
+// processing uploads enter moderation automatically after transcoding succeeds.
 func (uc *VideoUsecase) SubmitVideoForReview(ctx context.Context, input *VideoReviewSubmission) (*Video, error) {
 	if input == nil {
 		return nil, ErrVideoInvalidArgument

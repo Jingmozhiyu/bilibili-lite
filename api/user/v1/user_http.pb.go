@@ -25,6 +25,7 @@ const OperationUserServiceGetUser = "/user.v1.UserService/GetUser"
 const OperationUserServiceLogin = "/user.v1.UserService/Login"
 const OperationUserServiceLogout = "/user.v1.UserService/Logout"
 const OperationUserServiceRefresh = "/user.v1.UserService/Refresh"
+const OperationUserServiceRegister = "/user.v1.UserService/Register"
 const OperationUserServiceUpdateMe = "/user.v1.UserService/UpdateMe"
 const OperationUserServiceUpdateMyAvatar = "/user.v1.UserService/UpdateMyAvatar"
 
@@ -35,6 +36,7 @@ type UserServiceHTTPServer interface {
 	Login(context.Context, *LoginRequest) (*LoginReply, error)
 	Logout(context.Context, *LogoutRequest) (*emptypb.Empty, error)
 	Refresh(context.Context, *RefreshRequest) (*LoginReply, error)
+	Register(context.Context, *RegisterRequest) (*LoginReply, error)
 	UpdateMe(context.Context, *UpdateMeRequest) (*User, error)
 	UpdateMyAvatar(context.Context, *httpbody.HttpBody) (*User, error)
 }
@@ -47,6 +49,7 @@ func RegisterUserServiceHTTPServer(s *http.Server, srv UserServiceHTTPServer) {
 	r.Handle("DELETE", "/api/v1/users/me/avatar", _UserService_DeleteMyAvatar0_HTTP_Handler(srv))
 	r.Handle("GET", "/api/v1/users/{user_id}", _UserService_GetUser0_HTTP_Handler(srv))
 	r.Handle("POST", "/api/v1/auth/login", _UserService_Login0_HTTP_Handler(srv))
+	r.Handle("POST", "/api/v1/auth/register", _UserService_Register0_HTTP_Handler(srv))
 	r.Handle("POST", "/api/v1/auth/logout", _UserService_Logout0_HTTP_Handler(srv))
 	r.Handle("POST", "/api/v1/auth/refresh", _UserService_Refresh0_HTTP_Handler(srv))
 }
@@ -168,6 +171,25 @@ func _UserService_Login0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx http.C
 	}
 }
 
+func _UserService_Register0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in RegisterRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationUserServiceRegister)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.Register(ctx, req.(*RegisterRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*LoginReply)
+		return ctx.Result(200, reply)
+	}
+}
+
 func _UserService_Logout0_HTTP_Handler(srv UserServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in LogoutRequest
@@ -213,6 +235,7 @@ type UserServiceHTTPClient interface {
 	Login(ctx context.Context, req *LoginRequest, opts ...http.CallOption) (rsp *LoginReply, err error)
 	Logout(ctx context.Context, req *LogoutRequest, opts ...http.CallOption) (rsp *emptypb.Empty, err error)
 	Refresh(ctx context.Context, req *RefreshRequest, opts ...http.CallOption) (rsp *LoginReply, err error)
+	Register(ctx context.Context, req *RegisterRequest, opts ...http.CallOption) (rsp *LoginReply, err error)
 	UpdateMe(ctx context.Context, req *UpdateMeRequest, opts ...http.CallOption) (rsp *User, err error)
 	UpdateMyAvatar(ctx context.Context, req *httpbody.HttpBody, opts ...http.CallOption) (rsp *User, err error)
 }
@@ -315,6 +338,23 @@ func (c *UserServiceHTTPClientImpl) Refresh(ctx context.Context, in *RefreshRequ
 		http.Accept("application/protojson"),
 		http.ContentType("application/protojson"),
 		http.Operation(OperationUserServiceRefresh),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *UserServiceHTTPClientImpl) Register(ctx context.Context, in *RegisterRequest, opts ...http.CallOption) (*LoginReply, error) {
+	var out LoginReply
+	pattern := "/api/v1/auth/register"
+	path := http.BuildPath(pattern, in)
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.ContentType("application/protojson"),
+		http.Operation(OperationUserServiceRegister),
 		http.PathTemplate(pattern),
 	}, opts...)
 	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)

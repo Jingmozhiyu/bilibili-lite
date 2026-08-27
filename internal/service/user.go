@@ -105,6 +105,15 @@ func (s *UserService) Login(ctx context.Context, req *v1.LoginRequest) (*v1.Logi
 	return convertSessionReply(session), nil
 }
 
+// Register creates an ordinary account and returns its initial JWT-backed session.
+func (s *UserService) Register(ctx context.Context, req *v1.RegisterRequest) (*v1.LoginReply, error) {
+	session, err := s.userUsecase.Register(ctx, req.GetUsername(), req.GetPassword(), req.GetDisplayName())
+	if err != nil {
+		return nil, err
+	}
+	return convertSessionReply(session), nil
+}
+
 // Logout validates the supplied access token; clients complete stateless logout by discarding tokens.
 func (s *UserService) Logout(ctx context.Context, req *v1.LogoutRequest) (*emptypb.Empty, error) {
 	if _, ok := appMiddleware.UserID(ctx); !ok {

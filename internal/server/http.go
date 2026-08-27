@@ -21,12 +21,13 @@ import (
 )
 
 // NewHTTPServer creates and registers the HTTP transport.
-func NewHTTPServer(serverConfig *conf.Server, dataConfig *conf.Data, mediaManager *media.Manager, authenticator *appMiddleware.Authenticator, videoService *service.VideoService, videoUploadHandler *service.VideoUploadHTTPHandler, userService *service.UserService) *kratosHTTP.Server {
+func NewHTTPServer(serverConfig *conf.Server, dataConfig *conf.Data, mediaManager *media.Manager, authenticator *appMiddleware.Authenticator, userRateLimiter *appMiddleware.UserRateLimiterMiddleware, videoService *service.VideoService, videoUploadHandler *service.VideoUploadHTTPHandler, userService *service.UserService) *kratosHTTP.Server {
 	opts := []kratosHTTP.ServerOption{
 		kratosHTTP.Filter(limitAvatarBody(dataConfig.GetMedia().GetMaxCoverBytes())),
 		kratosHTTP.Middleware(
 			recovery.Recovery(),
 			authenticator.Server(),
+			userRateLimiter.Server(),
 			selector.Server(authenticator.Admin()).Match(adminOperation).Build(),
 			validate.Validator(func(req any) error {
 				if msg, ok := req.(proto.Message); ok {

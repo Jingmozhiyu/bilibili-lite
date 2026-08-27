@@ -52,6 +52,13 @@ service UserService {
     };
   }
 
+  rpc Register(RegisterRequest) returns (LoginReply) {
+    option (google.api.http) = {
+      post: "/api/v1/auth/register"
+      body: "*"
+    };
+  }
+
   rpc Logout(LogoutRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/api/v1/auth/logout"
@@ -96,6 +103,12 @@ message DeleteMyAvatarRequest {}
 message LoginRequest {
   string username = 1 [(google.api.field_behavior) = REQUIRED];
   string password = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+message RegisterRequest {
+  string username = 1 [(google.api.field_behavior) = REQUIRED];
+  string password = 2 [(google.api.field_behavior) = REQUIRED];
+  string display_name = 3 [(google.api.field_behavior) = REQUIRED];
 }
 
 message LoginReply {

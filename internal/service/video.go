@@ -312,7 +312,7 @@ func (s *VideoService) GetVideoUploadStatus(ctx context.Context, req *v1.GetVide
 	}, nil
 }
 
-// SubmitVideoForReview attaches final metadata and enters the moderation queue.
+// SubmitVideoForReview stores final metadata without waiting for transcoding.
 func (s *VideoService) SubmitVideoForReview(ctx context.Context, req *v1.SubmitVideoForReviewRequest) (*v1.Video, error) {
 	videoID, err := biz.ParseBVID(req.GetBvid())
 	if err != nil {

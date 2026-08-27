@@ -59,10 +59,11 @@ func TestBuildRenditionsDoesNotUpscale(t *testing.T) {
 		sourceHeight int32
 		wantHeights  []int32
 	}{
-		{name: "small source", sourceHeight: 240, wantHeights: []int32{240}},
-		{name: "720p source", sourceHeight: 720, wantHeights: []int32{360, 480, 720}},
-		{name: "1080p source", sourceHeight: 1080, wantHeights: []int32{360, 480, 720, 1080}},
-		{name: "4k source", sourceHeight: 2160, wantHeights: []int32{360, 480, 720, 1080, 1440, 2160}},
+		{name: "small source", sourceHeight: 240, wantHeights: nil},
+		{name: "sub-720p source", sourceHeight: 480, wantHeights: nil},
+		{name: "720p source", sourceHeight: 720, wantHeights: []int32{720}},
+		{name: "1080p source", sourceHeight: 1080, wantHeights: []int32{720, 1080}},
+		{name: "4k source", sourceHeight: 2160, wantHeights: []int32{720, 1080, 1440, 2160}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

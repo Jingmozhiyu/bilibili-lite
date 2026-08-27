@@ -14,7 +14,7 @@ import (
 )
 
 // ProviderSet is data providers.
-var ProviderSet = wire.NewSet(NewData, NewVideoRepo, NewUserRepo)
+var ProviderSet = wire.NewSet(NewData, NewVideoRepo, NewUserRepo, NewUserRequestLimiter)
 
 // Data owns the shared PostgreSQL connection used by repository implementations.
 type Data struct {
@@ -22,9 +22,10 @@ type Data struct {
 	videoSearch     videoSearchIndex
 	redis           *redis.Client
 	videoRankingKey string
+	userRateKey     string
 }
 
-// NewData opens PostgreSQL, migrates tables, and optionally seeds configured demo accounts.
+// NewData opens PostgreSQL, migrates tables, and optionally seeds the configured administrator.
 func NewData(dataConfig *conf.Data) (*Data, func(), error) {
 	if dataConfig == nil || dataConfig.Database == nil {
 		return nil, nil, fmt.Errorf("database configuration is required")
@@ -40,8 +41,8 @@ func NewData(dataConfig *conf.Data) (*Data, func(), error) {
 		return nil, nil, fmt.Errorf("migrate PostgreSQL: %w", err)
 	}
 	if seedConfig := dataConfig.GetSeed(); seedConfig.GetEnabled() {
-		if err := seedInitialUsers(db, seedConfig.GetPassword()); err != nil {
-			return nil, nil, fmt.Errorf("seed PostgreSQL accounts: %w", err)
+		if err := seedAdministratorAccount(db, seedConfig.GetPassword()); err != nil {
+			return nil, nil, fmt.Errorf("seed PostgreSQL administrator: %w", err)
 		}
 	}
 	sqlDB, err := db.DB()
@@ -54,6 +55,7 @@ func NewData(dataConfig *conf.Data) (*Data, func(), error) {
 			Addr: redisConfig.GetAddress(), Password: redisConfig.GetPassword(), DB: int(redisConfig.GetDatabase()),
 		})
 		data.videoRankingKey = redisConfig.GetVideoRankingKey()
+		data.userRateKey = redisConfig.GetUserRateLimitKeyPrefix()
 	}
 
 	cleanup := func() {

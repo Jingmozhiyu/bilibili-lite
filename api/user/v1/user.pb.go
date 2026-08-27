@@ -353,6 +353,66 @@ func (x *LoginRequest) GetPassword() string {
 	return ""
 }
 
+type RegisterRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	Password      string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
+	DisplayName   string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RegisterRequest) Reset() {
+	*x = RegisterRequest{}
+	mi := &file_user_v1_user_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RegisterRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegisterRequest) ProtoMessage() {}
+
+func (x *RegisterRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_v1_user_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RegisterRequest.ProtoReflect.Descriptor instead.
+func (*RegisterRequest) Descriptor() ([]byte, []int) {
+	return file_user_v1_user_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *RegisterRequest) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *RegisterRequest) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+func (x *RegisterRequest) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
 type LoginReply struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	AccessToken      string                 `protobuf:"bytes,1,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
@@ -366,7 +426,7 @@ type LoginReply struct {
 
 func (x *LoginReply) Reset() {
 	*x = LoginReply{}
-	mi := &file_user_v1_user_proto_msgTypes[6]
+	mi := &file_user_v1_user_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -378,7 +438,7 @@ func (x *LoginReply) String() string {
 func (*LoginReply) ProtoMessage() {}
 
 func (x *LoginReply) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_user_proto_msgTypes[6]
+	mi := &file_user_v1_user_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -391,7 +451,7 @@ func (x *LoginReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginReply.ProtoReflect.Descriptor instead.
 func (*LoginReply) Descriptor() ([]byte, []int) {
-	return file_user_v1_user_proto_rawDescGZIP(), []int{6}
+	return file_user_v1_user_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *LoginReply) GetAccessToken() string {
@@ -439,7 +499,7 @@ type LogoutRequest struct {
 
 func (x *LogoutRequest) Reset() {
 	*x = LogoutRequest{}
-	mi := &file_user_v1_user_proto_msgTypes[7]
+	mi := &file_user_v1_user_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -451,7 +511,7 @@ func (x *LogoutRequest) String() string {
 func (*LogoutRequest) ProtoMessage() {}
 
 func (x *LogoutRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_user_proto_msgTypes[7]
+	mi := &file_user_v1_user_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -464,7 +524,7 @@ func (x *LogoutRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogoutRequest.ProtoReflect.Descriptor instead.
 func (*LogoutRequest) Descriptor() ([]byte, []int) {
-	return file_user_v1_user_proto_rawDescGZIP(), []int{7}
+	return file_user_v1_user_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *LogoutRequest) GetAccessToken() string {
@@ -483,7 +543,7 @@ type RefreshRequest struct {
 
 func (x *RefreshRequest) Reset() {
 	*x = RefreshRequest{}
-	mi := &file_user_v1_user_proto_msgTypes[8]
+	mi := &file_user_v1_user_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -495,7 +555,7 @@ func (x *RefreshRequest) String() string {
 func (*RefreshRequest) ProtoMessage() {}
 
 func (x *RefreshRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_v1_user_proto_msgTypes[8]
+	mi := &file_user_v1_user_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -508,7 +568,7 @@ func (x *RefreshRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RefreshRequest.ProtoReflect.Descriptor instead.
 func (*RefreshRequest) Descriptor() ([]byte, []int) {
-	return file_user_v1_user_proto_rawDescGZIP(), []int{8}
+	return file_user_v1_user_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *RefreshRequest) GetRefreshToken() string {
@@ -545,7 +605,11 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\x15DeleteMyAvatarRequest\"P\n" +
 	"\fLoginRequest\x12\x1f\n" +
 	"\busername\x18\x01 \x01(\tB\x03\xe0A\x02R\busername\x12\x1f\n" +
-	"\bpassword\x18\x02 \x01(\tB\x03\xe0A\x02R\bpassword\"\xfc\x01\n" +
+	"\bpassword\x18\x02 \x01(\tB\x03\xe0A\x02R\bpassword\"{\n" +
+	"\x0fRegisterRequest\x12\x1f\n" +
+	"\busername\x18\x01 \x01(\tB\x03\xe0A\x02R\busername\x12\x1f\n" +
+	"\bpassword\x18\x02 \x01(\tB\x03\xe0A\x02R\bpassword\x12&\n" +
+	"\fdisplay_name\x18\x03 \x01(\tB\x03\xe0A\x02R\vdisplayName\"\xfc\x01\n" +
 	"\n" +
 	"LoginReply\x12!\n" +
 	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\x129\n" +
@@ -557,14 +621,15 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\rLogoutRequest\x12!\n" +
 	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\":\n" +
 	"\x0eRefreshRequest\x12(\n" +
-	"\rrefresh_token\x18\x01 \x01(\tB\x03\xe0A\x02R\frefreshToken2\xc1\x05\n" +
+	"\rrefresh_token\x18\x01 \x01(\tB\x03\xe0A\x02R\frefreshToken2\x9e\x06\n" +
 	"\vUserService\x12G\n" +
 	"\x05GetMe\x12\x15.user.v1.GetMeRequest\x1a\r.user.v1.User\"\x18\x82\xd3\xe4\x93\x02\x12\x12\x10/api/v1/users/me\x12P\n" +
 	"\bUpdateMe\x12\x18.user.v1.UpdateMeRequest\x1a\r.user.v1.User\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*2\x10/api/v1/users/me\x12Y\n" +
 	"\x0eUpdateMyAvatar\x12\x14.google.api.HttpBody\x1a\r.user.v1.User\"\"\x82\xd3\xe4\x93\x02\x1c:\x01*\x1a\x17/api/v1/users/me/avatar\x12`\n" +
 	"\x0eDeleteMyAvatar\x12\x1e.user.v1.DeleteMyAvatarRequest\x1a\r.user.v1.User\"\x1f\x82\xd3\xe4\x93\x02\x19*\x17/api/v1/users/me/avatar\x12R\n" +
 	"\aGetUser\x12\x17.user.v1.GetUserRequest\x1a\r.user.v1.User\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/api/v1/users/{user_id}\x12R\n" +
-	"\x05Login\x12\x15.user.v1.LoginRequest\x1a\x13.user.v1.LoginReply\"\x1d\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/api/v1/auth/login\x12X\n" +
+	"\x05Login\x12\x15.user.v1.LoginRequest\x1a\x13.user.v1.LoginReply\"\x1d\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/api/v1/auth/login\x12[\n" +
+	"\bRegister\x12\x18.user.v1.RegisterRequest\x1a\x13.user.v1.LoginReply\" \x82\xd3\xe4\x93\x02\x1a:\x01*\"\x15/api/v1/auth/register\x12X\n" +
 	"\x06Logout\x12\x16.user.v1.LogoutRequest\x1a\x16.google.protobuf.Empty\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/api/v1/auth/logout\x12X\n" +
 	"\aRefresh\x12\x17.user.v1.RefreshRequest\x1a\x13.user.v1.LoginReply\"\x1f\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/api/v1/auth/refreshB)\n" +
 	"\auser.v1P\x01Z\x1cbilibili-lite/api/user/v1;v1b\x06proto3"
@@ -581,7 +646,7 @@ func file_user_v1_user_proto_rawDescGZIP() []byte {
 	return file_user_v1_user_proto_rawDescData
 }
 
-var file_user_v1_user_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_user_v1_user_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_user_v1_user_proto_goTypes = []any{
 	(*User)(nil),                  // 0: user.v1.User
 	(*GetUserRequest)(nil),        // 1: user.v1.GetUserRequest
@@ -589,35 +654,38 @@ var file_user_v1_user_proto_goTypes = []any{
 	(*UpdateMeRequest)(nil),       // 3: user.v1.UpdateMeRequest
 	(*DeleteMyAvatarRequest)(nil), // 4: user.v1.DeleteMyAvatarRequest
 	(*LoginRequest)(nil),          // 5: user.v1.LoginRequest
-	(*LoginReply)(nil),            // 6: user.v1.LoginReply
-	(*LogoutRequest)(nil),         // 7: user.v1.LogoutRequest
-	(*RefreshRequest)(nil),        // 8: user.v1.RefreshRequest
-	(*timestamppb.Timestamp)(nil), // 9: google.protobuf.Timestamp
-	(*httpbody.HttpBody)(nil),     // 10: google.api.HttpBody
-	(*emptypb.Empty)(nil),         // 11: google.protobuf.Empty
+	(*RegisterRequest)(nil),       // 6: user.v1.RegisterRequest
+	(*LoginReply)(nil),            // 7: user.v1.LoginReply
+	(*LogoutRequest)(nil),         // 8: user.v1.LogoutRequest
+	(*RefreshRequest)(nil),        // 9: user.v1.RefreshRequest
+	(*timestamppb.Timestamp)(nil), // 10: google.protobuf.Timestamp
+	(*httpbody.HttpBody)(nil),     // 11: google.api.HttpBody
+	(*emptypb.Empty)(nil),         // 12: google.protobuf.Empty
 }
 var file_user_v1_user_proto_depIdxs = []int32{
-	9,  // 0: user.v1.LoginReply.expires_at:type_name -> google.protobuf.Timestamp
+	10, // 0: user.v1.LoginReply.expires_at:type_name -> google.protobuf.Timestamp
 	0,  // 1: user.v1.LoginReply.user:type_name -> user.v1.User
-	9,  // 2: user.v1.LoginReply.refresh_expires_at:type_name -> google.protobuf.Timestamp
+	10, // 2: user.v1.LoginReply.refresh_expires_at:type_name -> google.protobuf.Timestamp
 	2,  // 3: user.v1.UserService.GetMe:input_type -> user.v1.GetMeRequest
 	3,  // 4: user.v1.UserService.UpdateMe:input_type -> user.v1.UpdateMeRequest
-	10, // 5: user.v1.UserService.UpdateMyAvatar:input_type -> google.api.HttpBody
+	11, // 5: user.v1.UserService.UpdateMyAvatar:input_type -> google.api.HttpBody
 	4,  // 6: user.v1.UserService.DeleteMyAvatar:input_type -> user.v1.DeleteMyAvatarRequest
 	1,  // 7: user.v1.UserService.GetUser:input_type -> user.v1.GetUserRequest
 	5,  // 8: user.v1.UserService.Login:input_type -> user.v1.LoginRequest
-	7,  // 9: user.v1.UserService.Logout:input_type -> user.v1.LogoutRequest
-	8,  // 10: user.v1.UserService.Refresh:input_type -> user.v1.RefreshRequest
-	0,  // 11: user.v1.UserService.GetMe:output_type -> user.v1.User
-	0,  // 12: user.v1.UserService.UpdateMe:output_type -> user.v1.User
-	0,  // 13: user.v1.UserService.UpdateMyAvatar:output_type -> user.v1.User
-	0,  // 14: user.v1.UserService.DeleteMyAvatar:output_type -> user.v1.User
-	0,  // 15: user.v1.UserService.GetUser:output_type -> user.v1.User
-	6,  // 16: user.v1.UserService.Login:output_type -> user.v1.LoginReply
-	11, // 17: user.v1.UserService.Logout:output_type -> google.protobuf.Empty
-	6,  // 18: user.v1.UserService.Refresh:output_type -> user.v1.LoginReply
-	11, // [11:19] is the sub-list for method output_type
-	3,  // [3:11] is the sub-list for method input_type
+	6,  // 9: user.v1.UserService.Register:input_type -> user.v1.RegisterRequest
+	8,  // 10: user.v1.UserService.Logout:input_type -> user.v1.LogoutRequest
+	9,  // 11: user.v1.UserService.Refresh:input_type -> user.v1.RefreshRequest
+	0,  // 12: user.v1.UserService.GetMe:output_type -> user.v1.User
+	0,  // 13: user.v1.UserService.UpdateMe:output_type -> user.v1.User
+	0,  // 14: user.v1.UserService.UpdateMyAvatar:output_type -> user.v1.User
+	0,  // 15: user.v1.UserService.DeleteMyAvatar:output_type -> user.v1.User
+	0,  // 16: user.v1.UserService.GetUser:output_type -> user.v1.User
+	7,  // 17: user.v1.UserService.Login:output_type -> user.v1.LoginReply
+	7,  // 18: user.v1.UserService.Register:output_type -> user.v1.LoginReply
+	12, // 19: user.v1.UserService.Logout:output_type -> google.protobuf.Empty
+	7,  // 20: user.v1.UserService.Refresh:output_type -> user.v1.LoginReply
+	12, // [12:21] is the sub-list for method output_type
+	3,  // [3:12] is the sub-list for method input_type
 	3,  // [3:3] is the sub-list for extension type_name
 	3,  // [3:3] is the sub-list for extension extendee
 	0,  // [0:3] is the sub-list for field type_name
@@ -634,7 +702,7 @@ func file_user_v1_user_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_v1_user_proto_rawDesc), len(file_user_v1_user_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

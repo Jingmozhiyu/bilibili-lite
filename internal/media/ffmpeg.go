@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -15,6 +16,10 @@ import (
 	"strings"
 	"time"
 )
+
+// ErrVideoResolutionTooLow reports that the displayed source height cannot
+// satisfy the minimum 720p output policy without upscaling.
+var ErrVideoResolutionTooLow = errors.New("video display height must be at least 720p")
 
 // Metadata contains the ffprobe values persisted for one DASH stream.
 type Metadata struct {
@@ -127,6 +132,9 @@ func (m *Manager) TranscodeDASH(ctx context.Context, job *UploadJob, metadata *M
 		return nil, fmt.Errorf("ffmpeg is not installed: %w", err)
 	}
 	renditions := buildRenditions(metadata.Height)
+	if len(renditions) == 0 {
+		return nil, ErrVideoResolutionTooLow
+	}
 	transcodeCtx, cancel := context.WithTimeout(ctx, m.transcodeTimeout)
 	defer cancel()
 	manifestPath := filepath.Join(job.outputDir, "manifest.mpd")
@@ -217,8 +225,6 @@ func renditionScaleFilter(input, output string, height int32) string {
 
 func buildRenditions(sourceHeight int32) []Rendition {
 	profiles := []Rendition{
-		{Height: 360, Bandwidth: 800_000},
-		{Height: 480, Bandwidth: 1_400_000},
 		{Height: 720, Bandwidth: 2_800_000},
 		{Height: 1080, Bandwidth: 5_000_000},
 		{Height: 1440, Bandwidth: 9_000_000},
@@ -229,9 +235,6 @@ func buildRenditions(sourceHeight int32) []Rendition {
 		if profile.Height <= sourceHeight {
 			result = append(result, profile)
 		}
-	}
-	if len(result) == 0 {
-		return []Rendition{{Height: max(sourceHeight, 2), Bandwidth: 600_000}}
 	}
 	return result
 }
