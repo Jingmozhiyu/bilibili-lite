@@ -15,6 +15,17 @@ func TestRenditionScaleFilterKeepsWidthEven(t *testing.T) {
 	}
 }
 
+func TestFFmpegErrorSummaryKeepsFirstUsefulError(t *testing.T) {
+	output := "[scale] Failed to configure output pad\n" + strings.Repeat("encoder statistics\n", 500) + "Conversion failed!"
+	summary := ffmpegErrorSummary(output)
+	if !strings.Contains(summary, "Failed to configure output pad") {
+		t.Fatalf("ffmpegErrorSummary() lost the root error: %q", summary)
+	}
+	if !strings.Contains(summary, "Conversion failed!") {
+		t.Fatalf("ffmpegErrorSummary() lost the final failure: %q", summary)
+	}
+}
+
 func TestBuildRenditionsDoesNotUpscale(t *testing.T) {
 	tests := []struct {
 		name         string

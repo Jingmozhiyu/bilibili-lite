@@ -6,6 +6,7 @@ import {
   authorizedFetch,
   authorizedJson,
   ensureFreshAuthSession,
+  normalizeVideoStatus,
   parseJSON,
   readString,
   toErrorMessage,
@@ -143,7 +144,7 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
       activeSession = response.session
       setSession(activeSession)
       const status = asRecord(response.data)
-      const statusName = String(status.status ?? '').toLowerCase()
+      const statusName = normalizeVideoStatus(status.status)
       if (statusName.includes('ready')) {
         setResult({
           ...uploadResult,

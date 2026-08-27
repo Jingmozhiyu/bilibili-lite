@@ -354,7 +354,7 @@ export function toNumber(value: MetricValue | undefined) {
   return Number(value)
 }
 
-function normalizeVideoStatus(value: unknown) {
+export function normalizeVideoStatus(value: unknown) {
   const status = typeof value === 'number' || typeof value === 'string' ? String(value) : ''
   const numericStatuses: Record<string, string> = {
     '1': 'processing',

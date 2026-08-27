@@ -161,9 +161,27 @@ func (m *Manager) TranscodeDASH(ctx context.Context, job *UploadJob, metadata *M
 		return nil, err
 	}
 	if err := cmd.Wait(); err != nil {
-		return nil, fmt.Errorf("ffmpeg: %w: %s", err, tail(stderr.String(), 1200))
+		return nil, fmt.Errorf("ffmpeg: %w: %s", err, ffmpegErrorSummary(stderr.String()))
 	}
 	return renditions, nil
+}
+
+func ffmpegErrorSummary(output string) string {
+	const maxRelevantBytes = 6000
+	relevant := make([]string, 0, 8)
+	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
+		lower := strings.ToLower(line)
+		if strings.Contains(lower, "error") || strings.Contains(lower, "failed") ||
+			strings.Contains(lower, "invalid") || strings.Contains(lower, "unable") ||
+			strings.Contains(lower, "cannot") || strings.Contains(lower, "not divisible") ||
+			strings.Contains(lower, "no space") || strings.Contains(lower, "killed") {
+			relevant = append(relevant, line)
+		}
+	}
+	if len(relevant) == 0 {
+		return tail(output, 2000)
+	}
+	return tail(strings.Join(relevant, "\n"), maxRelevantBytes)
 }
 
 func renditionScaleFilter(input, output string, height int32) string {
