@@ -1,389 +1,207 @@
 # bilibili-lite
 
-A Kratos-based video service with PostgreSQL persistence, Meilisearch search,
-Redis recommendations, bounded FFmpeg workers, adaptive DASH playback, and a
-React frontend.
+一个围绕视频平台核心链路构建的全栈项目：用户可以注册、投稿、观看和互动；后台以有界任务队列完成多码率转码，由管理员审核发布，并通过独立的搜索索引与 Redis 热榜提供内容发现能力。
 
-## What Is Included
+[在线体验](https://bilibili-lite.vercel.app/) · [项目仓库](https://github.com/Jingmozhiyu/bilibili-lite)
 
-- Kratos HTTP and gRPC server setup.
-- Protobuf API definitions and generated Go code.
-- OpenAPI generation.
-- Wire-based dependency injection.
-- Layered `service`, `biz`, and `data` packages.
-- PostgreSQL repositories implemented with GORM.
-- Meilisearch-backed published-video search with PostgreSQL degradation.
-- Redis-backed time-decayed homepage ranking with PostgreSQL fallback.
-- Bounded asynchronous FFmpeg workers and adaptive multi-bitrate DASH.
-- Unit tests for the service layer.
-- Server-streaming and bidirectional-streaming examples.
+## 项目能力
 
-## Project Layout
+- 用户注册、JWT 登录、个人空间与头像管理
+- 流式视频上传、用户容量配额、异步 FFmpeg 转码与失败任务回收
+- 720p / 1080p / 1440p / 4K 自适应 DASH 播放
+- 投稿审核、驳回、重新投稿、下架与媒体清理
+- 点赞、投币、收藏、分享、观看历史、评论与弹幕
+- Meilisearch 全文搜索、PostgreSQL 降级查询与 Outbox 最终一致性
+- Redis 热度衰减排行榜与用户接口限流
+
+## 技术栈
+
+| 模块 | 技术 | 用途 |
+| --- | --- | --- |
+| Web | React 19、TypeScript、Vite、React Router | 单页应用、用户中心、投稿与审核界面 |
+| 播放器 | dash.js、HTML5 Video、`requestAnimationFrame` | 自适应码率播放、快捷键与 60 Hz 弹幕渲染 |
+| Backend | Go 1.25、Kratos v3、Protobuf、HTTP/gRPC | API、鉴权、中间件和应用生命周期 |
+| Persistence | PostgreSQL 16、GORM、版本化 SQL Migration | 业务事实、事务、审核状态与互动数据 |
+| Search | Meilisearch 1.15、Transactional Outbox | 中文全文检索与可重建的搜索投影 |
+| Cache | Redis 8、Sorted Set、Lua | 热榜、用户接口限流与原子计数 |
+| Media | FFmpeg、ffprobe、MPEG-DASH、H.264/AAC | 探测、封面、多码率转码与分片 |
+| Engineering | Wire、Docker Compose、Caddy | 依赖注入、容器编排与 HTTPS 反向代理 |
+
+## 系统全貌
+
+```mermaid
+flowchart TB
+    User["用户浏览器"] --> Web["React SPA<br/>Vercel 静态托管"]
+    Web -->|"HTTPS · JSON / Multipart"| Caddy["Caddy<br/>TLS / Reverse Proxy"]
+    Caddy --> API["Kratos HTTP / gRPC"]
+
+    subgraph App["bili 应用"]
+        API --> MW["JWT · RBAC · Redis Rate Limit"]
+        MW --> Service["service<br/>DTO ↔ DO"]
+        Service --> Biz["biz<br/>Usecase / Domain Rules"]
+        Biz --> Data["data<br/>Repo / DO ↔ PO"]
+        Workers["Kratos-managed Workers"] --> Biz
+        Data --> Media["media<br/>Upload / ffprobe / FFmpeg"]
+    end
+
+    Data --> PG[("PostgreSQL<br/>Source of Truth")]
+    Data --> Redis[("Redis<br/>Ranking / Rate Limit")]
+    Data --> Meili[("Meilisearch<br/>Search Projection")]
+    Media --> Files[("Media Volume<br/>MPD / m4s / Cover")]
+    API -->|"静态媒体响应"| Files
+    Web -->|"dash.js 拉取 MPD 与分片"| Caddy
+```
+
+后端遵循 `service → biz → data` 分层：`service` 只负责 DTO 与领域对象转换，`biz` 持有业务规则和仓储接口，`data` 将领域对象映射为持久化模型。媒体处理是独立基础设施，后台任务通过 Kratos Server 生命周期与主服务一起启停。
+
+## 核心链路
+
+### 1. 投稿、转码与审核
+
+上传请求只等待源文件安全落盘和任务入队。前端拿到 BVID 后即可提交标题、简介和标签并离开投稿页，耗时的转码继续在后台执行。
+
+```mermaid
+sequenceDiagram
+    actor User as 用户
+    participant Web as React
+    participant API as Kratos API
+    participant PG as PostgreSQL
+    participant Worker as Transcode Worker
+    participant FFmpeg
+    actor Admin as 管理员
+
+    User->>Web: 选择 MP4 与可选封面
+    Web->>API: 流式 Multipart 上传
+    API->>PG: 创建 processing 视频与上传任务
+    API-->>Web: 201 · BVID · processing
+    Web->>API: 提交标题 / 简介 / 标签
+    API->>PG: 记录 submitted_at
+    Note over Web: 投稿面板关闭，不等待转码
+
+    Worker->>PG: FOR UPDATE SKIP LOCKED 领取一个任务
+    Worker->>FFmpeg: ffprobe + 封面 + 多码率 DASH
+    FFmpeg-->>Worker: MPD / m4s / cover
+    Worker->>PG: pending_review 或 failed
+    Admin->>API: 审核通过
+    API->>PG: published
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> processing: 上传完成
+    processing --> ready: 转码先完成
+    processing --> pending_review: 已提交信息后转码完成
+    processing --> failed: 探测或转码失败
+    ready --> pending_review: 提交信息
+    pending_review --> published: 审核通过
+    pending_review --> rejected: 审核驳回
+    rejected --> pending_review: 修改后重投
+    published --> rejected: 管理员下架
+    processing --> deleted: 用户删除
+    ready --> deleted: 用户删除
+    pending_review --> deleted: 用户删除
+    published --> deleted: 用户或管理员删除
+    rejected --> deleted: 用户或管理员删除
+    failed --> deleted: 用户或管理员删除
+```
+
+转码队列以数据库行为任务，使用行锁与 `SKIP LOCKED` 安全领取；并发数可配置，默认只运行一个 FFmpeg 任务，避免低配主机被 CPU 密集任务拖垮。中断任务会释放或回收 claim，孤立的临时上传由清理 Worker 定期删除。
+
+### 2. 搜索索引与数据一致性
+
+PostgreSQL 始终保存权威数据，Meilisearch 只保存可丢弃、可重建的搜索投影。业务事务修改视频后，数据库触发器写入 Outbox；独立 Worker 异步更新索引并对失败任务指数退避重试。
+
+```mermaid
+flowchart LR
+    Write["发布 / 修改 / 互动"] --> PG[("PostgreSQL")]
+    PG -->|"Trigger"| Outbox[("Search Outbox")]
+    Outbox -->|"SKIP LOCKED<br/>指数退避重试"| Indexer["Search Indexer"]
+    Indexer --> Meili[("Meilisearch")]
+
+    Query["搜索请求"] --> Search["Search Repo Interface"]
+    Search -->|"正常"| Meili
+    Meili -->|"有序 Video IDs"| Hydrate["PostgreSQL Hydration"]
+    Search -.->|"不可用时降级"| Hydrate
+    Hydrate --> Result["权威且有序的视频结果"]
+```
+
+这样既不会让发布事务依赖搜索服务，也不会把过期的索引文档直接返回给用户。Meilisearch 启动失败或运行时不可用时，搜索自动回退到 PostgreSQL。
+
+### 3. 热榜推荐与播放互动
+
+```mermaid
+flowchart LR
+    Play["dash.js 播放 MPD / m4s"] --> Event["观看完成 / 点赞 / 收藏<br/>投币 / 评论 / 弹幕"]
+    Event --> PG[("PostgreSQL 互动事实")]
+    PG --> Refresh["Ranking Worker<br/>每 30 秒刷新"]
+    Refresh --> Score["对数互动权重<br/>+ 7 天时间衰减"]
+    Score --> Redis[("Redis Sorted Set")]
+    Redis --> Recommend["首页推荐接口"]
+    Recommend --> Home["React 首页"]
+    PG -.->|"Redis 不可用时实时计算"| Recommend
+```
+
+热度分数综合播放、点赞、收藏、弹幕、评论和投币，并叠加指数时间衰减。Redis 只负责读取加速；排行榜丢失时可从 PostgreSQL 重建，推荐接口也会自动降级计算。
+
+## 关键设计
+
+| 设计 | 解决的问题 |
+| --- | --- |
+| PostgreSQL 是唯一事实源 | Redis 和 Meilisearch 故障或清空后仍可恢复 |
+| 有界异步转码队列 | 投稿页不等待 FFmpeg，同时限制 CPU 与内存压力 |
+| Transactional Outbox | 数据库写入不与外部搜索调用组成脆弱的“双写” |
+| 搜索结果二次回表 | 索引只负责召回和排序，最终可见性仍由数据库决定 |
+| Redis 排行榜可降级 | 缓存不可用不会阻断首页，数据也不依赖缓存持久化 |
+| Desired-state 互动接口 | 重复点赞、收藏请求保持幂等，避免计数漂移 |
+| 生命周期托管 Worker | 转码、索引、热榜和清理任务与 Kratos 应用统一启停 |
+
+## 目录结构
 
 ```text
-api/                  Protobuf APIs and generated bindings
-cmd/                  Application entrypoints
-configs/              Local configuration
-internal/server/      HTTP and gRPC server construction
-internal/service/     Transport-facing service methods
-internal/biz/         Usecases, entities, errors, repository interfaces
-internal/data/        PostgreSQL repositories and persistence models
-internal/media/       Upload jobs, FFmpeg processing, local DASH storage
-internal/middleware/  JWT implementation and request identity middleware
-internal/worker/      Kratos-managed background cleanup jobs
-third_party/          Protobuf dependencies
-storage/              Video & photo resources
-web/                  Web frontend
-openapi.yaml          Generated OpenAPI document
+api/                 Protobuf API contract 与生成代码
+cmd/bilibili-lite/   程序入口和 Wire 装配
+configs/             非敏感运行配置
+internal/server/     HTTP/gRPC Server 与路由注册
+internal/service/    DTO ↔ DO 的传输适配层
+internal/biz/        领域对象、用例与 Repo 接口
+internal/data/       PostgreSQL/Redis/Meilisearch 实现
+internal/media/      上传、ffprobe、FFmpeg 与 DASH 文件
+internal/worker/     转码、Outbox、热榜与清理 Worker
+internal/middleware/ JWT、RBAC 与 Redis 限流
+web/                 React 前端
 ```
 
-## API Template Practices
+## 运行约束
 
-The sample CRUD API demonstrates common conventions for Kratos projects:
+- 仅接受包含音视频轨的 MP4；旋转信息校正后的画面高度不足 720p 时不转码。
+- 输出不放大原视频，只生成源分辨率能够覆盖的 720p / 1080p / 1440p / 4K 档位。
+- 单文件默认上限 2 GiB，普通用户总配额 10 GiB，管理员不受配额限制。
+- DASH 媒体当前保存在宿主机持久化目录；若要多节点扩展，应替换为共享对象存储。
+- Meilisearch 和 Redis 都是可降级依赖；PostgreSQL 与媒体目录是需要备份的核心状态。
 
-- Resource-oriented methods: create, get, list, update, delete.
-- HTTP annotations with `google.api.http`.
-- Required fields with `google.api.field_behavior`.
-- List requests with `page_size`, `page_token`, `filter`, and `order_by`.
-- Pagination with `go.einride.tech/aip/pagination`.
-- Partial updates with `google.protobuf.FieldMask` and `fieldmask.Update`.
-- Streaming RPC definitions for one-way and bidirectional streams.
+## 本地开发
 
-The data layer stores users, videos, playback metadata, and user video
-interactions in PostgreSQL. Repository implementations keep GORM models inside
-`internal/data/models.go` and expose domain objects to `internal/biz`. Media
-processing is isolated in `internal/media`; `internal/worker` owns the
-application lifecycle of bounded transcode, search-outbox, ranking, and stale-upload workers.
-
-## Development Commands
-
-Install generators:
+后端及依赖：
 
 ```bash
-make init
+cp .env.example .env
+mkdir -p data/media
+docker compose --env-file .env up -d --build
 ```
 
-Regenerate API bindings and OpenAPI:
+前端：
 
 ```bash
-make api
+cd web
+npm install
+npm run dev
 ```
 
-Regenerate config protobufs:
-
-```bash
-make config
-```
-
-Run all generation steps, Wire, and module cleanup:
-
-```bash
-make all
-```
-
-Build:
-
-```bash
-make build
-```
-
-Test:
+常用检查：
 
 ```bash
 go test ./...
+cd web && npm run lint && npm run build
 ```
 
-## Run Locally
-
-The committed `.env.example` contains local development values. Real deployment
-configuration belongs in the ignored `.env` file. Start only the dependencies
-when running the Go process directly:
-
-```bash
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.dev.yml \
-  --env-file .env.example \
-  up -d postgres meilisearch redis
-```
-
-MP4 uploads are converted into separate DASH audio and video segments by
-FFmpeg. Install both `ffmpeg` and `ffprobe` before testing uploads. On macOS:
-
-```bash
-brew install ffmpeg
-```
-
-The service applies embedded SQL migrations and, when `BILI_SEED_ENABLED=true`,
-creates only the administrator account without inserting demo users or videos.
-`videos.id` is the numeric auto-increment
-primary key, and the API formats it as `BV1`, `BV2`, and so on. Related tables
-store `video_id` numeric foreign keys; BVID strings are not persisted.
-
-Load `.env.example` into the shell before starting Kratos. The local media path
-remains relative to `cmd/bilibili-lite`:
-
-```bash
-cd cmd/bilibili-lite
-set -a
-source ../../.env.example
-set +a
-go run . -conf ../../configs
-```
-
-Alternatively, run the complete backend stack in containers. The bind-mounted
-`data/media` directory is intentionally not committed:
-
-```bash
-mkdir -p data/media
-docker compose --env-file .env.example up -d --build
-```
-
-Default local ports are configured in `.env.example`:
-
-- HTTP: `0.0.0.0:8000`
-- gRPC: `0.0.0.0:9000`
-
-For an Internet deployment, keep the ordinary API and large uploads on
-separate hostnames. `VITE_API_ORIGIN` should point to the Cloudflare-proxied
-API hostname, while `VITE_UPLOAD_ORIGIN` points to a DNS-only hostname that
-bypasses proxy request-body limits. Both hostnames reverse-proxy to the same
-Kratos HTTP service and must allow the frontend origin through CORS. The
-production defaults are:
-
-```text
-VITE_API_ORIGIN=https://bili.madenroll.com
-VITE_UPLOAD_ORIGIN=https://bili-upload.madenroll.com
-```
-
-The Compose Caddy overlay uses `BILI_PUBLIC_HOST` and `BILI_UPLOAD_HOST` for
-the corresponding server names.
-
-Ordinary users register through the public API. Registration returns a two-hour
-Access JWT and a 30-day Refresh JWT immediately:
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/v1/auth/register \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"new_user","password":"password123","display_name":"New user"}'
-```
-
-The local administrator seed creates `admin` with `BILI_SEED_PASSWORD`. If an `admin`
-username already exists, startup only repairs its role to `admin` and preserves
-the existing password and profile. Open `/admin` to log in and enter the
-moderation queue.
-
-Refresh both tokens with the Refresh JWT:
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/v1/auth/refresh \
-  -H 'Content-Type: application/json' \
-  -d '{"refresh_token":"<refresh-token>"}'
-```
-
-Pass the Access JWT to logout:
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/v1/auth/logout \
-  -H 'Content-Type: application/json' \
-  -H 'Authorization: Bearer <access-token>' \
-  -d '{}'
-```
-
-JWTs remain stateless: Redis is used for the homepage ranking, not sessions.
-Logout discards both browser tokens; an Access JWT already issued remains valid
-until its two-hour expiry.
-
-Upload one MP4 after login. A custom cover is optional and must precede the
-video part; when omitted, FFmpeg captures a random video frame:
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/v1/videos/upload \
-  -H 'Authorization: Bearer <access-token>' \
-  -F 'cover=@/absolute/path/cover.png;type=image/png' \
-  -F 'file=@/absolute/path/video.mp4;type=video/mp4'
-```
-
-The request allocates the numeric video row and BV identifier immediately and
-returns `processing` after the source is safely queued. One bounded worker by
-default produces an adaptive DASH manifest with a no-upscale 720p/1080p/1440p/
-2160p ladder; sources below 720p are rejected and 4K is emitted only when the
-source reaches 2160p. Metadata can be submitted as soon as the upload returns;
-processing continues in the background and enters review automatically when ready:
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/v1/videos/BV1/submit-review \
-  -H 'Authorization: Bearer <access-token>' \
-  -H 'Content-Type: application/json' \
-  -d '{"title":"My video","description":"Uploaded locally","tags":["local","DASH"]}'
-```
-
-`GET /api/v1/videos/{bvid}/upload-status` remains available for observing the
-background job. The source MP4 limit is 2 GiB. Active videos consume their original upload
-size against a 10 GiB per-user quota; administrators are exempt. Failed and
-deleted jobs release quota, remove temporary input, and abandoned worker claims
-are recovered after restart. The moderation lifecycle is
-`processing -> ready -> pending_review -> published/rejected`; upload failures
-and owner deletion use `failed` and `deleted`. Every inserted video consumes
-its auto-increment ID even when processing fails or it is later deleted. Only
-`published` videos appear in public lists, search, history hydration, and
-playback APIs. DASH is the only supported playback format; the original MP4 is
-retained only as a temporary transcoding input. Published manifests live at
-`/media/dash/<BVID>/manifest.mpd`. Incomplete jobs live under
-`cmd/bilibili-lite/storage/.uploads` during local development and are removed
-after 30 seconds without upload or transcode activity.
-
-Homepage recommendations and public submission feeds use paginated endpoints:
-
-```text
-GET /api/v1/videos?page_size=20&page_token=...
-GET /api/v1/videos/recommended?page_size=20&page_token=...
-GET /api/v1/users/{user_id}/videos?page_size=20&page_token=...
-GET /api/v1/search/videos?query=...&order=1&page_size=20&page_token=...
-```
-
-PostgreSQL is authoritative for video visibility and metadata. Meilisearch is
-a replaceable projection behind the repository search interface. Startup and
-queries fall back to PostgreSQL when it is unavailable. A PostgreSQL-triggered
-outbox records index mutations atomically and the background consumer retries
-them with exponential backoff. Search `order` values cover relevance, views,
-publication time, danmaku, and favorites.
-
-The recommendation endpoint reads a Redis sorted set rebuilt every 30 seconds
-from logarithmic engagement signals plus a seven-day freshness decay. If Redis
-is unavailable, the same score is calculated from PostgreSQL so the homepage
-continues to load.
-
-A logged-in view is counted only after completing a server-timed session at
-least five seconds after it started. The same account/video pair can increment
-at most once per hour and ten times per Asia/Shanghai calendar day.
-
-Like operations require an Access JWT and are idempotent:
-
-```bash
-curl -X GET http://127.0.0.1:8000/api/v1/videos/BV1/like \
-  -H 'Authorization: Bearer <access-token>'
-curl -X POST http://127.0.0.1:8000/api/v1/videos/BV1/like \
-  -H 'Authorization: Bearer <access-token>'
-curl -X DELETE http://127.0.0.1:8000/api/v1/videos/BV1/like \
-  -H 'Authorization: Bearer <access-token>'
-```
-
-Favorites use the same desired-state semantics as likes: repeating `POST` or
-`DELETE` does not change the count twice. Coins use an irreversible cumulative
-target of one or two coins, atomically debit `users.coin_balance`, and reject a
-lower target. Shares are append-only events deduplicated by a client-generated
-`request_id`. PostgreSQL is the source of truth for every interaction and its
-counter. Redis ranking remains an infrastructure detail and does not leak into
-handlers or domain models.
-
-The browser applies like and favorite changes optimistically but rolls them
-back when the server rejects or cannot receive the request. It deliberately
-does not persist an offline outbox: reconnecting reads the authoritative state
-instead of replaying stale toggles or irreversible coin/share actions.
-
-Interaction history and public discussion endpoints are paginated:
-
-```text
-GET    /api/v1/users/me/video-likes
-GET    /api/v1/users/me/video-favorites
-GET    /api/v1/users/me/video-coins
-GET    /api/v1/users/me/watch-history
-POST   /api/v1/videos/{bvid}/danmakus
-DELETE /api/v1/videos/{bvid}/danmakus/{danmaku_id}
-GET    /api/v1/videos/{bvid}/comments
-POST   /api/v1/videos/{bvid}/comments
-DELETE /api/v1/videos/{bvid}/comments/{comment_id}
-```
-
-Administrator moderation endpoints are protected by both JWT identity and the
-admin middleware:
-
-```text
-GET    /api/v1/admin/videos?status=pending_review|rejected
-GET    /api/v1/admin/videos/{bvid}
-GET    /api/v1/admin/videos/{bvid}/play
-POST   /api/v1/admin/videos/{bvid}/approve
-POST   /api/v1/admin/videos/{bvid}/reject
-POST   /api/v1/admin/videos/{bvid}/take-down
-DELETE /api/v1/admin/videos/{bvid}?reason=...
-```
-
-Embedded, versioned PostgreSQL migrations in `internal/data/migrations` are
-applied once at service startup and recorded in `schema_migrations`. Add a new
-numbered SQL file for every schema change; do not rewrite an applied migration.
-
-## Deploy the backend on a VM
-
-`make build` produces one native executable at `bin/bilibili-lite`. The binary
-contains the Go runtime, Kratos, and Go module code, so a deployment host and the
-Compose runtime do not need Go, Kratos, a compiler, or source dependencies. The
-runtime image only adds CA certificates and the external `ffmpeg`/`ffprobe`
-programs used by media workers.
-
-This is the backend image. Build `web/dist` separately and serve it through a
-static host or reverse proxy; Node.js is not needed by the Kratos container.
-
-For a repository checked out at `/home/ubuntu/bili`, prepare configuration and a
-host-owned media directory before the first start:
-
-```bash
-cd /home/ubuntu/bili
-cp .env.example .env
-mkdir -p /home/ubuntu/bili/data/media
-id -u
-id -g
-```
-
-Edit `.env` and set `BILI_RUNTIME_UID`/`BILI_RUNTIME_GID` to the two `id`
-outputs, and set `BILI_MEDIA_HOST_DIR=/home/ubuntu/bili/data/media`. Do not use `~`
-inside `.env`. Replace the PostgreSQL, Redis, Meilisearch, JWT, and seed
-passwords before starting. Meilisearch requires at least 16 bytes for a
-production master key, and `BILI_AUTH_SECRET` requires at least 32 bytes:
-
-```bash
-docker compose up -d --build
-docker compose ps
-```
-
-The base Compose file publishes only the application HTTP/gRPC ports on the
-configured bind host; PostgreSQL, Redis, and Meilisearch stay inside the Docker
-network. `docker-compose.dev.yml` is only for exposing those dependencies on a
-developer machine.
-
-On a dedicated VM where ports 80 and 443 are free, set `BILI_PUBLIC_HOST` to
-the backend DNS name and `BILI_FRONTEND_ORIGIN` to the exact Vercel origin, then
-start the optional Caddy overlay:
-
-```bash
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.caddy.yml \
-  up -d --build
-```
-
-If the VM already has a reverse proxy, do not start the Caddy overlay. Add the
-backend hostname to the existing proxy and forward it to the application
-instead; only one process can bind the host's ports 80 and 443.
-
-On an OCI block volume, mount the filesystem at a stable host path such as
-`/mnt/bili-data`, create `/mnt/bili-data/media`, and set
-`BILI_MEDIA_HOST_DIR=/mnt/bili-data/media`. The application creates these
-subdirectories inside it:
-
-```text
-media/
-├── .uploads/   # temporary source files and in-flight jobs
-├── avatars/    # user avatars
-└── dash/       # published manifests, covers, and media segments
-```
-
-PostgreSQL, Meilisearch, and Redis use Docker named volumes and require a
-separate backup policy. The media bind mount is independent from container
-replacement, so rebuilding or recreating `bili` does not remove video files.
-
-`BILI_SEED_ENABLED=true` creates only the administrator with
-`BILI_SEED_PASSWORD`. Use a strong unique value for the first production boot;
-after the accounts exist, it can be changed to `false`. Services bind to
-`127.0.0.1` by default; place a TLS reverse proxy in front of HTTP instead of
-publishing PostgreSQL, Redis, Meilisearch, or gRPC directly.
+需要修改 Protobuf、配置结构或 Wire 依赖图时，分别运行 `make api`、`make config` 或 `make all`。真实环境变量保存在被 Git 忽略的 `.env`，仓库只提交 `.env.example`。
