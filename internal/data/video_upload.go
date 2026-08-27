@@ -116,6 +116,9 @@ func (r *videoRepo) ProcessNextVideoUpload(ctx context.Context) (bool, error) {
 		if errors.Is(err, media.ErrVideoResolutionTooLow) {
 			return fail("video resolution is below 720p", err)
 		}
+		if errors.Is(err, media.ErrTranscodeTimeout) {
+			return fail("DASH transcoding timed out", err)
+		}
 		return fail("DASH transcoding failed", err)
 	}
 	manifestURL, publishedDir, err := r.mediaManager.PublishDASH(job, videoID.BVID())

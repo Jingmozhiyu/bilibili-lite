@@ -7,11 +7,14 @@ import (
 
 func TestRenditionScaleFilterKeepsWidthEven(t *testing.T) {
 	filter := renditionScaleFilter("v1", "vout1", 480)
-	if filter != "[v1]scale=-2:480,setsar=1[vout1]" {
+	if filter != "[v1]scale=-2:480,format=yuv420p,setsar=1[vout1]" {
 		t.Fatalf("renditionScaleFilter() = %q", filter)
 	}
 	if strings.Contains(filter, "force_original_aspect_ratio") {
 		t.Fatalf("renditionScaleFilter() may override the even-width -2 expression: %q", filter)
+	}
+	if !strings.Contains(filter, "format=yuv420p") {
+		t.Fatalf("renditionScaleFilter() does not normalize 10-bit sources: %q", filter)
 	}
 }
 
@@ -63,7 +66,8 @@ func TestBuildRenditionsDoesNotUpscale(t *testing.T) {
 		{name: "sub-720p source", sourceHeight: 480, wantHeights: nil},
 		{name: "720p source", sourceHeight: 720, wantHeights: []int32{720}},
 		{name: "1080p source", sourceHeight: 1080, wantHeights: []int32{720, 1080}},
-		{name: "4k source", sourceHeight: 2160, wantHeights: []int32{720, 1080, 1440, 2160}},
+		{name: "1440p source capped at 1080p", sourceHeight: 1440, wantHeights: []int32{720, 1080}},
+		{name: "4k source capped at 1080p", sourceHeight: 2160, wantHeights: []int32{720, 1080}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

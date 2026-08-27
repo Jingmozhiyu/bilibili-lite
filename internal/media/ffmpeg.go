@@ -21,6 +21,9 @@ import (
 // satisfy the minimum 720p output policy without upscaling.
 var ErrVideoResolutionTooLow = errors.New("video display height must be at least 720p")
 
+// ErrTranscodeTimeout reports that FFmpeg exceeded the configured wall-clock budget.
+var ErrTranscodeTimeout = errors.New("video transcode timed out")
+
 // Metadata contains the ffprobe values persisted for one DASH stream.
 type Metadata struct {
 	DurationSeconds int64
@@ -192,6 +195,9 @@ func (m *Manager) TranscodeDASH(ctx context.Context, job *UploadJob, metadata *M
 		return nil, err
 	}
 	if err := cmd.Wait(); err != nil {
+		if errors.Is(transcodeCtx.Err(), context.DeadlineExceeded) {
+			return nil, fmt.Errorf("%w after %s", ErrTranscodeTimeout, m.transcodeTimeout)
+		}
 		return nil, fmt.Errorf("ffmpeg: %w: %s", err, ffmpegErrorSummary(stderr.String()))
 	}
 	return renditions, nil
@@ -220,15 +226,13 @@ func renditionScaleFilter(input, output string, height int32) string {
 	// DASH requires every representation in one adaptation set to report the
 	// same sample aspect ratio. Rounding -2 to an even width can otherwise
 	// leave different SAR values for non-standard source ratios.
-	return fmt.Sprintf("[%s]scale=-2:%d,setsar=1[%s]", input, height, output)
+	return fmt.Sprintf("[%s]scale=-2:%d,format=yuv420p,setsar=1[%s]", input, height, output)
 }
 
 func buildRenditions(sourceHeight int32) []Rendition {
 	profiles := []Rendition{
 		{Height: 720, Bandwidth: 2_800_000},
 		{Height: 1080, Bandwidth: 5_000_000},
-		{Height: 1440, Bandwidth: 9_000_000},
-		{Height: 2160, Bandwidth: 16_000_000},
 	}
 	result := make([]Rendition, 0, len(profiles))
 	for _, profile := range profiles {
