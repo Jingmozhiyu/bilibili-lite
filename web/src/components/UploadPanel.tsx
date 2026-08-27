@@ -101,7 +101,7 @@ export function UploadPanel({ open, onClose }: { open: boolean; onClose: () => v
           if (!event.lengthComputable) return
           const nextProgress = Math.round((event.loaded / event.total) * 100)
           setProgress(nextProgress)
-          if (nextProgress >= 100) setPhase('processing')
+          if (nextProgress >= 100) setMessage('文件已发送，正在等待服务器确认')
         })
         request.addEventListener('load', () => {
           requestRef.current = null
