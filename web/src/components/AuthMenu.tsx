@@ -95,7 +95,7 @@ export function AuthMenu({ open, onOpenChange, onUpload }: AuthMenuProps) {
     setError('')
     try {
       const registering = authMode === 'register'
-      const response = await postJson<unknown>(registering ? '/api/v1/auth/register' : '/api/v1/auth/login', registering ? { username, password, displayName } : { username, password })
+      const response = await postJson<unknown>(registering ? '/api/v1/auth/register' : '/api/v1/auth/login', registering ? { username, password, display_name: displayName } : { username, password })
       setSession(normalizeAuthSession(response))
       setPassword('')
       setDisplayName('')

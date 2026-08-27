@@ -165,7 +165,7 @@ Access JWT and a 30-day Refresh JWT immediately:
 ```bash
 curl -X POST http://127.0.0.1:8000/api/v1/auth/register \
   -H 'Content-Type: application/json' \
-  -d '{"username":"new_user","password":"password123","displayName":"New user"}'
+  -d '{"username":"new_user","password":"password123","display_name":"New user"}'
 ```
 
 The local administrator seed creates `admin` with `BILI_SEED_PASSWORD`. If an `admin`
