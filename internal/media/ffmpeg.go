@@ -112,12 +112,12 @@ func (m *Manager) TranscodeDASH(ctx context.Context, job *UploadJob, metadata *M
 	args := []string{"-hide_banner", "-y", "-i", job.sourcePath}
 	filterOutputs := make([]string, len(renditions))
 	if len(renditions) == 1 {
-		filterOutputs[0] = fmt.Sprintf("[0:v]scale=-2:%d:force_original_aspect_ratio=decrease[vout0]", renditions[0].Height)
+		filterOutputs[0] = renditionScaleFilter("0:v", "vout0", renditions[0].Height)
 	} else {
 		filterInputs := make([]string, len(renditions))
 		for index, rendition := range renditions {
 			filterInputs[index] = fmt.Sprintf("[v%d]", index)
-			filterOutputs[index] = fmt.Sprintf("[v%d]scale=-2:%d:force_original_aspect_ratio=decrease[vout%d]", index, rendition.Height, index)
+			filterOutputs[index] = renditionScaleFilter(fmt.Sprintf("v%d", index), fmt.Sprintf("vout%d", index), rendition.Height)
 		}
 		filterOutputs[0] = fmt.Sprintf("[0:v]split=%d%s;%s", len(renditions), strings.Join(filterInputs, ""), filterOutputs[0])
 	}
@@ -164,6 +164,14 @@ func (m *Manager) TranscodeDASH(ctx context.Context, job *UploadJob, metadata *M
 		return nil, fmt.Errorf("ffmpeg: %w: %s", err, tail(stderr.String(), 1200))
 	}
 	return renditions, nil
+}
+
+func renditionScaleFilter(input, output string, height int32) string {
+	// The ladder only contains heights at or below the source height, so a
+	// fixed target height cannot upscale. Let scale calculate an even width;
+	// force_original_aspect_ratio=decrease can override -2 and produce odd
+	// widths such as 853x480, which libx264 rejects for yuv420p output.
+	return fmt.Sprintf("[%s]scale=-2:%d[%s]", input, height, output)
 }
 
 func buildRenditions(sourceHeight int32) []Rendition {

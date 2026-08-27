@@ -1,6 +1,19 @@
 package media
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
+
+func TestRenditionScaleFilterKeepsWidthEven(t *testing.T) {
+	filter := renditionScaleFilter("v1", "vout1", 480)
+	if filter != "[v1]scale=-2:480[vout1]" {
+		t.Fatalf("renditionScaleFilter() = %q", filter)
+	}
+	if strings.Contains(filter, "force_original_aspect_ratio") {
+		t.Fatalf("renditionScaleFilter() may override the even-width -2 expression: %q", filter)
+	}
+}
 
 func TestBuildRenditionsDoesNotUpscale(t *testing.T) {
 	tests := []struct {

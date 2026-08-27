@@ -83,7 +83,8 @@ func (r *videoRepo) ProcessNextVideoUpload(ctx context.Context) (bool, error) {
 		r.failQueuedVideoUpload(videoID, record.UploadJobID, "upload job is missing")
 		return true, biz.ErrVideoProcessing
 	}
-	fail := func(reason string) (bool, error) {
+	fail := func(reason string, cause error) (bool, error) {
+		log.Error("process video upload failed", "bvid", videoID.BVID(), "job_id", record.UploadJobID, "stage", reason, "error", cause)
 		r.failQueuedVideoUpload(videoID, record.UploadJobID, reason)
 		return true, biz.ErrVideoProcessing
 	}
@@ -93,31 +94,31 @@ func (r *videoRepo) ProcessNextVideoUpload(ctx context.Context) (bool, error) {
 		if ctx.Err() != nil {
 			return true, r.releaseVideoUploadClaim(videoID)
 		}
-		return fail("media inspection failed")
+		return fail("media inspection failed", err)
 	}
 	if err := r.mediaManager.GenerateCover(ctx, job, metadata, job.HasCover()); err != nil {
 		if ctx.Err() != nil {
 			return true, r.releaseVideoUploadClaim(videoID)
 		}
-		return fail("cover generation failed")
+		return fail("cover generation failed", err)
 	}
 	renditions, err := r.mediaManager.TranscodeDASH(ctx, job, metadata)
 	if err != nil {
 		if ctx.Err() != nil {
 			return true, r.releaseVideoUploadClaim(videoID)
 		}
-		return fail("DASH transcoding failed")
+		return fail("DASH transcoding failed", err)
 	}
 	manifestURL, publishedDir, err := r.mediaManager.PublishDASH(job, videoID.BVID())
 	if err != nil {
-		return fail("media publication failed")
+		return fail("media publication failed", err)
 	}
 	coverURL := "/media/dash/" + videoID.BVID() + "/cover.jpg"
 	if err := r.markVideoUploadReady(ctx, videoID, metadata, renditions, manifestURL, coverURL); err != nil {
 		if cleanupErr := r.mediaManager.RemovePublished(publishedDir); cleanupErr != nil {
 			log.Error("remove rolled-back DASH directory", "path", publishedDir, "error", cleanupErr)
 		}
-		return fail("media metadata persistence failed")
+		return fail("media metadata persistence failed", err)
 	}
 	if err := r.mediaManager.RemoveUploadJob(job); err != nil {
 		log.Error("remove completed upload job", "error", err)
