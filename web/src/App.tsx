@@ -5,6 +5,8 @@ import { AppHeader } from './components/AppHeader'
 import { UploadPanel } from './components/UploadPanel'
 import { UploadContext } from './context/UploadContext'
 import { HistoryPage } from './pages/HistoryPage'
+import { MallPage } from './pages/MallPage'
+import './styles/mall.css'
 import { HomePage } from './pages/HomePage'
 import { AdminReviewPage } from './pages/AdminReviewPage'
 import { SearchPage } from './pages/SearchPage'
@@ -26,6 +28,7 @@ function App() {
         <Route path="video/:bvid" element={<VideoPage />} />
         <Route path="space/:userId" element={<UserPage />} />
         <Route path="history/:kind" element={<HistoryPage />} />
+        <Route path="mall" element={<MallPage />} />
         <Route path="search" element={<SearchPage />} />
         <Route path="admin" element={<Navigate to="/admin/reviews" replace />} />
         <Route path="admin/reviews" element={<AdminReviewPage />} />
@@ -47,7 +50,7 @@ function AppLayout() {
     <UploadContext.Provider value={requestUpload}>
       <div className="app-shell">
         <AppHeader authOpen={authOpen} onAuthOpenChange={setAuthOpen} onUpload={requestUpload} />
-        <Outlet />
+        <Outlet context={{ requestLogin: () => setAuthOpen(true) }} />
         <UploadPanel open={uploadOpen} onClose={() => setUploadOpen(false)} />
       </div>
     </UploadContext.Provider>

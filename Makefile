@@ -1,3 +1,4 @@
+BUF ?= buf
 GOHOSTOS:=$(shell go env GOHOSTOS)
 GOPATH:=$(shell go env GOPATH)
 VERSION=$(shell git describe --tags --always)
@@ -11,17 +12,21 @@ init:
 .PHONY: config
 # generate internal proto
 config:
-	buf generate --template buf.gen.config.yaml
+	$(BUF) generate --template buf.gen.config.yaml
 
 .PHONY: api
 # generate api proto
 api:
-	buf generate --template buf.gen.yaml
+	$(BUF) generate --template buf.gen.yaml
 
 .PHONY: build
 # build
 build:
 	mkdir -p bin/ && go build -trimpath -ldflags "-X main.Name=bilibili-lite -X main.Version=$(VERSION)" -o ./bin/bilibili-lite ./cmd/bilibili-lite
+
+.PHONY: build-mall
+build-mall:
+	mkdir -p bin/ && go build -trimpath -ldflags "-X main.Version=$(VERSION)" -o ./bin/bili-mall ./cmd/bili-mall
 
 .PHONY: generate
 # generate

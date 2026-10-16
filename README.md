@@ -161,13 +161,13 @@ flowchart LR
 api/                 Protobuf API contract 与生成代码
 cmd/bilibili-lite/   程序入口和 Wire 装配
 configs/             非敏感运行配置
-internal/server/     HTTP/gRPC Server 与路由注册
-internal/service/    DTO ↔ DO 的传输适配层
-internal/biz/        领域对象、用例与 Repo 接口
-internal/data/       PostgreSQL/Redis/Meilisearch 实现
-internal/media/      上传、ffprobe、FFmpeg 与 DASH 文件
-internal/worker/     转码、Outbox、热榜与清理 Worker
-internal/middleware/ JWT、RBAC 与 Redis 限流
+internal/site/server/     HTTP/gRPC Server 与路由注册
+internal/site/service/    DTO ↔ DO 的传输适配层
+internal/site/biz/        领域对象、用例与 Repo 接口
+internal/site/data/       PostgreSQL/Redis/Meilisearch 实现
+internal/site/media/      上传、ffprobe、FFmpeg 与 DASH 文件
+internal/site/worker/     转码、Outbox、热榜与清理 Worker
+internal/site/middleware/ JWT、RBAC 与 Redis 限流
 web/                 React 前端
 ```
 
@@ -181,13 +181,16 @@ web/                 React 前端
 
 ## 本地开发
 
-后端及依赖：
+主站、会员购后端及各自依赖统一由 `docker-compose.yml` 启动（主站端口 8000，会员购端口 8001）：
 
 ```bash
 cp .env.example .env
 mkdir -p data/media
 docker compose --env-file .env up -d --build
 ```
+
+仅本地体验也可以直接使用 `docker compose --env-file .env.example up -d --build`。
+命令末尾不指定服务名时，会启动主站、会员购及全部依赖；追加 `bili` 或 `mall` 则只启动该服务及其依赖。
 
 前端：
 
@@ -205,3 +208,14 @@ cd web && npm run lint && npm run build
 ```
 
 需要修改 Protobuf、配置结构或 Wire 依赖图时，分别运行 `make api`、`make config` 或 `make all`。真实环境变量保存在被 Git 忽略的 `.env`，仓库只提交 `.env.example`。
+
+## bili-mall 门票抢购服务
+
+独立入口 `cmd/bili-mall` 与 `internal/mall` 已提供门票交易正确性基线：跨票种账号限购、十分钟预占、幂等下单、模拟支付、关单及退票补偿。
+详见 [商城运行与一致性说明](docs/bili-mall.md)。已包含 Redis 三层抢票保护、`/mall` 购票前端及基础 Prometheus 指标；完整可观测性部署与 K8s 留待后续。
+
+### Mall 可观测性
+
+统一 Compose 已包含 Prometheus 与 Grafana，自动加载抢票、数据库连接池、补偿积压和进程资源看板。
+访问 Grafana `http://localhost:3000/d/bili-mall`（示例账号 `admin` / `local-grafana-demo`）。
+启动、指标含义和告警排障见 [Mall 监控说明](docs/bili-mall-observability.md)。

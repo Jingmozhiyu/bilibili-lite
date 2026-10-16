@@ -6,6 +6,184 @@ info:
     title: ""
     version: 0.0.1
 paths:
+    /api/mall/v1/orders:
+        post:
+            tags:
+                - MallService
+            operationId: MallService_CreateOrder
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/mall.v1.CreateOrderRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/mall.v1.Order'
+    /api/mall/v1/orders/{id}:
+        get:
+            tags:
+                - MallService
+            operationId: MallService_GetOrder
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/mall.v1.Order'
+    /api/mall/v1/orders/{id}/pay:
+        post:
+            tags:
+                - MallService
+            operationId: MallService_PayOrder
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/mall.v1.GetOrderRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/mall.v1.Order'
+    /api/mall/v1/orders/{id}/refund:
+        post:
+            tags:
+                - MallService
+            operationId: MallService_RefundOrder
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/mall.v1.GetOrderRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/mall.v1.Order'
+    /api/mall/v1/products:
+        get:
+            tags:
+                - MallService
+            operationId: MallService_ListProducts
+            parameters:
+                - name: query
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/mall.v1.ProductsSet'
+        post:
+            tags:
+                - MallService
+            operationId: MallService_CreateProduct
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/mall.v1.CreateProductRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/mall.v1.Product'
+    /api/mall/v1/products/{id}:
+        get:
+            tags:
+                - MallService
+            operationId: MallService_GetProduct
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/mall.v1.Product'
+    /api/mall/v1/products/{id}/purchase:
+        get:
+            tags:
+                - MallService
+            operationId: MallService_GetPurchase
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/mall.v1.Purchase'
+    /api/mall/v1/products/{productId}/inventory:
+        post:
+            tags:
+                - MallService
+            operationId: MallService_AdjustInventory
+            parameters:
+                - name: productId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/mall.v1.AdjustInventoryRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/mall.v1.Product'
     /api/v1/admin/videos:
         get:
             tags:
@@ -1015,6 +1193,119 @@ paths:
                                 $ref: '#/components/schemas/video.v1.VideoViewResult'
 components:
     schemas:
+        mall.v1.AdjustInventoryRequest:
+            type: object
+            properties:
+                productId:
+                    type: string
+                ticketTypeId:
+                    type: string
+                requestId:
+                    type: string
+                delta:
+                    type: string
+                releaseWithheld:
+                    type: boolean
+                reason:
+                    type: string
+        mall.v1.CreateOrderRequest:
+            type: object
+            properties:
+                productId:
+                    type: string
+                ticketTypeId:
+                    type: string
+                requestId:
+                    type: string
+        mall.v1.CreateProductRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                saleStartsAt:
+                    type: string
+                    format: date-time
+                ticketTypes:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/mall.v1.TicketType'
+        mall.v1.GetOrderRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+        mall.v1.Order:
+            type: object
+            properties:
+                id:
+                    type: string
+                productId:
+                    type: string
+                ticketTypeId:
+                    type: string
+                state:
+                    type: string
+                priceCents:
+                    type: string
+                productName:
+                    type: string
+                ticketTypeName:
+                    type: string
+                expiresAt:
+                    type: string
+                    format: date-time
+                paymentState:
+                    type: string
+        mall.v1.Product:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                saleStartsAt:
+                    type: string
+                    format: date-time
+                ticketTypes:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/mall.v1.TicketType'
+                description:
+                    type: string
+                year:
+                    type: integer
+                    format: int32
+        mall.v1.ProductsSet:
+            type: object
+            properties:
+                products:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/mall.v1.Product'
+        mall.v1.Purchase:
+            type: object
+            properties:
+                order:
+                    $ref: '#/components/schemas/mall.v1.Order'
+                purchaseBlocked:
+                    type: boolean
+        mall.v1.TicketType:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                priceCents:
+                    type: string
+                available:
+                    type: string
+                reserved:
+                    type: string
+                sold:
+                    type: string
+                withheld:
+                    type: string
         user.v1.LoginReply:
             type: object
             properties:
@@ -1511,5 +1802,6 @@ components:
                     type: string
                     format: date-time
 tags:
+    - name: MallService
     - name: UserService
     - name: VideoService

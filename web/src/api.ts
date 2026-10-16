@@ -422,10 +422,17 @@ async function parseAPIResponse<T>(response: Response, url: string): Promise<T> 
   return (text ? JSON.parse(text) : undefined) as T
 }
 
+export class APIError extends Error {
+  status: number
+  reason: string
+  metadata: Record<string, unknown>
+  constructor(message: string, status: number, reason: string, metadata: Record<string, unknown>) { super(message); this.status = status; this.reason = reason; this.metadata = metadata }
+}
+
 async function responseError(response: Response, fallback: string) {
   const payload = asRecord(await response.json().catch(() => null))
   const message = readString(payload, 'message')
-  return new Error(`${response.status}${message ? ` ${message}` : ` ${response.statusText}: ${fallback}`}`)
+  return new APIError(`${response.status}${message ? ` ${message}` : ` ${response.statusText}: ${fallback}`}`, response.status, readString(payload, 'reason'), asRecord(payload.metadata))
 }
 
 function readMetric(record: Record<string, unknown>, ...keys: string[]): MetricValue {

@@ -1,0 +1,16 @@
+syntax = "proto3";
+package mall.v1;
+
+option go_package = "bilibili-lite/api/mall/v1;v1";
+enum ErrorReason {
+  MALL_UNSPECIFIED = 0;
+  MALL_INVALID_ARGUMENT = 1;
+  MALL_NOT_FOUND = 2;
+  MALL_PURCHASE_LIMIT = 3;
+  MALL_SOLD_OUT = 4;
+  MALL_NOT_ON_SALE = 5;
+  MALL_ORDER_STATE = 6;
+  MALL_IDEMPOTENCY_CONFLICT = 7;
+  MALL_STORAGE = 8;
+  MALL_PAYMENT_UNAVAILABLE = 9;
+}

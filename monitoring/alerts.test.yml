@@ -1,0 +1,30 @@
+rule_files:
+  - alerts.yml
+evaluation_interval: 15s
+tests:
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mall",instance="mall:8001"}'
+        values: '1 0 0 0 0 0 1 1'
+    alert_rule_test:
+      - eval_time: 1m15s
+        alertname: MallDown
+        exp_alerts:
+          - exp_labels:
+              job: mall
+              instance: mall:8001
+              severity: critical
+            exp_annotations:
+              summary: Mall metrics endpoint is unreachable
+              description: Check the mall process, network and scrape errors before restarting.
+      - eval_time: 1m30s
+        alertname: MallDown
+        exp_alerts: []
+  - interval: 15s
+    input_series:
+      - series: 'mall_http_requests_total{job="mall",status="429"}'
+        values: '0+1000x24'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: MallServerErrors
+        exp_alerts: []

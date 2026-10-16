@@ -1,0 +1,51 @@
+groups:
+  - name: mall
+    rules:
+      - alert: MallDown
+        expr: up{job="mall"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Mall metrics endpoint is unreachable
+          description: Check the mall process, network and scrape errors before restarting.
+      - alert: MallDependencyDown
+        expr: mall_redis_up{job="mall"} == 0 or mall_database_up{job="mall"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: Mall dependency probe failed
+          description: Redis failure blocks new purchases; existing payments should remain available. Check dependency logs and connectivity.
+      - alert: MallServerErrors
+        expr: sum(rate(mall_http_requests_total{job="mall",status=~"5.."}[2m])) / clamp_min(sum(rate(mall_http_requests_total{job="mall"}[2m])), 0.001) > 0.01
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Mall HTTP server error ratio exceeds one percent
+          description: Inspect dependency health and application logs; expected 409 and 429 responses are excluded.
+      - alert: MallMaintenanceStalled
+        expr: time() - mall_maintenance_last_success_timestamp_seconds{job="mall"} > 30
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: No successful reconciliation batch for over 30 seconds
+          description: Check worker errors and database connection waits; unpaid inventory may remain reserved.
+      - alert: MallExpiryBacklog
+        expr: mall_oldest_overdue_seconds{job="mall"} > 30
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: An unpaid order is overdue by more than 30 seconds
+          description: Compare backlog growth to the worker batch size and inspect database lock waits.
+      - alert: MallPaymentBacklog
+        expr: mall_processing_payments{job="mall"} > 0 or mall_pending_refunds{job="mall"} > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Payment or refund backlog has remained nonempty for five minutes
+          description: This measures continuous backlog, not the age of an individual payment. Inspect reconciliation logs and provider availability.

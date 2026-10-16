@@ -19,6 +19,7 @@ export function AppHeader({ authOpen, onAuthOpenChange, onUpload }: AppHeaderPro
   const navigate = useNavigate()
   const isHome = location.pathname === '/'
   const isSpace = location.pathname.startsWith('/space/')
+  const isMall = location.pathname === '/mall'
   const isSearch = location.pathname === '/search'
   const isVideo = location.pathname.startsWith('/video/')
   const isSolid = !isHome && !isSpace
@@ -30,17 +31,17 @@ export function AppHeader({ authOpen, onAuthOpenChange, onUpload }: AppHeaderPro
   }
 
   return (
-    <header className={`site-header ${isHome ? 'home-header' : ''} ${isSpace ? 'space-header' : ''} ${isSolid ? 'solid-header' : ''} ${isSearch ? 'search-header' : ''} ${isVideo ? 'video-header' : ''}`}>
+    <header className={`site-header ${isHome ? 'home-header' : ''} ${isSpace ? 'space-header' : ''} ${isSolid ? 'solid-header' : ''} ${isSearch ? 'search-header' : ''} ${isVideo ? 'video-header' : ''} ${isMall ? 'mall-header' : ''}`}>
       <div className="header-bg-shadow" aria-hidden="true"><span className="top" />{isSpace && <span className="bottom" />}</div>
       <nav className="header-inner" aria-label="主导航">
         <div className="header-links">
           {!isHome && <Link className="compact-header-brand" to="/" aria-label="返回首页"><span className="bilibili-blue-logo" aria-hidden="true" /></Link>}
           {leftLinks.map((label, index) => (
-            <Link to="/" key={label}>{index === 0 && <BiliHomeIcon size={18} />}{label}</Link>
+            <Link to={label === '会员购' ? '/mall' : '/'} aria-current={label === '会员购' && isMall ? 'page' : undefined} key={label}>{index === 0 && <BiliHomeIcon size={18} />}{label}</Link>
           ))}
           <Link to="/"><Download size={17} aria-hidden="true" />下载客户端</Link>
         </div>
-        {!isSearch && <HeaderSearch key={routeKeyword} initialQuery={routeKeyword} onSearch={(value) => navigate(`/search?keyword=${encodeURIComponent(value)}`)} />}
+        {!isSearch && !isMall && <HeaderSearch key={routeKeyword} initialQuery={routeKeyword} onSearch={(value) => navigate(`/search?keyword=${encodeURIComponent(value)}`)} />}
         <div className="header-actions">
           <AuthMenu
             open={authOpen}

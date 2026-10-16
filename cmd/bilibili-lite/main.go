@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"os"
 
-	"bilibili-lite/internal/conf"
-	"bilibili-lite/internal/worker"
+	"bilibili-lite/internal/site/conf"
+	"bilibili-lite/internal/site/worker"
 
 	"github.com/go-kratos/kratos/contrib/otel/v3/tracing"
 	"github.com/go-kratos/kratos/v3"

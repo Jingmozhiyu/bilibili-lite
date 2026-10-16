@@ -8,14 +8,14 @@ package main
 import (
 	"log/slog"
 
-	"bilibili-lite/internal/biz"
-	"bilibili-lite/internal/conf"
-	"bilibili-lite/internal/data"
-	"bilibili-lite/internal/media"
-	appMiddleware "bilibili-lite/internal/middleware"
-	"bilibili-lite/internal/server"
-	"bilibili-lite/internal/service"
-	"bilibili-lite/internal/worker"
+	"bilibili-lite/internal/site/biz"
+	"bilibili-lite/internal/site/conf"
+	"bilibili-lite/internal/site/data"
+	"bilibili-lite/internal/site/media"
+	appMiddleware "bilibili-lite/internal/site/middleware"
+	"bilibili-lite/internal/site/server"
+	"bilibili-lite/internal/site/service"
+	"bilibili-lite/internal/site/worker"
 
 	"github.com/go-kratos/kratos/v3"
 	"github.com/google/wire"

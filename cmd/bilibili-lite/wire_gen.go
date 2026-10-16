@@ -7,14 +7,15 @@
 package main
 
 import (
-	"bilibili-lite/internal/biz"
-	"bilibili-lite/internal/conf"
-	"bilibili-lite/internal/data"
-	"bilibili-lite/internal/media"
-	"bilibili-lite/internal/middleware"
-	"bilibili-lite/internal/server"
-	"bilibili-lite/internal/service"
-	"bilibili-lite/internal/worker"
+	"bilibili-lite/internal/platform/auth"
+	"bilibili-lite/internal/site/biz"
+	"bilibili-lite/internal/site/conf"
+	"bilibili-lite/internal/site/data"
+	"bilibili-lite/internal/site/media"
+	"bilibili-lite/internal/site/middleware"
+	"bilibili-lite/internal/site/server"
+	"bilibili-lite/internal/site/service"
+	"bilibili-lite/internal/site/worker"
 	"github.com/go-kratos/kratos/v3"
 	"log/slog"
 )
@@ -26,12 +27,12 @@ import (
 // Injectors from wire.go:
 
 // wireApp assembles the application and its cleanup function.
-func wireApp(confServer *conf.Server, confData *conf.Data, auth *conf.Auth, logger *slog.Logger) (*kratos.App, func(), error) {
-	tokenManager, err := middleware.NewJWTManager(auth)
+func wireApp(confServer *conf.Server, confData *conf.Data, confAuth *conf.Auth, logger *slog.Logger) (*kratos.App, func(), error) {
+	tokenManager, err := middleware.NewJWTManager(confAuth)
 	if err != nil {
 		return nil, nil, err
 	}
-	authenticator := middleware.NewAuthenticator(tokenManager)
+	v := auth.NewAuthenticator(tokenManager)
 	dataData, cleanup, err := data.NewData(confData)
 	if err != nil {
 		return nil, nil, err
@@ -49,9 +50,9 @@ func wireApp(confServer *conf.Server, confData *conf.Data, auth *conf.Auth, logg
 	userRepo := data.NewUserRepo(dataData)
 	userUsecase := biz.NewUserUsecase(userRepo, tokenManager)
 	userService := service.NewUserService(userUsecase, manager)
-	grpcServer := server.NewGRPCServer(confServer, authenticator, userRateLimiterMiddleware, videoService, userService)
+	grpcServer := server.NewGRPCServer(confServer, v, userRateLimiterMiddleware, videoService, userService)
 	videoUploadHTTPHandler := service.NewVideoUploadHTTPHandler(videoUsecase, confData)
-	httpServer := server.NewHTTPServer(confServer, confData, manager, authenticator, userRateLimiterMiddleware, videoService, videoUploadHTTPHandler, userService)
+	httpServer := server.NewHTTPServer(confServer, confData, manager, v, userRateLimiterMiddleware, videoService, videoUploadHTTPHandler, userService)
 	uploadJanitor := worker.NewUploadJanitor(manager, videoUsecase)
 	videoTranscoder := worker.NewVideoTranscoder(videoUsecase, confData)
 	searchIndexer := worker.NewSearchIndexer(videoUsecase, confData)

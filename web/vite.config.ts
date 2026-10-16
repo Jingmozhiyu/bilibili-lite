@@ -12,6 +12,7 @@ export default defineConfig({
   ],
   server: {
     proxy: {
+      '/api/mall': process.env.VITE_MALL_PROXY ?? 'http://127.0.0.1:8001',
       '/api': apiProxy,
       '/media': apiProxy,
     },

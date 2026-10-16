@@ -108,7 +108,93 @@ services:
       timeout: 3s
       retries: 20
 
+  # Mall remains independently deployed with its own database and Redis.
+  mall:
+    build:
+      context: .
+      dockerfile: Dockerfile.mall
+    restart: unless-stopped
+    init: true
+    environment:
+      MALL_HTTP_ADDR: :8001
+      MALL_REDIS_ADDRESS: mall-redis:6379
+      MALL_REDIS_PASSWORD: ${MALL_REDIS_PASSWORD:?set MALL_REDIS_PASSWORD}
+      MALL_SEED_ENABLED: ${MALL_SEED_ENABLED:-true}
+      MALL_ENTRY_RATE: ${MALL_ENTRY_RATE:-200}
+      MALL_ENTRY_BURST: ${MALL_ENTRY_BURST:-40}
+      MALL_INNER_CONCURRENCY: ${MALL_INNER_CONCURRENCY:-8}
+      MALL_IP_LIMIT_ENABLED: ${MALL_IP_LIMIT_ENABLED:-false}
+      MALL_DATABASE_SOURCE: "host=mall-postgres user=mall password=${MALL_POSTGRES_PASSWORD:?set MALL_POSTGRES_PASSWORD} dbname=mall port=5432 sslmode=disable TimeZone=Asia/Shanghai"
+      MALL_AUTH_ISSUER: ${BILI_AUTH_ISSUER:?set BILI_AUTH_ISSUER}
+      MALL_AUTH_SECRET: ${BILI_AUTH_SECRET:?set BILI_AUTH_SECRET}
+    ports:
+      - "127.0.0.1:${MALL_HTTP_PORT:-8001}:8001"
+    depends_on:
+      mall-redis:
+        condition: service_healthy
+      mall-postgres:
+        condition: service_healthy
+    stop_grace_period: 30s
+  mall-redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${MALL_REDIS_PASSWORD:?set MALL_REDIS_PASSWORD}"]
+    environment:
+      REDIS_PASSWORD: ${MALL_REDIS_PASSWORD:?set MALL_REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  mall-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mall
+      POSTGRES_DB: mall
+      POSTGRES_PASSWORD: ${MALL_POSTGRES_PASSWORD:?set MALL_POSTGRES_PASSWORD}
+    volumes:
+      - mall-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mall -d mall"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+      - --storage.tsdb.retention.size=1GB
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+
+  grafana:
+    image: grafana/grafana:12.3.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
 volumes:
   postgres-data:
   meilisearch-data:
   redis-data:
+  mall-postgres-data:
+  prometheus-data:
+  grafana-data:

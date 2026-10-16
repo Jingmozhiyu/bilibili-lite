@@ -1,0 +1,114 @@
+syntax = "proto3";
+package mall.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "bilibili-lite/api/mall/v1;v1";
+service MallService {
+  rpc ListProducts(ListProductsRequest) returns (ProductsSet) {
+    option (google.api.http) = {get: "/api/mall/v1/products"};
+  }
+  rpc GetPurchase(GetProductRequest) returns (Purchase) {
+    option (google.api.http) = {get: "/api/mall/v1/products/{id}/purchase"};
+  }
+  rpc CreateProduct(CreateProductRequest) returns (Product) {
+    option (google.api.http) = {
+      post: "/api/mall/v1/products"
+      body: "*"
+    };
+  }
+  rpc GetProduct(GetProductRequest) returns (Product) {
+    option (google.api.http) = {get: "/api/mall/v1/products/{id}"};
+  }
+  rpc AdjustInventory(AdjustInventoryRequest) returns (Product) {
+    option (google.api.http) = {
+      post: "/api/mall/v1/products/{product_id}/inventory"
+      body: "*"
+    };
+  }
+  rpc CreateOrder(CreateOrderRequest) returns (Order) {
+    option (google.api.http) = {
+      post: "/api/mall/v1/orders"
+      body: "*"
+    };
+  }
+  rpc GetOrder(GetOrderRequest) returns (Order) {
+    option (google.api.http) = {get: "/api/mall/v1/orders/{id}"};
+  }
+  rpc PayOrder(GetOrderRequest) returns (Order) {
+    option (google.api.http) = {
+      post: "/api/mall/v1/orders/{id}/pay"
+      body: "*"
+    };
+  }
+  rpc RefundOrder(GetOrderRequest) returns (Order) {
+    option (google.api.http) = {
+      post: "/api/mall/v1/orders/{id}/refund"
+      body: "*"
+    };
+  }
+}
+message TicketType {
+  string id = 1;
+  string name = 2;
+  int64 price_cents = 3;
+  int64 available = 4;
+  int64 reserved = 5;
+  int64 sold = 6;
+  int64 withheld = 7;
+}
+message Product {
+  string id = 1;
+  string name = 2;
+  google.protobuf.Timestamp sale_starts_at = 3;
+  repeated TicketType ticket_types = 4;
+  string description = 5;
+  int32 year = 6;
+}
+message CreateProductRequest {
+  string name = 1;
+  google.protobuf.Timestamp sale_starts_at = 2;
+  repeated TicketType ticket_types = 3;
+}
+message GetProductRequest {
+  string id = 1;
+}
+message AdjustInventoryRequest {
+  string product_id = 1;
+  string ticket_type_id = 2;
+  string request_id = 3;
+  int64 delta = 4;
+  bool release_withheld = 5;
+  string reason = 6;
+}
+message CreateOrderRequest {
+  string product_id = 1;
+  string ticket_type_id = 2;
+  string request_id = 3;
+}
+message GetOrderRequest {
+  string id = 1;
+}
+message Order {
+  string id = 1;
+  string product_id = 2;
+  string ticket_type_id = 3;
+  string state = 4;
+  int64 price_cents = 5;
+  string product_name = 6;
+  string ticket_type_name = 7;
+  google.protobuf.Timestamp expires_at = 8;
+  string payment_state = 9;
+}
+
+message ListProductsRequest {
+  string query = 1;
+}
+message ProductsSet {
+  repeated Product products = 1;
+}
+message Purchase {
+  Order order = 1;
+  bool purchase_blocked = 2;
+}

@@ -1,0 +1,63 @@
+# Isolated benchmark stack. Never attach normal site/mall volumes here.
+name: bili-mall-bench
+services:
+  mall:
+    image: bili-mall-bench:local
+    build:
+      context: ../..
+      dockerfile: Dockerfile.mall
+    cpus: 2
+    mem_limit: 512m
+    environment:
+      MALL_HTTP_ADDR: :8001
+      MALL_DATABASE_SOURCE: host=postgres user=bench password=bench-only dbname=bench port=5432 sslmode=disable
+      MALL_AUTH_ISSUER: mall-benchmark
+      MALL_AUTH_SECRET: benchmark-only-secret-never-use-in-normal-environments
+      MALL_REDIS_ADDRESS: redis:6379
+      MALL_SEED_ENABLED: "false"
+      MALL_ENTRY_RATE: ${BENCH_ENTRY_RATE:-100000}
+      MALL_ENTRY_BURST: ${BENCH_ENTRY_BURST:-100000}
+      MALL_INNER_CONCURRENCY: ${BENCH_INNER_CONCURRENCY:-8}
+      MALL_IP_LIMIT_ENABLED: "false"
+    ports:
+      - 127.0.0.1:28001:8001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+  postgres:
+    image: postgres:16-alpine
+    cpus: 2
+    mem_limit: 1g
+    environment:
+      POSTGRES_USER: bench
+      POSTGRES_PASSWORD: bench-only
+      POSTGRES_DB: bench
+    command: [postgres, -c, shared_preload_libraries=pg_stat_statements, -c, track_io_timing=on]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U bench -d bench]
+      interval: 1s
+      retries: 30
+    volumes:
+      - bench-postgres:/var/lib/postgresql/data
+  redis:
+    image: redis:8-alpine
+    cpus: 1
+    mem_limit: 256m
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 1s
+      retries: 30
+  k6:
+    image: grafana/k6@sha256:e66db15b860113878fa74670e31f5e274830b7b6e42c8bff28b2f2d86a257603
+    cpus: 2
+    mem_limit: 1g
+    profiles: [load]
+    volumes:
+      - .:/scripts:ro
+      - ../../docs/load-results:/results
+    environment:
+      MALL_BASE_URL: http://mall:8001
+volumes:
+  bench-postgres:

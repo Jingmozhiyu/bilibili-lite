@@ -45,3 +45,5 @@ bin/
 storage/
 skills-lock.json
 *.swp
+docs
+output

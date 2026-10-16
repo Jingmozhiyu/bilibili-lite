@@ -13,6 +13,11 @@
 		@preflight method OPTIONS
 		respond @preflight 204
 
-		reverse_proxy bili:8000
+		handle /api/mall/* {
+			reverse_proxy mall:8001
+		}
+		handle {
+			reverse_proxy bili:8000
+		}
 	}
 }
