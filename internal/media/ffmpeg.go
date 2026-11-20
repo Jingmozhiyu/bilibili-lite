@@ -46,22 +46,30 @@ type Rendition struct {
 	Bandwidth int32
 }
 
+// sourceVideoStream selects the first real video track, skipping embedded cover art.
+const sourceVideoStream = "0:V:0"
+
 type probeSideData struct {
 	Rotation int32 `json:"rotation"`
 }
 
+type probeDisposition struct {
+	AttachedPic int `json:"attached_pic"`
+}
+
 type probeStream struct {
-	CodecType     string          `json:"codec_type"`
-	CodecName     string          `json:"codec_name"`
-	Width         int32           `json:"width"`
-	Height        int32           `json:"height"`
-	BitRate       string          `json:"bit_rate"`
-	PixelFormat   string          `json:"pix_fmt"`
-	FrameRate     string          `json:"avg_frame_rate"`
-	SampleRate    string          `json:"sample_rate"`
-	Channels      int32           `json:"channels"`
-	ChannelLayout string          `json:"channel_layout"`
-	SideData      []probeSideData `json:"side_data_list"`
+	CodecType     string           `json:"codec_type"`
+	CodecName     string           `json:"codec_name"`
+	Width         int32            `json:"width"`
+	Height        int32            `json:"height"`
+	BitRate       string           `json:"bit_rate"`
+	PixelFormat   string           `json:"pix_fmt"`
+	FrameRate     string           `json:"avg_frame_rate"`
+	SampleRate    string           `json:"sample_rate"`
+	Channels      int32            `json:"channels"`
+	ChannelLayout string           `json:"channel_layout"`
+	SideData      []probeSideData  `json:"side_data_list"`
+	Disposition   probeDisposition `json:"disposition"`
 }
 
 type probeOutput struct {
@@ -111,7 +119,7 @@ func (m *Manager) GenerateCover(ctx context.Context, job *UploadJob, metadata *M
 	if custom {
 		args = append(args, "-i", job.coverPath)
 	} else {
-		args = append(args, "-ss", randomCoverTimestamp(metadata.DurationSeconds), "-i", job.sourcePath)
+		args = append(args, "-ss", randomCoverTimestamp(metadata.DurationSeconds), "-i", job.sourcePath, "-map", sourceVideoStream)
 	}
 	args = append(args,
 		"-frames:v", "1",
@@ -144,14 +152,14 @@ func (m *Manager) TranscodeDASH(ctx context.Context, job *UploadJob, metadata *M
 	args := []string{"-hide_banner", "-y", "-i", job.sourcePath}
 	filterOutputs := make([]string, len(renditions))
 	if len(renditions) == 1 {
-		filterOutputs[0] = renditionScaleFilter("0:v", "vout0", renditions[0].Height)
+		filterOutputs[0] = renditionScaleFilter(sourceVideoStream, "vout0", renditions[0].Height)
 	} else {
 		filterInputs := make([]string, len(renditions))
 		for index, rendition := range renditions {
 			filterInputs[index] = fmt.Sprintf("[v%d]", index)
 			filterOutputs[index] = renditionScaleFilter(fmt.Sprintf("v%d", index), fmt.Sprintf("vout%d", index), rendition.Height)
 		}
-		filterOutputs[0] = fmt.Sprintf("[0:v]split=%d%s;%s", len(renditions), strings.Join(filterInputs, ""), filterOutputs[0])
+		filterOutputs[0] = fmt.Sprintf("[%s]split=%d%s;%s", sourceVideoStream, len(renditions), strings.Join(filterInputs, ""), filterOutputs[0])
 	}
 	filter := strings.Join(filterOutputs, ";")
 	args = append(args, "-filter_complex", filter)
@@ -251,6 +259,11 @@ func metadataFromProbe(probe *probeOutput) (*Metadata, error) {
 	for _, stream := range probe.Streams {
 		switch stream.CodecType {
 		case "video":
+			// Cover art is reported as a still video stream; FFmpeg maps the same
+			// first real track through sourceVideoStream.
+			if hasVideo || stream.Disposition.AttachedPic != 0 {
+				continue
+			}
 			hasVideo = true
 			metadata.Width, metadata.Height, metadata.Rotation = displayDimensions(stream)
 			metadata.VideoCodec = stream.CodecName

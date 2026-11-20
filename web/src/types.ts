@@ -20,8 +20,10 @@ export type VideoDetail = {
   ownerId?: number
   status?: string
   reviewReason?: string
+  failureReason?: string
   submittedAt?: string
   reviewedAt?: string
+  updatedAt?: string
 }
 
 export type VideoListPage = {

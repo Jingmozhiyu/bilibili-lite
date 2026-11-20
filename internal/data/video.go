@@ -454,8 +454,8 @@ func toBizVideo(v videoPO) *biz.Video {
 		DanmakuCount: v.DanmakuCount, LikeCount: v.LikeCount,
 		CoinCount: v.CoinCount, FavoriteCount: v.FavoriteCount, ShareCount: v.ShareCount,
 		CommentCount: v.CommentCount,
-		ReviewReason: v.ReviewReason,
-		CreatedAt:    v.CreatedAt, UpdatedAt: v.UpdatedAt,
+		ReviewReason: v.ReviewReason, FailureReason: v.FailureReason,
+		CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt,
 		Tags: append([]string(nil), v.Tags...),
 	}
 	if v.PublishTime != nil {

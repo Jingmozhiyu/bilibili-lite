@@ -108,6 +108,7 @@ type Video struct {
 	SubmittedAt     time.Time
 	ReviewedAt      time.Time
 	ReviewReason    string
+	FailureReason   string
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 	Tags            []string

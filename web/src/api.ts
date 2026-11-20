@@ -152,8 +152,10 @@ export function normalizeVideoDetail(value: unknown): VideoDetail {
     ownerId: toNumber(readMetric(record, 'ownerId', 'owner_id')),
     status: normalizeVideoStatus(record.status),
     reviewReason: readString(record, 'reviewReason', 'review_reason'),
+    failureReason: readString(record, 'failureReason', 'failure_reason'),
     submittedAt: readTimestamp(record, 'submittedAt', 'submitted_at'),
     reviewedAt: readTimestamp(record, 'reviewedAt', 'reviewed_at'),
+    updatedAt: readTimestamp(record, 'updatedAt', 'updated_at'),
   }
 }
 

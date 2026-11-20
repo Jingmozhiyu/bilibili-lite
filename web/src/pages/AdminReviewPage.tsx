@@ -7,12 +7,32 @@ import { useAuth } from '../auth/useAuth'
 import type { AuthSession, VideoDetail, VideoPlay } from '../types'
 import { formatDate, formatDuration } from '../utils/format'
 
-type AdminVideoView = 'pending_review' | 'rejected'
+type AdminVideoView = 'pending_review' | 'rejected' | 'failed'
+
+const adminViews: Record<AdminVideoView, { tab: string; unit: string; intro: string; loadError: string; emptyTitle: string; emptyHint: string }> = {
+  pending_review: {
+    tab: '待审核', unit: '待审', intro: '播放投稿内容，确认后公开或填写驳回原因。', loadError: '审核队列加载失败',
+    emptyTitle: '待审队列为空', emptyHint: '新投稿提交审核后会出现在这里。',
+  },
+  rejected: {
+    tab: '已下架', unit: '已下架', intro: '复核已下架内容，必要时永久清理本地媒体文件。', loadError: '已下架视频加载失败',
+    emptyTitle: '没有已下架视频', emptyHint: '仅下架但仍保留媒体的视频会出现在这里。',
+  },
+  failed: {
+    tab: '转码失败', unit: '失败', intro: '查看处理失败的上传及原因，临时文件已自动清理。', loadError: '转码失败列表加载失败',
+    emptyTitle: '没有转码失败的视频', emptyHint: '探测、转码或发布失败的上传会出现在这里。',
+  },
+}
+
+function parseAdminView(value: string | null): AdminVideoView {
+  return value === 'rejected' || value === 'failed' ? value : 'pending_review'
+}
 
 export function AdminReviewPage() {
   const { session, restoring, setSession } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
-  const view: AdminVideoView = searchParams.get('status') === 'rejected' ? 'rejected' : 'pending_review'
+  const view = parseAdminView(searchParams.get('status'))
+  const copy = adminViews[view]
   const [videos, setVideos] = useState<VideoDetail[]>([])
   const [nextPageToken, setNextPageToken] = useState('')
   const [loading, setLoading] = useState(true)
@@ -29,7 +49,7 @@ export function AdminReviewPage() {
       setVideos(result.videos)
       setNextPageToken(result.nextPageToken)
     }).catch((loadError) => {
-      if (active) setError(toErrorMessage(loadError, view === 'rejected' ? '已下架视频加载失败' : '审核队列加载失败'))
+      if (active) setError(toErrorMessage(loadError, adminViews[view].loadError))
     }).finally(() => {
       if (active) setLoading(false)
     })
@@ -54,7 +74,7 @@ export function AdminReviewPage() {
     setError('')
     setVideos([])
     setNextPageToken('')
-    setSearchParams(nextView === 'rejected' ? { status: 'rejected' } : {})
+    setSearchParams(nextView === 'pending_review' ? {} : { status: nextView })
   }
 
   if (restoring) {
@@ -72,29 +92,33 @@ export function AdminReviewPage() {
       <header className="admin-heading">
         <div>
           <h1>内容管理</h1>
-          <p>{view === 'rejected' ? '复核已下架内容，必要时永久清理本地媒体文件。' : '播放投稿内容，确认后公开或填写驳回原因。'}</p>
+          <p>{copy.intro}</p>
         </div>
         <div className="admin-heading-meta">
           <span><ShieldCheck size={15} />{session.user.displayName}</span>
-          <strong>{videos.length} 条{view === 'rejected' ? '已下架' : '待审'}</strong>
+          <strong>{videos.length} 条{copy.unit}</strong>
         </div>
       </header>
       <nav className="admin-status-tabs" aria-label="内容状态">
-        <button type="button" className={view === 'pending_review' ? 'active' : ''} onClick={() => selectView('pending_review')}>待审核</button>
-        <button type="button" className={view === 'rejected' ? 'active' : ''} onClick={() => selectView('rejected')}>已下架</button>
+        {(Object.keys(adminViews) as AdminVideoView[]).map((key) => (
+          <button key={key} type="button" className={view === key ? 'active' : ''} onClick={() => selectView(key)}>{adminViews[key].tab}</button>
+        ))}
       </nav>
       {error && <p className="inline-error" role="status">{error}</p>}
       {videos.length === 0 ? (
         <div className="admin-empty">
           <ShieldCheck size={34} />
-          <h2>{view === 'rejected' ? '没有已下架视频' : '待审队列为空'}</h2>
-          <p>{view === 'rejected' ? '仅下架但仍保留媒体的视频会出现在这里。' : '新投稿提交审核后会出现在这里。'}</p>
+          <h2>{copy.emptyTitle}</h2>
+          <p>{copy.emptyHint}</p>
         </div>
       ) : (
         <div className="admin-list">
-          {videos.map((video) => view === 'rejected'
-            ? <RejectedItem key={video.bvid} video={video} onDeleted={() => setVideos((current) => current.filter((item) => item.bvid !== video.bvid))} />
-            : <ReviewItem key={video.bvid} video={video} onResolved={() => setVideos((current) => current.filter((item) => item.bvid !== video.bvid))} />)}
+          {videos.map((video) => {
+            const remove = () => setVideos((current) => current.filter((item) => item.bvid !== video.bvid))
+            if (view === 'failed') return <FailedItem key={video.bvid} video={video} />
+            if (view === 'rejected') return <RejectedItem key={video.bvid} video={video} onDeleted={remove} />
+            return <ReviewItem key={video.bvid} video={video} onResolved={remove} />
+          })}
         </div>
       )}
       {nextPageToken && <button className="load-more-button" type="button" onClick={() => void loadMore()}>加载更多</button>}
@@ -283,6 +307,23 @@ function RejectedItem({ video, onDeleted }: { video: VideoDetail; onDeleted: () 
           </button>
         </div>
         {error && <p className="inline-error"><CircleAlert size={15} />{error}</p>}
+      </div>
+    </article>
+  )
+}
+
+function FailedItem({ video }: { video: VideoDetail }) {
+  return (
+    <article className="admin-review-item">
+      <div className="review-cover review-cover-failed"><span><CircleAlert size={24} /></span></div>
+      <div className="review-copy">
+        <div className="review-title-row">
+          <div>
+            <h2>{video.title || '未填写标题'}</h2>
+            <p>{video.bvid} · {video.ownerName} · 失败于 {formatDate(video.updatedAt)}</p>
+          </div>
+        </div>
+        <p className="review-moderation-reason"><strong>失败原因</strong>{video.failureReason || '未记录原因'}</p>
       </div>
     </article>
   )

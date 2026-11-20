@@ -1341,6 +1341,9 @@ components:
                 reviewedAt:
                     type: string
                     format: date-time
+                failureReason:
+                    type: string
+                    description: Populated only for failed uploads; shown to administrators.
         video.v1.VideoComment:
             type: object
             properties:

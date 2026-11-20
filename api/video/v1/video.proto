@@ -244,6 +244,8 @@ message Video {
   string review_reason = 21;
   google.protobuf.Timestamp submitted_at = 22;
   google.protobuf.Timestamp reviewed_at = 23;
+  // Populated only for failed uploads; shown to administrators.
+  string failure_reason = 24;
 }
 
 message ListVideosRequest {

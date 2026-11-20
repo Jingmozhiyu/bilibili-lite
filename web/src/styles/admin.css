@@ -210,6 +210,14 @@
   background: var(--surface-2);
 }
 
+.review-cover-failed {
+  cursor: default;
+}
+
+.review-cover-failed > span {
+  color: var(--text-muted);
+}
+
 .review-cover img {
   width: 100%;
   height: 100%;

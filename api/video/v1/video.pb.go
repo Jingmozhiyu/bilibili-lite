@@ -171,8 +171,10 @@ type Video struct {
 	ReviewReason    string                 `protobuf:"bytes,21,opt,name=review_reason,json=reviewReason,proto3" json:"review_reason,omitempty"`
 	SubmittedAt     *timestamppb.Timestamp `protobuf:"bytes,22,opt,name=submitted_at,json=submittedAt,proto3" json:"submitted_at,omitempty"`
 	ReviewedAt      *timestamppb.Timestamp `protobuf:"bytes,23,opt,name=reviewed_at,json=reviewedAt,proto3" json:"reviewed_at,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Populated only for failed uploads; shown to administrators.
+	FailureReason string `protobuf:"bytes,24,opt,name=failure_reason,json=failureReason,proto3" json:"failure_reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Video) Reset() {
@@ -364,6 +366,13 @@ func (x *Video) GetReviewedAt() *timestamppb.Timestamp {
 		return x.ReviewedAt
 	}
 	return nil
+}
+
+func (x *Video) GetFailureReason() string {
+	if x != nil {
+		return x.FailureReason
+	}
+	return ""
 }
 
 type ListVideosRequest struct {
@@ -3530,7 +3539,7 @@ var File_video_v1_video_proto protoreflect.FileDescriptor
 
 const file_video_v1_video_proto_rawDesc = "" +
 	"\n" +
-	"\x14video/v1/video.proto\x12\bvideo.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x87\a\n" +
+	"\x14video/v1/video.proto\x12\bvideo.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xae\a\n" +
 	"\x05Video\x12\x12\n" +
 	"\x04bvid\x18\x01 \x01(\tR\x04bvid\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12 \n" +
@@ -3563,7 +3572,8 @@ const file_video_v1_video_proto_rawDesc = "" +
 	"\rreview_reason\x18\x15 \x01(\tR\freviewReason\x12=\n" +
 	"\fsubmitted_at\x18\x16 \x01(\v2\x1a.google.protobuf.TimestampR\vsubmittedAt\x12;\n" +
 	"\vreviewed_at\x18\x17 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"reviewedAt\"O\n" +
+	"reviewedAt\x12%\n" +
+	"\x0efailure_reason\x18\x18 \x01(\tR\rfailureReason\"O\n" +
 	"\x11ListVideosRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +

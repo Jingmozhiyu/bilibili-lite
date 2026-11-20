@@ -86,3 +86,24 @@ func TestBuildRenditionsDoesNotUpscale(t *testing.T) {
 		})
 	}
 }
+
+func TestMetadataFromProbeSkipsCoverArt(t *testing.T) {
+	video := probeStream{CodecType: "video", CodecName: "h264", Width: 1280, Height: 720}
+	cover := probeStream{CodecType: "video", CodecName: "mjpeg", Width: 960, Height: 540, Disposition: probeDisposition{AttachedPic: 1}}
+	audio := probeStream{CodecType: "audio", CodecName: "aac"}
+	for name, streams := range map[string][]probeStream{
+		"cover after video":  {video, audio, cover},
+		"cover before video": {cover, video, audio},
+	} {
+		metadata, err := metadataFromProbe(&probeOutput{Streams: streams})
+		if err != nil {
+			t.Fatalf("%s: metadataFromProbe() error = %v", name, err)
+		}
+		if metadata.VideoCodec != "h264" || metadata.Height != 720 {
+			t.Fatalf("%s: metadataFromProbe() picked %s %dp", name, metadata.VideoCodec, metadata.Height)
+		}
+	}
+	if _, err := metadataFromProbe(&probeOutput{Streams: []probeStream{cover, audio}}); err == nil {
+		t.Fatal("metadataFromProbe() accepted a file whose only video stream is cover art")
+	}
+}

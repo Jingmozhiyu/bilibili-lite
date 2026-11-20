@@ -554,6 +554,7 @@ func convertVideoReply(in *biz.Video) *v1.Video {
 		ReviewReason:    in.ReviewReason,
 		SubmittedAt:     timestampOrNil(in.SubmittedAt),
 		ReviewedAt:      timestampOrNil(in.ReviewedAt),
+		FailureReason:   in.FailureReason,
 	}
 }
 
