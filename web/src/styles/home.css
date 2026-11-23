@@ -109,17 +109,23 @@
 }
 
 .home-showcase {
+  --showcase-gap: 18px;
+  --recommend-column-gap: 14px;
+  --recommend-row-gap: 18px;
+  --recommend-text-height: 83px;
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-  gap: 18px;
+  gap: var(--showcase-gap);
   align-items: start;
   container-type: inline-size;
 }
 
 .carousel-root {
+  /* Span two recommend rows: the carousel bottom lines up with the second row's cover bottom. */
+  --recommend-cover-height: calc(((100cqw - var(--showcase-gap)) * 3 / 5 - 2 * var(--recommend-column-gap)) / 3 * 214 / 380);
   position: relative;
   min-width: 0;
-  aspect-ratio: 780 / 531;
+  height: calc(2 * var(--recommend-cover-height) + var(--recommend-text-height) + var(--recommend-row-gap));
   overflow: hidden;
   contain: layout paint;
   color: #fff;
@@ -224,7 +230,7 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-rows: repeat(2, auto);
-  gap: 18px 14px;
+  gap: var(--recommend-row-gap) var(--recommend-column-gap);
   align-content: start;
   min-width: 0;
 }
@@ -232,7 +238,7 @@
 .recommend-grid .video-card {
   display: grid;
   min-height: 0;
-  grid-template-rows: auto 83px;
+  grid-template-rows: auto var(--recommend-text-height);
 }
 
 .recommend-grid .video-cover,
@@ -473,7 +479,7 @@
   .channel-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
   .channel-grid button:nth-child(n + 17) { display: none; }
   .home-showcase { grid-template-columns: 1fr; grid-template-rows: auto auto; height: auto; }
-  .carousel-root { aspect-ratio: 780 / 531; }
+  .carousel-root { height: auto; aspect-ratio: 780 / 531; }
   .recommend-grid { grid-template-rows: repeat(2, auto); }
   .video-grid,
   .home-feed-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
